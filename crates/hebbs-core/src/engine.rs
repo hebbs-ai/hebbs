@@ -42,6 +42,12 @@ use crate::subscribe::{
 /// never happen thanks to append-only schema evolution).
 pub const SCHEMA_VERSION: u32 = 1;
 
+/// Over-fetch multiplier for HNSW searches when entity_id filtering
+/// is active. The global HNSW index does not partition by entity, so
+/// we fetch `top_k * ENTITY_OVERSAMPLE` candidates, post-filter by
+/// entity, and truncate to the requested `top_k`.
+const ENTITY_OVERSAMPLE: usize = 4;
+
 /// Input for the `remember()` operation.
 ///
 /// Separating input from the stored `Memory` struct keeps the public
@@ -874,16 +880,23 @@ impl Engine {
         let mut similarity_memories: Vec<(Memory, f32)> = Vec::new();
 
         if !similarity_cue.is_empty() {
+            let fetch_limit = similarity_limit.saturating_mul(ENTITY_OVERSAMPLE).max(similarity_limit);
             if let Ok(cue_embedding) = self.embedder.embed(&similarity_cue) {
                 if let Ok(search_results) =
                     self.index_manager
-                        .search_vector(&cue_embedding, similarity_limit, None)
+                        .search_vector(&cue_embedding, fetch_limit, None)
                 {
                     for (memory_id, distance) in &search_results {
                         match Self::get_from_storage(&*storage, memory_id) {
                             Ok(mem) => {
+                                if mem.entity_id.as_deref() != Some(&input.entity_id) {
+                                    continue;
+                                }
                                 let relevance = (1.0 - distance).max(0.0);
                                 similarity_memories.push((mem, relevance));
+                                if similarity_memories.len() >= similarity_limit {
+                                    break;
+                                }
                             }
                             Err(HebbsError::MemoryNotFound { .. }) => continue,
                             Err(e) => return Err(e),
@@ -1933,7 +1946,9 @@ impl Engine {
     ) -> StrategyOutcome {
         match strategy {
             RecallStrategy::Similarity => {
-                self.execute_similarity(storage, ctx.cue_embedding, ctx.top_k, ctx.ef_search)
+                self.execute_similarity(
+                    storage, ctx.cue_embedding, ctx.top_k, ctx.ef_search, ctx.entity_id,
+                )
             }
             RecallStrategy::Temporal => {
                 self.execute_temporal(storage, ctx.entity_id, ctx.time_range, ctx.top_k)
@@ -1947,6 +1962,7 @@ impl Engine {
                 ctx.top_k,
                 ctx.tenant_id,
                 &ctx.causal_direction,
+                ctx.entity_id,
             ),
             RecallStrategy::Analogical => self.execute_analogical(
                 storage,
@@ -1957,6 +1973,7 @@ impl Engine {
                 ctx.tenant_id,
                 ctx.analogy_a_id,
                 ctx.analogy_b_id,
+                ctx.entity_id,
             ),
         }
     }
@@ -1989,13 +2006,18 @@ impl Engine {
 
     /// Similarity strategy: embed cue, HNSW top-K, rank by distance.
     ///
-    /// Complexity: O(log n * ef_search) + O(k * point_lookup).
+    /// When `entity_id` is `Some`, over-fetches from HNSW by
+    /// [`ENTITY_OVERSAMPLE`] and post-filters by entity to enforce
+    /// tenant isolation (the HNSW index is global).
+    ///
+    /// Complexity: O(log n * ef_search) + O(k * ENTITY_OVERSAMPLE * point_lookup).
     fn execute_similarity(
         &self,
         storage: &dyn StorageBackend,
         cue_embedding: Option<&[f32]>,
         top_k: usize,
         ef_search: Option<usize>,
+        entity_id: Option<&str>,
     ) -> StrategyOutcome {
         let embedding = match cue_embedding {
             Some(e) => e,
@@ -2008,9 +2030,15 @@ impl Engine {
             }
         };
 
+        let fetch_k = if entity_id.is_some() {
+            top_k.saturating_mul(ENTITY_OVERSAMPLE).max(top_k)
+        } else {
+            top_k
+        };
+
         let search_results = match self
             .index_manager
-            .search_vector(embedding, top_k, ef_search)
+            .search_vector(embedding, fetch_k, ef_search)
         {
             Ok(r) => r,
             Err(e) => {
@@ -2021,10 +2049,15 @@ impl Engine {
             }
         };
 
-        let mut results = Vec::with_capacity(search_results.len());
+        let mut results = Vec::with_capacity(top_k.min(search_results.len()));
         for (memory_id, distance) in search_results {
             match Self::get_from_storage(storage, &memory_id) {
                 Ok(mem) => {
+                    if let Some(eid) = entity_id {
+                        if mem.entity_id.as_deref() != Some(eid) {
+                            continue;
+                        }
+                    }
                     let relevance = (1.0 - distance).max(0.0);
                     results.push(StrategyResult {
                         memory: mem,
@@ -2034,6 +2067,9 @@ impl Engine {
                             relevance,
                         },
                     });
+                    if results.len() >= top_k {
+                        break;
+                    }
                 }
                 Err(HebbsError::MemoryNotFound { .. }) => continue,
                 Err(_) => continue,
@@ -2115,6 +2151,9 @@ impl Engine {
     /// - If the cue looks like a hex-encoded memory_id (32 hex chars), use it directly.
     /// - Otherwise, use the cue embedding to find the closest memory as seed.
     ///
+    /// When `entity_id` is `Some`, the seed must belong to the target
+    /// entity and traversal results are post-filtered by entity.
+    ///
     /// Complexity: O(embed or point_lookup) + O(branching_factor^max_depth) + O(k * point_lookup).
     fn execute_causal(
         &self,
@@ -2126,33 +2165,50 @@ impl Engine {
         top_k: usize,
         tenant_id: &str,
         direction: &CausalDirection,
+        entity_id: Option<&str>,
     ) -> StrategyOutcome {
         let seed_id = if cue.len() == 32 && cue.chars().all(|c| c.is_ascii_hexdigit()) {
             match hex::decode(cue) {
                 Ok(bytes) if bytes.len() == 16 => {
                     let mut id = [0u8; 16];
                     id.copy_from_slice(&bytes);
-                    if Self::get_from_storage(storage, &id).is_err() {
-                        return StrategyOutcome::Err(
-                            RecallStrategy::Causal,
-                            format!("causal recall seed memory not found: {}", cue),
-                        );
+                    match Self::get_from_storage(storage, &id) {
+                        Ok(mem) => {
+                            if let Some(eid) = entity_id {
+                                if mem.entity_id.as_deref() != Some(eid) {
+                                    return StrategyOutcome::Err(
+                                        RecallStrategy::Causal,
+                                        format!("causal seed memory belongs to a different entity: {}", cue),
+                                    );
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            return StrategyOutcome::Err(
+                                RecallStrategy::Causal,
+                                format!("causal recall seed memory not found: {}", cue),
+                            );
+                        }
                     }
                     id
                 }
                 _ => {
                     return self.causal_by_embedding(
                         storage, cue_embedding, edge_types, max_depth, top_k, tenant_id, direction,
+                        entity_id,
                     );
                 }
             }
         } else {
             return self.causal_by_embedding(
                 storage, cue_embedding, edge_types, max_depth, top_k, tenant_id, direction,
+                entity_id,
             );
         };
 
-        self.causal_from_seed(storage, seed_id, edge_types, max_depth, top_k, tenant_id, direction)
+        self.causal_from_seed(
+            storage, seed_id, edge_types, max_depth, top_k, tenant_id, direction, entity_id,
+        )
     }
 
     fn causal_by_embedding(
@@ -2164,6 +2220,7 @@ impl Engine {
         top_k: usize,
         tenant_id: &str,
         direction: &CausalDirection,
+        entity_id: Option<&str>,
     ) -> StrategyOutcome {
         let embedding = match cue_embedding {
             Some(e) => e,
@@ -2176,8 +2233,9 @@ impl Engine {
             }
         };
 
-        let closest = match self.index_manager.search_vector(embedding, 1, None) {
-            Ok(r) if !r.is_empty() => r[0].0,
+        let fetch_k = if entity_id.is_some() { ENTITY_OVERSAMPLE } else { 1 };
+        let candidates = match self.index_manager.search_vector(embedding, fetch_k, None) {
+            Ok(r) if !r.is_empty() => r,
             Ok(_) => {
                 return StrategyOutcome::Ok(Vec::new());
             }
@@ -2189,7 +2247,22 @@ impl Engine {
             }
         };
 
-        self.causal_from_seed(storage, closest, edge_types, max_depth, top_k, tenant_id, direction)
+        // Find the first seed that matches the entity filter
+        for (candidate_id, _) in &candidates {
+            if let Some(eid) = entity_id {
+                match Self::get_from_storage(storage, candidate_id) {
+                    Ok(mem) if mem.entity_id.as_deref() == Some(eid) => {}
+                    Ok(_) => continue,
+                    Err(_) => continue,
+                }
+            }
+            return self.causal_from_seed(
+                storage, *candidate_id, edge_types, max_depth, top_k, tenant_id, direction,
+                entity_id,
+            );
+        }
+
+        StrategyOutcome::Ok(Vec::new())
     }
 
     fn causal_from_seed(
@@ -2201,6 +2274,7 @@ impl Engine {
         top_k: usize,
         tenant_id: &str,
         direction: &CausalDirection,
+        entity_id: Option<&str>,
     ) -> StrategyOutcome {
         let default_edge_types = vec![
             EdgeType::CausedBy,
@@ -2211,7 +2285,6 @@ impl Engine {
         ];
         let types = edge_types.unwrap_or(&default_edge_types);
 
-        // Load the seed memory's associative embedding
         let seed_mem = match Self::get_from_storage(storage, &seed_id) {
             Ok(m) => m,
             Err(e) => {
@@ -2232,7 +2305,6 @@ impl Engine {
         let mut results: Vec<StrategyResult> = Vec::new();
 
         if seed_assoc.is_empty() {
-            // No associative embedding: fall back to graph traversal
             let (traversal_entries, _truncated) = match self
                 .index_manager
                 .traverse(&seed_id, types, max_depth, top_k)
@@ -2249,6 +2321,11 @@ impl Engine {
             for entry in &traversal_entries {
                 match Self::get_from_storage(storage, &entry.memory_id) {
                     Ok(mem) => {
+                        if let Some(eid) = entity_id {
+                            if mem.entity_id.as_deref() != Some(eid) {
+                                continue;
+                            }
+                        }
                         let relevance = if max_depth_f32 > 0.0 {
                             (1.0 - (entry.depth as f32 / max_depth_f32)).max(0.0)
                         } else {
@@ -2272,7 +2349,6 @@ impl Engine {
             return StrategyOutcome::Ok(results);
         }
 
-        // Assoc-HNSW based traversal — bidirectional by direction
         for &etype in types {
             let fwd_hits: Vec<([u8; 16], f32)> = match direction {
                 CausalDirection::Backward => vec![],
@@ -2298,6 +2374,11 @@ impl Engine {
                 seen.insert(mem_id);
                 match Self::get_from_storage(storage, &mem_id) {
                     Ok(mem) => {
+                        if let Some(eid) = entity_id {
+                            if mem.entity_id.as_deref() != Some(eid) {
+                                continue;
+                            }
+                        }
                         let relevance = (1.0 - distance).max(0.0);
                         results.push(StrategyResult {
                             memory: mem,
@@ -2324,6 +2405,10 @@ impl Engine {
 
     /// Analogical strategy: wider HNSW search + structural similarity re-ranking.
     ///
+    /// When `entity_id` is `Some`, results are post-filtered by entity.
+    /// When `None`, cross-entity search is allowed (the intentional
+    /// use-case for analogical reasoning across domains).
+    ///
     /// Complexity: O(log n * 2 * ef_search) + O(candidates * structural_compare).
     fn execute_analogical(
         &self,
@@ -2335,8 +2420,8 @@ impl Engine {
         tenant_id: &str,
         analogy_a_id: Option<[u8; 16]>,
         analogy_b_id: Option<[u8; 16]>,
+        entity_id: Option<&str>,
     ) -> StrategyOutcome {
-        // Vector arithmetic analogy: A:B::C:? when all three assoc embeddings are available
         if let (Some(a_id), Some(b_id)) = (analogy_a_id, analogy_b_id) {
             let a_mem = Self::get_from_storage(storage, &a_id);
             let b_mem = Self::get_from_storage(storage, &b_id);
@@ -2349,16 +2434,26 @@ impl Engine {
                     .unwrap_or(&[]);
                 let c_assoc = cue_embedding.unwrap_or(&[]);
                 if !a_assoc.is_empty() && !b_assoc.is_empty() && !c_assoc.is_empty() {
+                    let fetch_k = if entity_id.is_some() {
+                        top_k.saturating_mul(ENTITY_OVERSAMPLE).max(top_k)
+                    } else {
+                        top_k
+                    };
                     let ef = ef_search.map(|e| e * 2).or(Some(200));
                     let hits = self.index_manager.assoc_index.search_analogy(
-                        tenant_id, a_assoc, b_assoc, c_assoc, top_k, ef,
+                        tenant_id, a_assoc, b_assoc, c_assoc, fetch_k, ef,
                     );
                     match hits {
                         Ok(search_results) => {
-                            let mut scored: Vec<StrategyResult> = Vec::with_capacity(search_results.len());
+                            let mut scored: Vec<StrategyResult> = Vec::with_capacity(top_k.min(search_results.len()));
                             for (memory_id, distance) in &search_results {
                                 match Self::get_from_storage(storage, memory_id) {
                                     Ok(mem) => {
+                                        if let Some(eid) = entity_id {
+                                            if mem.entity_id.as_deref() != Some(eid) {
+                                                continue;
+                                            }
+                                        }
                                         let relevance = (1.0 - distance).max(0.0);
                                         scored.push(StrategyResult {
                                             memory: mem,
@@ -2392,7 +2487,6 @@ impl Engine {
             }
         }
 
-        // Fallback: wider HNSW + structural similarity re-ranking
         let embedding = match cue_embedding {
             Some(e) => e,
             None => {
@@ -2405,7 +2499,12 @@ impl Engine {
         };
 
         let wider_ef = ef_search.map(|e| e * 2).or(Some(200));
-        let candidate_count = (top_k * 3).max(30);
+        let base_candidate_count = (top_k * 3).max(30);
+        let candidate_count = if entity_id.is_some() {
+            base_candidate_count.saturating_mul(ENTITY_OVERSAMPLE)
+        } else {
+            base_candidate_count
+        };
 
         let search_results =
             match self
@@ -2428,6 +2527,11 @@ impl Engine {
         for (memory_id, distance) in &search_results {
             match Self::get_from_storage(storage, memory_id) {
                 Ok(mem) => {
+                    if let Some(eid) = entity_id {
+                        if mem.entity_id.as_deref() != Some(eid) {
+                            continue;
+                        }
+                    }
                     let embedding_similarity = (1.0 - distance).max(0.0);
                     let structural_similarity =
                         compute_structural_similarity(&cue_ctx, &mem, &analogical_weights);
@@ -2450,7 +2554,6 @@ impl Engine {
             }
         }
 
-        // Re-rank by analogical relevance and truncate
         scored_candidates.sort_by(|a, b| {
             b.relevance
                 .partial_cmp(&a.relevance)
@@ -4682,6 +4785,166 @@ mod tests {
             assert_ne!(
                 result.memory.memory_id, forgotten_id,
                 "forgotten memory should not appear in recall"
+            );
+        }
+    }
+
+    // --- Entity isolation ---
+
+    #[test]
+    fn recall_similarity_isolates_entities() {
+        let engine = test_engine_with_larger_hnsw();
+        for i in 0..15 {
+            engine
+                .remember(entity_input(&format!("alpha memory {}", i), "alpha"))
+                .unwrap();
+        }
+        for i in 0..15 {
+            engine
+                .remember(entity_input(&format!("beta memory {}", i), "beta"))
+                .unwrap();
+        }
+
+        let mut input = RecallInput::new("alpha memory", RecallStrategy::Similarity);
+        input.entity_id = Some("alpha".to_string());
+        input.top_k = Some(10);
+        let output = engine.recall(input).unwrap();
+
+        for result in &output.results {
+            assert_eq!(
+                result.memory.entity_id.as_deref(),
+                Some("alpha"),
+                "similarity recall leaked a memory from another entity: {:?}",
+                result.memory.content
+            );
+        }
+    }
+
+    #[test]
+    fn recall_causal_isolates_entities() {
+        let engine = test_engine_with_larger_hnsw();
+
+        let alpha = engine
+            .remember(entity_input("alpha cause", "alpha"))
+            .unwrap();
+        let beta = engine
+            .remember(entity_input("beta effect", "beta"))
+            .unwrap();
+
+        let mut alpha_target = [0u8; 16];
+        alpha_target.copy_from_slice(&alpha.memory_id);
+        let mut beta_target = [0u8; 16];
+        beta_target.copy_from_slice(&beta.memory_id);
+
+        engine
+            .remember(RememberInput {
+                content: "alpha effect connected".to_string(),
+                importance: None,
+                context: None,
+                entity_id: Some("alpha".to_string()),
+                edges: vec![RememberEdge {
+                    target_id: alpha_target,
+                    edge_type: EdgeType::CausedBy,
+                    confidence: None,
+                }],
+            })
+            .unwrap();
+
+        engine
+            .remember(RememberInput {
+                content: "beta cause connected".to_string(),
+                importance: None,
+                context: None,
+                entity_id: Some("beta".to_string()),
+                edges: vec![RememberEdge {
+                    target_id: beta_target,
+                    edge_type: EdgeType::CausedBy,
+                    confidence: None,
+                }],
+            })
+            .unwrap();
+
+        let cue_hex = hex::encode(&alpha.memory_id);
+        let mut input = RecallInput::new(&cue_hex, RecallStrategy::Causal);
+        input.entity_id = Some("alpha".to_string());
+        input.top_k = Some(10);
+        let output = engine.recall(input).unwrap();
+
+        for result in &output.results {
+            assert_eq!(
+                result.memory.entity_id.as_deref(),
+                Some("alpha"),
+                "causal recall leaked a memory from another entity: {:?}",
+                result.memory.content
+            );
+        }
+    }
+
+    #[test]
+    fn recall_analogical_isolates_entities() {
+        let engine = test_engine_with_larger_hnsw();
+        for i in 0..15 {
+            engine
+                .remember(entity_input(
+                    &format!("gamma pattern data {}", i),
+                    "gamma",
+                ))
+                .unwrap();
+        }
+        for i in 0..15 {
+            engine
+                .remember(entity_input(
+                    &format!("delta pattern data {}", i),
+                    "delta",
+                ))
+                .unwrap();
+        }
+
+        let mut input = RecallInput::new("gamma pattern", RecallStrategy::Analogical);
+        input.entity_id = Some("gamma".to_string());
+        input.top_k = Some(10);
+        let output = engine.recall(input).unwrap();
+
+        for result in &output.results {
+            assert_eq!(
+                result.memory.entity_id.as_deref(),
+                Some("gamma"),
+                "analogical recall leaked a memory from another entity: {:?}",
+                result.memory.content
+            );
+        }
+    }
+
+    #[test]
+    fn prime_isolates_entities() {
+        let engine = test_engine_with_larger_hnsw();
+        for i in 0..15 {
+            engine
+                .remember(entity_input(
+                    &format!("epsilon memory for priming {}", i),
+                    "epsilon",
+                ))
+                .unwrap();
+        }
+        for i in 0..15 {
+            engine
+                .remember(entity_input(
+                    &format!("zeta memory for priming {}", i),
+                    "zeta",
+                ))
+                .unwrap();
+        }
+
+        let output = engine
+            .prime(PrimeInput::new("epsilon"))
+            .unwrap();
+
+        for result in &output.results {
+            assert_eq!(
+                result.memory.entity_id.as_deref(),
+                Some("epsilon"),
+                "prime leaked a memory from another entity: {:?}",
+                result.memory.content
             );
         }
     }

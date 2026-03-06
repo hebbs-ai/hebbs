@@ -11,6 +11,7 @@ use hebbs_core::engine::Engine;
 use hebbs_core::rate_limit::RateLimiter;
 use hebbs_core::reflect::ReflectConfig;
 use hebbs_embed::MockEmbedder;
+use hebbs_reflect::{LlmProviderConfig, ProviderType};
 use hebbs_proto::generated::{
     health_service_server::HealthServiceServer, memory_service_server::MemoryServiceServer,
     reflect_service_server::ReflectServiceServer, subscribe_service_server::SubscribeServiceServer,
@@ -96,11 +97,49 @@ pub async fn run(config: HebbsConfig) -> Result<(), Box<dyn std::error::Error>> 
     let subscribe_svc =
         SubscribeServiceImpl::new(engine.clone(), metrics.clone(), auth_state.clone());
 
-    let reflect_config = ReflectConfig::default();
+    let proposal_provider_config = build_llm_provider_config(
+        &config.reflect.proposal_provider,
+        &config.reflect.proposal_model,
+    );
+    let validation_provider_config = build_llm_provider_config(
+        &config.reflect.validation_provider,
+        &config.reflect.validation_model,
+    );
+    if proposal_provider_config.provider_type != ProviderType::Mock {
+        info!(
+            provider = %config.reflect.proposal_provider,
+            model = %config.reflect.proposal_model,
+            "reflect proposal LLM configured"
+        );
+    }
+    let reflect_config = ReflectConfig {
+        max_memories_per_reflect: config.reflect.max_memories_per_reflect,
+        min_memories_for_reflect: config.reflect.min_memories_for_reflect,
+        threshold_trigger_count: config.reflect.threshold_trigger_count,
+        schedule_trigger_interval_us: config.reflect.schedule_trigger_interval_secs
+            .saturating_mul(1_000_000),
+        trigger_check_interval_us: config.reflect.trigger_check_interval_secs
+            .saturating_mul(1_000_000),
+        enabled: config.reflect.enabled,
+        proposal_provider_config,
+        validation_provider_config,
+        ..ReflectConfig::default()
+    }
+    .validated();
+    let proposal_provider = Arc::from(
+        hebbs_reflect::create_provider(&reflect_config.proposal_provider_config)
+            .expect("failed to create reflect proposal LLM provider"),
+    );
+    let validation_provider = Arc::from(
+        hebbs_reflect::create_provider(&reflect_config.validation_provider_config)
+            .expect("failed to create reflect validation LLM provider"),
+    );
     let reflect_svc = ReflectServiceImpl {
         engine: engine.clone(),
         metrics: metrics.clone(),
         reflect_config,
+        proposal_provider,
+        validation_provider,
         auth_state: auth_state.clone(),
     };
 
@@ -207,4 +246,22 @@ async fn shutdown_signal() {
     }
 
     info!("shutdown signal received");
+}
+
+fn build_llm_provider_config(provider_name: &str, model: &str) -> LlmProviderConfig {
+    let provider_type = ProviderType::from_name(provider_name);
+    let api_key = match provider_type {
+        ProviderType::OpenAi => std::env::var("OPENAI_API_KEY").ok(),
+        ProviderType::Anthropic => std::env::var("ANTHROPIC_API_KEY").ok(),
+        _ => None,
+    };
+    LlmProviderConfig {
+        provider_type,
+        api_key,
+        base_url: None,
+        model: model.to_string(),
+        timeout_secs: 120,
+        max_retries: 2,
+        retry_backoff_ms: 1000,
+    }
 }

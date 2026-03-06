@@ -51,7 +51,7 @@ impl Default for ReflectConfig {
     fn default() -> Self {
         Self {
             max_memories_per_reflect: 500,
-            min_memories_for_reflect: 10,
+            min_memories_for_reflect: 5,
             min_cluster_size: 3,
             max_clusters: 50,
             clustering_seed: 42,
@@ -317,6 +317,11 @@ pub(crate) fn run_reflect_shared(
     let mut ulid_gen = Generator::new();
     let mut insights_created = 0;
 
+    let scope_entity_id = match scope {
+        ReflectScope::Entity { entity_id, .. } => Some(entity_id.clone()),
+        ReflectScope::Global { .. } => None,
+    };
+
     for produced in &output.insights {
         match store_insight(
             storage,
@@ -325,6 +330,7 @@ pub(crate) fn run_reflect_shared(
             subscribe_registry,
             &mut ulid_gen,
             produced,
+            scope_entity_id.as_deref(),
         ) {
             Ok(_) => insights_created += 1,
             Err(_) => continue,
@@ -466,6 +472,7 @@ fn store_insight(
     subscribe_registry: &Arc<SubscriptionRegistry>,
     ulid_gen: &mut Generator,
     produced: &hebbs_reflect::ProducedInsight,
+    scope_entity_id: Option<&str>,
 ) -> Result<Memory> {
     let embedding = embedder.embed(&produced.content)?;
 
@@ -501,7 +508,7 @@ fn store_insight(
             message: format!("failed to serialize insight context: {e}"),
         })?;
 
-    let entity_id = None;
+    let entity_id = scope_entity_id.map(|s| s.to_string());
 
     let memory = Memory {
         memory_id: memory_id.to_vec(),

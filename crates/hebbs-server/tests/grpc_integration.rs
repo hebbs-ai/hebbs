@@ -639,10 +639,19 @@ async fn grpc_health_reflects_memory_count() {
 async fn grpc_insights_empty() {
     let engine = test_engine();
     let metrics = Arc::new(HebbsMetrics::new());
+    let config = hebbs_core::reflect::ReflectConfig::default();
+    let proposal = Arc::from(
+        hebbs_reflect::create_provider(&config.proposal_provider_config).unwrap(),
+    );
+    let validation = Arc::from(
+        hebbs_reflect::create_provider(&config.validation_provider_config).unwrap(),
+    );
     let svc = ReflectServiceImpl {
         engine,
         metrics,
-        reflect_config: hebbs_core::reflect::ReflectConfig::default(),
+        reflect_config: config,
+        proposal_provider: proposal,
+        validation_provider: validation,
         auth_state: test_auth_state(),
     };
 

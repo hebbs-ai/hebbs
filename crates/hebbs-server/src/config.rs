@@ -127,11 +127,11 @@ impl Default for ReflectSection {
             threshold_trigger_count: 50,
             schedule_trigger_interval_secs: 86400,
             max_memories_per_reflect: 5000,
-            min_memories_for_reflect: 10,
-            proposal_provider: "mock".to_string(),
-            proposal_model: "mock".to_string(),
-            validation_provider: "mock".to_string(),
-            validation_model: "mock".to_string(),
+            min_memories_for_reflect: 5,
+            proposal_provider: "openai".to_string(),
+            proposal_model: "gpt-4o".to_string(),
+            validation_provider: "openai".to_string(),
+            validation_model: "gpt-4o".to_string(),
         }
     }
 }

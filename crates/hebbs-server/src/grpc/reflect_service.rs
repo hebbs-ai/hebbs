@@ -7,7 +7,7 @@ use hebbs_core::auth::{PERM_ADMIN, PERM_READ};
 use hebbs_core::engine::Engine;
 use hebbs_core::reflect::ReflectConfig;
 use hebbs_proto::generated as pb;
-use hebbs_reflect::MockLlmProvider;
+use hebbs_reflect::LlmProvider;
 use pb::reflect_service_server::ReflectService;
 
 use crate::convert;
@@ -18,6 +18,8 @@ pub struct ReflectServiceImpl {
     pub engine: Arc<Engine>,
     pub metrics: Arc<HebbsMetrics>,
     pub reflect_config: ReflectConfig,
+    pub proposal_provider: Arc<dyn LlmProvider>,
+    pub validation_provider: Arc<dyn LlmProvider>,
     pub auth_state: Arc<AuthState>,
 }
 
@@ -38,10 +40,11 @@ impl ReflectService for ReflectServiceImpl {
 
         let engine = self.engine.clone();
         let config = self.reflect_config.clone();
+        let proposal = self.proposal_provider.clone();
+        let validation = self.validation_provider.clone();
 
         let result = tokio::task::spawn_blocking(move || {
-            let mock = MockLlmProvider::new();
-            engine.reflect_for_tenant(&tenant, scope, &config, &mock, &mock)
+            engine.reflect_for_tenant(&tenant, scope, &config, &*proposal, &*validation)
         })
         .await
         .map_err(|e| Status::internal(format!("task join error: {}", e)))?;

@@ -56,6 +56,17 @@ pub enum ProviderType {
     Ollama,
 }
 
+impl ProviderType {
+    pub fn from_name(name: &str) -> Self {
+        match name.to_lowercase().as_str() {
+            "anthropic" | "claude" => Self::Anthropic,
+            "openai" | "gpt" => Self::OpenAi,
+            "ollama" | "local" => Self::Ollama,
+            _ => Self::Mock,
+        }
+    }
+}
+
 impl Default for LlmProviderConfig {
     fn default() -> Self {
         Self {

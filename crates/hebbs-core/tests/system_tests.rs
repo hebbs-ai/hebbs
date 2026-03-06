@@ -727,7 +727,7 @@ fn test_reflect_too_few_memories() {
     let dir = tempfile::tempdir().unwrap();
     let engine = create_engine(dir.path(), 8);
 
-    // Insert fewer than min_memories_for_reflect (default 10)
+    // Insert fewer than min_memories_for_reflect (default 5)
     remember_n(&engine, "sparse_entity", 3);
 
     let mock_llm = MockLlmProvider::new();
