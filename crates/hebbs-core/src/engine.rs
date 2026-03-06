@@ -32,10 +32,10 @@ use crate::reflect::{
     ReflectScope,
 };
 use crate::revise::{ContextMode, ReviseInput};
-use crate::tenant::TenantContext;
 use crate::subscribe::{
     create_subscription, SubscribeConfig, SubscriptionHandle, SubscriptionRegistry,
 };
+use crate::tenant::TenantContext;
 
 /// Current schema version. Written to the `meta` CF on first open.
 /// Incremented only on breaking serialization changes (which should
@@ -406,9 +406,13 @@ impl Engine {
         // Main HNSW is global — similarity isolation is enforced by TenantScopedStorage at read
         // time (cross-tenant memory IDs fail to load and are silently skipped).
         // Assoc HNSW is per-tenant — causal/analogy traversal must not leak across tenants.
-        self.index_manager.commit_insert(memory_id, embedding.clone())?;
         self.index_manager
-            .commit_assoc_insert_for_tenant(tenant.tenant_id(), memory_id, assoc_embedding.clone())?;
+            .commit_insert(memory_id, embedding.clone())?;
+        self.index_manager.commit_assoc_insert_for_tenant(
+            tenant.tenant_id(),
+            memory_id,
+            assoc_embedding.clone(),
+        )?;
 
         // Hebbian update: for each edge, learn the type offset from source to target.
         for edge in &edge_inputs {
@@ -880,7 +884,9 @@ impl Engine {
         let mut similarity_memories: Vec<(Memory, f32)> = Vec::new();
 
         if !similarity_cue.is_empty() {
-            let fetch_limit = similarity_limit.saturating_mul(ENTITY_OVERSAMPLE).max(similarity_limit);
+            let fetch_limit = similarity_limit
+                .saturating_mul(ENTITY_OVERSAMPLE)
+                .max(similarity_limit);
             if let Ok(cue_embedding) = self.embedder.embed(&similarity_cue) {
                 if let Ok(search_results) =
                     self.index_manager
@@ -1002,11 +1008,7 @@ impl Engine {
     }
 
     /// Tenant-aware version of [`revise`](Self::revise).
-    pub fn revise_for_tenant(
-        &self,
-        tenant: &TenantContext,
-        input: ReviseInput,
-    ) -> Result<Memory> {
+    pub fn revise_for_tenant(&self, tenant: &TenantContext, input: ReviseInput) -> Result<Memory> {
         let storage = self.scoped_storage(tenant);
 
         if input.memory_id.len() != 16 {
@@ -1246,8 +1248,7 @@ impl Engine {
                     let mut snap_arr = [0u8; 16];
                     snap_arr.copy_from_slice(&snap_id_vec);
                     // entity_id=None skips temporal delete (snapshots aren't indexed there)
-                    let snap_delete_ops =
-                        self.index_manager.prepare_delete(&snap_arr, None, 0)?;
+                    let snap_delete_ops = self.index_manager.prepare_delete(&snap_arr, None, 0)?;
                     all_ops.extend(snap_delete_ops);
                     pruned_snapshot_ids.push(snap_arr);
                 }
@@ -1791,8 +1792,7 @@ impl Engine {
             }
             mems
         } else {
-            let all_entries =
-                storage.prefix_iterator(ColumnFamilyName::Default, &[])?;
+            let all_entries = storage.prefix_iterator(ColumnFamilyName::Default, &[])?;
 
             let mut mems = Vec::new();
             for (_key, value) in all_entries {
@@ -1945,11 +1945,13 @@ impl Engine {
         ctx: &StrategyContext<'_>,
     ) -> StrategyOutcome {
         match strategy {
-            RecallStrategy::Similarity => {
-                self.execute_similarity(
-                    storage, ctx.cue_embedding, ctx.top_k, ctx.ef_search, ctx.entity_id,
-                )
-            }
+            RecallStrategy::Similarity => self.execute_similarity(
+                storage,
+                ctx.cue_embedding,
+                ctx.top_k,
+                ctx.ef_search,
+                ctx.entity_id,
+            ),
             RecallStrategy::Temporal => {
                 self.execute_temporal(storage, ctx.entity_id, ctx.time_range, ctx.top_k)
             }
@@ -2178,7 +2180,10 @@ impl Engine {
                                 if mem.entity_id.as_deref() != Some(eid) {
                                     return StrategyOutcome::Err(
                                         RecallStrategy::Causal,
-                                        format!("causal seed memory belongs to a different entity: {}", cue),
+                                        format!(
+                                            "causal seed memory belongs to a different entity: {}",
+                                            cue
+                                        ),
                                     );
                                 }
                             }
@@ -2194,14 +2199,26 @@ impl Engine {
                 }
                 _ => {
                     return self.causal_by_embedding(
-                        storage, cue_embedding, edge_types, max_depth, top_k, tenant_id, direction,
+                        storage,
+                        cue_embedding,
+                        edge_types,
+                        max_depth,
+                        top_k,
+                        tenant_id,
+                        direction,
                         entity_id,
                     );
                 }
             }
         } else {
             return self.causal_by_embedding(
-                storage, cue_embedding, edge_types, max_depth, top_k, tenant_id, direction,
+                storage,
+                cue_embedding,
+                edge_types,
+                max_depth,
+                top_k,
+                tenant_id,
+                direction,
                 entity_id,
             );
         };
@@ -2233,7 +2250,11 @@ impl Engine {
             }
         };
 
-        let fetch_k = if entity_id.is_some() { ENTITY_OVERSAMPLE } else { 1 };
+        let fetch_k = if entity_id.is_some() {
+            ENTITY_OVERSAMPLE
+        } else {
+            1
+        };
         let candidates = match self.index_manager.search_vector(embedding, fetch_k, None) {
             Ok(r) if !r.is_empty() => r,
             Ok(_) => {
@@ -2257,7 +2278,13 @@ impl Engine {
                 }
             }
             return self.causal_from_seed(
-                storage, *candidate_id, edge_types, max_depth, top_k, tenant_id, direction,
+                storage,
+                *candidate_id,
+                edge_types,
+                max_depth,
+                top_k,
+                tenant_id,
+                direction,
                 entity_id,
             );
         }
@@ -2397,7 +2424,11 @@ impl Engine {
             }
         }
 
-        results.sort_by(|a, b| b.relevance.partial_cmp(&a.relevance).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.relevance
+                .partial_cmp(&a.relevance)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(top_k);
 
         StrategyOutcome::Ok(results)
@@ -2426,10 +2457,14 @@ impl Engine {
             let a_mem = Self::get_from_storage(storage, &a_id);
             let b_mem = Self::get_from_storage(storage, &b_id);
             if let (Ok(a_mem), Ok(b_mem)) = (a_mem, b_mem) {
-                let a_assoc = a_mem.associative_embedding.as_deref()
+                let a_assoc = a_mem
+                    .associative_embedding
+                    .as_deref()
                     .or(a_mem.embedding.as_deref())
                     .unwrap_or(&[]);
-                let b_assoc = b_mem.associative_embedding.as_deref()
+                let b_assoc = b_mem
+                    .associative_embedding
+                    .as_deref()
                     .or(b_mem.embedding.as_deref())
                     .unwrap_or(&[]);
                 let c_assoc = cue_embedding.unwrap_or(&[]);
@@ -2440,12 +2475,14 @@ impl Engine {
                         top_k
                     };
                     let ef = ef_search.map(|e| e * 2).or(Some(200));
-                    let hits = self.index_manager.assoc_index.search_analogy(
-                        tenant_id, a_assoc, b_assoc, c_assoc, fetch_k, ef,
-                    );
+                    let hits = self
+                        .index_manager
+                        .assoc_index
+                        .search_analogy(tenant_id, a_assoc, b_assoc, c_assoc, fetch_k, ef);
                     match hits {
                         Ok(search_results) => {
-                            let mut scored: Vec<StrategyResult> = Vec::with_capacity(top_k.min(search_results.len()));
+                            let mut scored: Vec<StrategyResult> =
+                                Vec::with_capacity(top_k.min(search_results.len()));
                             for (memory_id, distance) in &search_results {
                                 match Self::get_from_storage(storage, memory_id) {
                                     Ok(mem) => {
@@ -2471,7 +2508,9 @@ impl Engine {
                                 }
                             }
                             scored.sort_by(|a, b| {
-                                b.relevance.partial_cmp(&a.relevance).unwrap_or(std::cmp::Ordering::Equal)
+                                b.relevance
+                                    .partial_cmp(&a.relevance)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
                             });
                             scored.truncate(top_k);
                             return StrategyOutcome::Ok(scored);
@@ -4618,9 +4657,7 @@ mod tests {
         let mut engine = test_engine();
         engine.set_max_snapshots_per_memory(3);
 
-        let original = engine
-            .remember(entity_input("version 0", "e1"))
-            .unwrap();
+        let original = engine.remember(entity_input("version 0", "e1")).unwrap();
 
         // Create 8 revisions (so 8 snapshots total, limit is 3)
         for i in 1..=8 {
@@ -4654,9 +4691,7 @@ mod tests {
         let mut engine = test_engine();
         engine.set_max_snapshots_per_memory(2);
 
-        let original = engine
-            .remember(entity_input("v0", "e1"))
-            .unwrap();
+        let original = engine.remember(entity_input("v0", "e1")).unwrap();
 
         // Build 4 revisions; after each, the newest 2 snapshots should survive
         let mut revision_contents = Vec::new();
@@ -4709,9 +4744,7 @@ mod tests {
         let mut engine = test_engine();
         engine.set_max_snapshots_per_memory(2);
 
-        let original = engine
-            .remember(entity_input("initial", "e1"))
-            .unwrap();
+        let original = engine.remember(entity_input("initial", "e1")).unwrap();
 
         for i in 1..=5 {
             engine
@@ -4885,18 +4918,12 @@ mod tests {
         let engine = test_engine_with_larger_hnsw();
         for i in 0..15 {
             engine
-                .remember(entity_input(
-                    &format!("gamma pattern data {}", i),
-                    "gamma",
-                ))
+                .remember(entity_input(&format!("gamma pattern data {}", i), "gamma"))
                 .unwrap();
         }
         for i in 0..15 {
             engine
-                .remember(entity_input(
-                    &format!("delta pattern data {}", i),
-                    "delta",
-                ))
+                .remember(entity_input(&format!("delta pattern data {}", i), "delta"))
                 .unwrap();
         }
 
@@ -4935,9 +4962,7 @@ mod tests {
                 .unwrap();
         }
 
-        let output = engine
-            .prime(PrimeInput::new("epsilon"))
-            .unwrap();
+        let output = engine.prime(PrimeInput::new("epsilon")).unwrap();
 
         for result in &output.results {
             assert_eq!(

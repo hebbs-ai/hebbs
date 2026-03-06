@@ -12,8 +12,6 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use hebbs_core::engine::{Engine, RememberInput};
 use hebbs_core::forget::ForgetCriteria;
 use hebbs_core::memory::MemoryKind;
@@ -22,6 +20,8 @@ use hebbs_core::reflect::InsightsFilter;
 use hebbs_core::revise::{ContextMode, ReviseInput};
 use hebbs_core::subscribe::SubscribeConfig;
 use hebbs_core::tenant::TenantContext;
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 
 use crate::convert;
 use crate::metrics::HebbsMetrics;
@@ -675,33 +675,32 @@ async fn sse_subscribe_handler(
 
     let tenant = TenantContext::default();
     let engine = state.engine.clone();
-    let handle = match tokio::task::spawn_blocking(move || {
-        engine.subscribe_for_tenant(&tenant, config)
-    })
-    .await
-    {
-        Ok(Ok(h)) => h,
-        Ok(Err(e)) => {
-            let (status, json) = map_hebbs_error(e);
-            return (status, json).into_response();
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorJson {
-                    error_code: "internal_error".to_string(),
-                    message: format!("task join error: {}", e),
-                }),
-            )
-                .into_response();
-        }
-    };
+    let handle =
+        match tokio::task::spawn_blocking(move || engine.subscribe_for_tenant(&tenant, config))
+            .await
+        {
+            Ok(Ok(h)) => h,
+            Ok(Err(e)) => {
+                let (status, json) = map_hebbs_error(e);
+                return (status, json).into_response();
+            }
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorJson {
+                        error_code: "internal_error".to_string(),
+                        message: format!("task join error: {}", e),
+                    }),
+                )
+                    .into_response();
+            }
+        };
 
     let subscription_id = handle.id();
-    state.sse_subscriptions.lock().insert(
-        subscription_id,
-        SseSubscriptionEntry { handle },
-    );
+    state
+        .sse_subscriptions
+        .lock()
+        .insert(subscription_id, SseSubscriptionEntry { handle });
 
     state.metrics.active_subscriptions.inc();
 

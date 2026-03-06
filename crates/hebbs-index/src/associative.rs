@@ -147,8 +147,11 @@ impl AssociativeIndex {
         };
 
         let serialized = node.serialize();
-        self.storage
-            .put(ColumnFamilyName::VectorsAssociative, &memory_id, &serialized)?;
+        self.storage.put(
+            ColumnFamilyName::VectorsAssociative,
+            &memory_id,
+            &serialized,
+        )?;
 
         Ok(())
     }
@@ -379,7 +382,8 @@ impl AssociativeIndex {
 
             let mut offset = Vec::with_capacity(dims);
             for _ in 0..dims {
-                let v = f32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+                let v =
+                    f32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
                 offset.push(v);
                 pos += 4;
             }
@@ -444,16 +448,16 @@ fn hex_id(id: &[u8; 16]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use hebbs_storage::InMemoryBackend;
+    use std::sync::Arc;
 
     fn test_params(dims: usize) -> HnswParams {
         HnswParams::with_m(dims, 4)
     }
 
     fn normalized_vec(dims: usize, seed: u64) -> Vec<f32> {
-        use rand::SeedableRng;
         use rand::Rng;
+        use rand::SeedableRng;
         let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
         let mut v: Vec<f32> = (0..dims).map(|_| rng.gen_range(-1.0f32..1.0)).collect();
         let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -486,10 +490,12 @@ mod tests {
         let dims = 8;
 
         {
-            let idx = AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42).unwrap();
+            let idx = AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42)
+                .unwrap();
             let src = normalized_vec(dims, 1);
             let tgt = normalized_vec(dims, 2);
-            idx.update_type_offset(EdgeType::CausedBy, &src, &tgt, 0.5).unwrap();
+            idx.update_type_offset(EdgeType::CausedBy, &src, &tgt, 0.5)
+                .unwrap();
         }
 
         // Reload
@@ -502,7 +508,8 @@ mod tests {
     fn causal_forward_finds_target_direction() {
         let storage: Arc<dyn StorageBackend> = Arc::new(InMemoryBackend::new());
         let dims = 8;
-        let idx = AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42).unwrap();
+        let idx =
+            AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42).unwrap();
 
         let id_a = [1u8; 16];
         let id_b = [2u8; 16];
@@ -512,15 +519,21 @@ mod tests {
         let emb_c = normalized_vec(dims, 3);
 
         // Insert all three
-        idx.insert_for_tenant("default", id_a, emb_a.clone()).unwrap();
-        idx.insert_for_tenant("default", id_b, emb_b.clone()).unwrap();
-        idx.insert_for_tenant("default", id_c, emb_c.clone()).unwrap();
+        idx.insert_for_tenant("default", id_a, emb_a.clone())
+            .unwrap();
+        idx.insert_for_tenant("default", id_b, emb_b.clone())
+            .unwrap();
+        idx.insert_for_tenant("default", id_c, emb_c.clone())
+            .unwrap();
 
         // Learn edge: B -CausedBy-> A (source=B, target=A)
-        idx.update_type_offset(EdgeType::CausedBy, &emb_b, &emb_a, HEBBIAN_LR).unwrap();
+        idx.update_type_offset(EdgeType::CausedBy, &emb_b, &emb_a, HEBBIAN_LR)
+            .unwrap();
 
         // Forward from B should find A-ish region
-        let results = idx.search_causal_forward("default", &emb_b, EdgeType::CausedBy, 3, None).unwrap();
+        let results = idx
+            .search_causal_forward("default", &emb_b, EdgeType::CausedBy, 3, None)
+            .unwrap();
         // With 3 nodes in HNSW and k=3, should find all 3
         assert!(!results.is_empty());
     }
@@ -529,7 +542,8 @@ mod tests {
     fn analogy_search_returns_results() {
         let storage: Arc<dyn StorageBackend> = Arc::new(InMemoryBackend::new());
         let dims = 8;
-        let idx = AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42).unwrap();
+        let idx =
+            AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(dims), 42).unwrap();
 
         let id_a = [1u8; 16];
         let id_b = [2u8; 16];
@@ -538,26 +552,34 @@ mod tests {
         let emb_b = normalized_vec(dims, 2);
         let emb_c = normalized_vec(dims, 3);
 
-        idx.insert_for_tenant("default", id_a, emb_a.clone()).unwrap();
-        idx.insert_for_tenant("default", id_b, emb_b.clone()).unwrap();
-        idx.insert_for_tenant("default", id_c, emb_c.clone()).unwrap();
+        idx.insert_for_tenant("default", id_a, emb_a.clone())
+            .unwrap();
+        idx.insert_for_tenant("default", id_b, emb_b.clone())
+            .unwrap();
+        idx.insert_for_tenant("default", id_c, emb_c.clone())
+            .unwrap();
 
-        let results = idx.search_analogy("default", &emb_a, &emb_b, &emb_c, 3, None).unwrap();
+        let results = idx
+            .search_analogy("default", &emb_a, &emb_b, &emb_c, 3, None)
+            .unwrap();
         assert!(!results.is_empty());
     }
 
     #[test]
     fn tenant_isolation() {
         let storage: Arc<dyn StorageBackend> = Arc::new(InMemoryBackend::new());
-        let idx = AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(8), 42).unwrap();
+        let idx =
+            AssociativeIndex::new_with_seed(Arc::clone(&storage), test_params(8), 42).unwrap();
 
         let id_a = [1u8; 16];
         let id_b = [2u8; 16];
         let emb_a = normalized_vec(8, 1);
         let emb_b = normalized_vec(8, 2);
 
-        idx.insert_for_tenant("tenant_a", id_a, emb_a.clone()).unwrap();
-        idx.insert_for_tenant("tenant_b", id_b, emb_b.clone()).unwrap();
+        idx.insert_for_tenant("tenant_a", id_a, emb_a.clone())
+            .unwrap();
+        idx.insert_for_tenant("tenant_b", id_b, emb_b.clone())
+            .unwrap();
 
         // Tenant A should only find its own memory
         let res_a = idx.search_assoc("tenant_a", &emb_a, 10, None).unwrap();

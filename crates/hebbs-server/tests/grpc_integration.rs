@@ -22,9 +22,10 @@ use pb::reflect_service_server::ReflectService;
 fn test_auth_state() -> Arc<AuthState> {
     Arc::new(AuthState {
         key_cache: Arc::new(KeyCache::new()),
-        rate_limiter: Arc::new(hebbs_core::rate_limit::RateLimiter::new(
-            RateLimitConfig { enabled: false, ..Default::default() },
-        )),
+        rate_limiter: Arc::new(hebbs_core::rate_limit::RateLimiter::new(RateLimitConfig {
+            enabled: false,
+            ..Default::default()
+        })),
         auth_enabled: false,
     })
 }
@@ -640,12 +641,10 @@ async fn grpc_insights_empty() {
     let engine = test_engine();
     let metrics = Arc::new(HebbsMetrics::new());
     let config = hebbs_core::reflect::ReflectConfig::default();
-    let proposal = Arc::from(
-        hebbs_reflect::create_provider(&config.proposal_provider_config).unwrap(),
-    );
-    let validation = Arc::from(
-        hebbs_reflect::create_provider(&config.validation_provider_config).unwrap(),
-    );
+    let proposal =
+        Arc::from(hebbs_reflect::create_provider(&config.proposal_provider_config).unwrap());
+    let validation =
+        Arc::from(hebbs_reflect::create_provider(&config.validation_provider_config).unwrap());
     let svc = ReflectServiceImpl {
         engine,
         metrics,

@@ -49,7 +49,14 @@ fn full_lifecycle_insert_search_delete() {
         let entity = format!("entity_{}", i % 5);
 
         let (ops, _) = mgr
-            .prepare_insert(&id, &embedding, &embedding, Some(&entity), i as u64 * 1000, &[])
+            .prepare_insert(
+                &id,
+                &embedding,
+                &embedding,
+                Some(&entity),
+                i as u64 * 1000,
+                &[],
+            )
             .unwrap();
         storage.write_batch(&ops).unwrap();
         mgr.commit_insert(id, embedding.clone()).unwrap();
@@ -164,7 +171,9 @@ fn graph_edges_survive_insert_delete_cycle() {
     // Insert node A
     let a = make_id(1);
     let v_a = normalized_vec(dims, 1);
-    let (ops, _) = mgr.prepare_insert(&a, &v_a, &v_a, Some("e"), 1000, &[]).unwrap();
+    let (ops, _) = mgr
+        .prepare_insert(&a, &v_a, &v_a, Some("e"), 1000, &[])
+        .unwrap();
     storage.write_batch(&ops).unwrap();
     mgr.commit_insert(a, v_a).unwrap();
 
@@ -310,7 +319,9 @@ fn concurrent_search_during_insert() {
         for i in 50..100u32 {
             let id = make_id(i);
             let v = normalized_vec(dims, i as u64);
-            let (ops, _) = mgr_write.prepare_insert(&id, &v, &v, None, 1000, &[]).unwrap();
+            let (ops, _) = mgr_write
+                .prepare_insert(&id, &v, &v, None, 1000, &[])
+                .unwrap();
             storage_write.write_batch(&ops).unwrap();
             mgr_write.commit_insert(id, v).unwrap();
         }

@@ -19,8 +19,7 @@ pub(crate) struct AuthInterceptor {
 impl Interceptor for AuthInterceptor {
     fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, tonic::Status> {
         if let Some(ref val) = self.header_value {
-            req.metadata_mut()
-                .insert("authorization", val.clone());
+            req.metadata_mut().insert("authorization", val.clone());
         }
         Ok(req)
     }
@@ -110,10 +109,15 @@ impl ConnectionManager {
         Ok(AuthInterceptor { header_value })
     }
 
-    pub(crate) async fn memory_client(&mut self) -> Result<MemoryServiceClient<AuthChannel>, CliError> {
+    pub(crate) async fn memory_client(
+        &mut self,
+    ) -> Result<MemoryServiceClient<AuthChannel>, CliError> {
         let ch = self.ensure_channel().await?;
         let interceptor = self.build_interceptor()?;
-        Ok(MemoryServiceClient::new(InterceptedService::new(ch, interceptor)))
+        Ok(MemoryServiceClient::new(InterceptedService::new(
+            ch,
+            interceptor,
+        )))
     }
 
     pub(crate) async fn subscribe_client(
@@ -121,19 +125,32 @@ impl ConnectionManager {
     ) -> Result<SubscribeServiceClient<AuthChannel>, CliError> {
         let ch = self.ensure_channel().await?;
         let interceptor = self.build_interceptor()?;
-        Ok(SubscribeServiceClient::new(InterceptedService::new(ch, interceptor)))
+        Ok(SubscribeServiceClient::new(InterceptedService::new(
+            ch,
+            interceptor,
+        )))
     }
 
-    pub(crate) async fn reflect_client(&mut self) -> Result<ReflectServiceClient<AuthChannel>, CliError> {
+    pub(crate) async fn reflect_client(
+        &mut self,
+    ) -> Result<ReflectServiceClient<AuthChannel>, CliError> {
         let ch = self.ensure_channel().await?;
         let interceptor = self.build_interceptor()?;
-        Ok(ReflectServiceClient::new(InterceptedService::new(ch, interceptor)))
+        Ok(ReflectServiceClient::new(InterceptedService::new(
+            ch,
+            interceptor,
+        )))
     }
 
-    pub(crate) async fn health_client(&mut self) -> Result<HealthServiceClient<AuthChannel>, CliError> {
+    pub(crate) async fn health_client(
+        &mut self,
+    ) -> Result<HealthServiceClient<AuthChannel>, CliError> {
         let ch = self.ensure_channel().await?;
         let interceptor = self.build_interceptor()?;
-        Ok(HealthServiceClient::new(InterceptedService::new(ch, interceptor)))
+        Ok(HealthServiceClient::new(InterceptedService::new(
+            ch,
+            interceptor,
+        )))
     }
 
     /// Mark connection as potentially broken (e.g., after an Unavailable error).

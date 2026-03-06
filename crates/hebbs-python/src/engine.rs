@@ -11,7 +11,7 @@ use hebbs_core::recall::{PrimeInput, RecallInput, RecallStrategy};
 use hebbs_core::reflect::{InsightsFilter, ReflectConfig, ReflectScope};
 use hebbs_core::revise::{ContextMode, ReviseInput};
 use hebbs_core::subscribe::SubscribeConfig;
-use hebbs_embed::{MockEmbedder, OnnxEmbedder, EmbedderConfig};
+use hebbs_embed::{EmbedderConfig, MockEmbedder, OnnxEmbedder};
 use hebbs_storage::RocksDbBackend;
 
 use crate::convert::{forget_output_to_py, memory_to_py, py_dict_to_hashmap, recall_output_to_py};

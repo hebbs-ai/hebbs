@@ -305,7 +305,10 @@ async fn execute_get(
     let memory_id =
         format::parse_memory_id(id).map_err(|e| CliError::InvalidArgument { message: e })?;
 
-    let req = pb::GetRequest { memory_id, tenant_id: None };
+    let req = pb::GetRequest {
+        memory_id,
+        tenant_id: None,
+    };
     let mut client = conn.memory_client().await?;
     let resp = client
         .get(req)
@@ -657,7 +660,10 @@ async fn execute_reflect(
         },
     };
 
-    let req = pb::ReflectRequest { scope: Some(scope), tenant_id: None };
+    let req = pb::ReflectRequest {
+        scope: Some(scope),
+        tenant_id: None,
+    };
 
     let mut client = conn.reflect_client().await?;
     let resp = client

@@ -139,7 +139,8 @@ mod tests {
 
     fn setup() -> (Arc<InMemoryBackend>, TenantScopedStorage) {
         let backend = Arc::new(InMemoryBackend::new());
-        let scoped = TenantScopedStorage::new(backend.clone() as Arc<dyn StorageBackend>, "tenant_a");
+        let scoped =
+            TenantScopedStorage::new(backend.clone() as Arc<dyn StorageBackend>, "tenant_a");
         (backend, scoped)
     }
 
@@ -199,9 +200,7 @@ mod tests {
             .put(ColumnFamilyName::Default, b"key", b"b")
             .unwrap();
 
-        tenant_a
-            .delete(ColumnFamilyName::Default, b"key")
-            .unwrap();
+        tenant_a.delete(ColumnFamilyName::Default, b"key").unwrap();
 
         assert!(tenant_a
             .get(ColumnFamilyName::Default, b"key")
@@ -226,18 +225,10 @@ mod tests {
 
         for i in 0..5u8 {
             tenant_a
-                .put(
-                    ColumnFamilyName::Default,
-                    &[b'p', i],
-                    &[b'a', i],
-                )
+                .put(ColumnFamilyName::Default, &[b'p', i], &[b'a', i])
                 .unwrap();
             tenant_b
-                .put(
-                    ColumnFamilyName::Default,
-                    &[b'p', i],
-                    &[b'b', i],
-                )
+                .put(ColumnFamilyName::Default, &[b'p', i], &[b'b', i])
                 .unwrap();
         }
 

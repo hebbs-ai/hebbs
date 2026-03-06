@@ -116,11 +116,7 @@ impl KeyCache {
     }
 
     /// Insert a new key record into the cache and persist to storage.
-    pub fn insert(
-        &self,
-        storage: &dyn StorageBackend,
-        record: KeyRecord,
-    ) -> Result<(), String> {
+    pub fn insert(&self, storage: &dyn StorageBackend, record: KeyRecord) -> Result<(), String> {
         let storage_key = format!("{}{}", AUTH_KEY_PREFIX, hex::encode(record.key_hash));
         let value =
             serde_json::to_vec(&record).map_err(|e| format!("failed to serialize key: {}", e))?;
@@ -180,11 +176,7 @@ pub fn generate_key(
     let mut random_bytes = [0u8; 32];
     getrandom(&mut random_bytes);
 
-    let raw_key = format!(
-        "{}{}",
-        KEY_PREFIX,
-        base64url_encode(&random_bytes)
-    );
+    let raw_key = format!("{}{}", KEY_PREFIX, base64url_encode(&random_bytes));
 
     let hash = hash_key(&raw_key);
 
@@ -240,8 +232,7 @@ fn now_us() -> u64 {
 fn base64url_encode(data: &[u8]) -> String {
     use std::fmt::Write;
     let mut result = String::with_capacity(data.len() * 4 / 3 + 4);
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
     let mut i = 0;
     while i + 2 < data.len() {

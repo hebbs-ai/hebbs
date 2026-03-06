@@ -14,9 +14,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
-use hebbs_core::engine::{Engine, RememberInput, RememberEdge};
+use hebbs_core::engine::{Engine, RememberEdge, RememberInput};
 use hebbs_core::forget::ForgetCriteria;
-use hebbs_core::recall::{CausalDirection, RecallInput, RecallStrategy, PrimeInput, StrategyDetail};
+use hebbs_core::recall::{
+    CausalDirection, PrimeInput, RecallInput, RecallStrategy, StrategyDetail,
+};
 use hebbs_core::reflect::InsightsFilter;
 use hebbs_core::revise::{ContextMode, ReviseInput};
 use hebbs_core::subscribe::SubscribeConfig;
@@ -28,13 +30,7 @@ use hebbs_storage::InMemoryBackend;
 fn make_engine(dims: usize) -> Engine {
     let storage = Arc::new(InMemoryBackend::new());
     let embedder = Arc::new(MockEmbedder::new(dims));
-    Engine::new_with_params(
-        storage,
-        embedder,
-        HnswParams::new(dims),
-        42,
-    )
-    .unwrap()
+    Engine::new_with_params(storage, embedder, HnswParams::new(dims), 42).unwrap()
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -277,7 +273,11 @@ fn causal_recall_traverses_edges_correctly() {
     let result = engine.recall(input).unwrap();
 
     // Should find B and A via forward edge traversal
-    let contents: Vec<&str> = result.results.iter().map(|r| r.memory.content.as_str()).collect();
+    let contents: Vec<&str> = result
+        .results
+        .iter()
+        .map(|r| r.memory.content.as_str())
+        .collect();
     assert!(
         result.results.len() >= 2,
         "Causal traversal from C should find B and A via forward edges, found {}: {:?}",
@@ -297,11 +297,16 @@ fn causal_recall_traverses_edges_correctly() {
         !result_from_a.results.is_empty(),
         "Backward traversal from root cause A should find effects (B and/or C), found 0",
     );
-    let contents_from_a: Vec<&str> = result_from_a.results.iter().map(|r| r.memory.content.as_str()).collect();
+    let contents_from_a: Vec<&str> = result_from_a
+        .results
+        .iter()
+        .map(|r| r.memory.content.as_str())
+        .collect();
     assert!(
         contents_from_a.contains(&"Effect: response times increased")
             || contents_from_a.contains(&"Result: customers complained"),
-        "Backward traversal from A should find B or C, got: {:?}", contents_from_a,
+        "Backward traversal from A should find B or C, got: {:?}",
+        contents_from_a,
     );
 }
 
@@ -488,7 +493,10 @@ fn revise_updates_in_place() {
 
     assert_eq!(revised.content, "Updated content v2");
     assert_eq!(revised.importance, 0.9);
-    assert_eq!(revised.memory_id, mem.memory_id, "ID should not change on revise");
+    assert_eq!(
+        revised.memory_id, mem.memory_id,
+        "ID should not change on revise"
+    );
     assert!(
         revised.updated_at >= mem.updated_at,
         "updated_at should advance on revise"
@@ -643,14 +651,21 @@ fn decay_score_never_goes_negative() {
 
     // Extreme values
     let cases = [
-        (0.0, 0, 0, 1_000_000_000_000, 1, 1),       // zero importance
+        (0.0, 0, 0, 1_000_000_000_000, 1, 1),        // zero importance
         (1.0, 0, 0, u64::MAX, 1, 100),               // max age
         (1.0, 1_000_000, u64::MAX, 1_000_000, 1, 1), // max access at same time
         (f32::MIN_POSITIVE, 0, 0, 1_000, 1, 1),      // tiny importance
     ];
 
     for (importance, last_accessed, access_count, now, half_life, cap) in cases {
-        let score = decay::compute_decay_score(importance, last_accessed, access_count, now, half_life, cap);
+        let score = decay::compute_decay_score(
+            importance,
+            last_accessed,
+            access_count,
+            now,
+            half_life,
+            cap,
+        );
         assert!(
             score >= 0.0,
             "Decay score went negative: {} for inputs ({}, {}, {}, {}, {}, {})",
@@ -797,10 +812,7 @@ fn analogical_recall_uses_context_structure() {
             .strategy_details
             .iter()
             .any(|d| matches!(d, StrategyDetail::Analogical { .. }));
-        assert!(
-            has_analogical,
-            "Result missing analogical strategy detail"
-        );
+        assert!(has_analogical, "Result missing analogical strategy detail");
     }
 }
 
@@ -825,9 +837,7 @@ fn prime_combines_strategies() {
             .unwrap();
     }
 
-    let result = engine
-        .prime(PrimeInput::new(entity))
-        .unwrap();
+    let result = engine.prime(PrimeInput::new(entity)).unwrap();
 
     assert!(
         !result.results.is_empty(),

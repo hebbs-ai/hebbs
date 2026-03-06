@@ -28,8 +28,7 @@ struct AuthInterceptor {
 impl Interceptor for AuthInterceptor {
     fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, tonic::Status> {
         if let Some(ref val) = self.header_value {
-            req.metadata_mut()
-                .insert("authorization", val.clone());
+            req.metadata_mut().insert("authorization", val.clone());
         }
         Ok(req)
     }

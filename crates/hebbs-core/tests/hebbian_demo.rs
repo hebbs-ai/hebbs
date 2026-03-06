@@ -85,11 +85,19 @@ fn fix1_bidirectional_causal_traversal() {
     fwd.top_k = Some(10);
     fwd.causal_direction = Some(CausalDirection::Forward);
     let fwd_result = engine.recall(fwd).unwrap();
-    let fwd_contents: Vec<&str> = fwd_result.results.iter().map(|r| r.memory.content.as_str()).collect();
-    println!("[Fix 1] Forward from C (user complaints) → {:?}", fwd_contents);
+    let fwd_contents: Vec<&str> = fwd_result
+        .results
+        .iter()
+        .map(|r| r.memory.content.as_str())
+        .collect();
+    println!(
+        "[Fix 1] Forward from C (user complaints) → {:?}",
+        fwd_contents
+    );
     assert!(
         fwd_contents.contains(&"Latency spike") || fwd_contents.contains(&"DB overloaded"),
-        "Forward from C should find upstream causes, got: {:?}", fwd_contents
+        "Forward from C should find upstream causes, got: {:?}",
+        fwd_contents
     );
 
     // --- Backward: from the root cause A, find its downstream effects ---
@@ -98,15 +106,23 @@ fn fix1_bidirectional_causal_traversal() {
     bwd.top_k = Some(10);
     bwd.causal_direction = Some(CausalDirection::Backward);
     let bwd_result = engine.recall(bwd).unwrap();
-    let bwd_contents: Vec<&str> = bwd_result.results.iter().map(|r| r.memory.content.as_str()).collect();
-    println!("[Fix 1] Backward from A (DB overloaded) → {:?}", bwd_contents);
+    let bwd_contents: Vec<&str> = bwd_result
+        .results
+        .iter()
+        .map(|r| r.memory.content.as_str())
+        .collect();
+    println!(
+        "[Fix 1] Backward from A (DB overloaded) → {:?}",
+        bwd_contents
+    );
     assert!(
         !bwd_result.results.is_empty(),
         "Backward from root cause A should find its effects, found none"
     );
     assert!(
         bwd_contents.contains(&"Latency spike") || bwd_contents.contains(&"User complaints"),
-        "Backward from A should find B or C, got: {:?}", bwd_contents
+        "Backward from A should find B or C, got: {:?}",
+        bwd_contents
     );
 
     println!("[Fix 1] PASS: bidirectional causal traversal works");
@@ -177,7 +193,8 @@ fn fix2_tenant_isolation() {
     );
     assert!(
         leaked.is_empty(),
-        "Tenant isolation broken: Globex can see Acme's memory: {:?}", leaked
+        "Tenant isolation broken: Globex can see Acme's memory: {:?}",
+        leaked
     );
 
     // Acme can still recall its own memory
@@ -257,10 +274,15 @@ fn fix3_analogical_recall_uses_vector_arithmetic() {
 
     // Check that the vector arithmetic path was taken
     let used_vector = result.results.iter().any(|r| {
-        r.strategy_details.iter().any(|d| matches!(
-            d,
-            StrategyDetail::Analogical { used_vector_analogy: true, .. }
-        ))
+        r.strategy_details.iter().any(|d| {
+            matches!(
+                d,
+                StrategyDetail::Analogical {
+                    used_vector_analogy: true,
+                    ..
+                }
+            )
+        })
     });
 
     println!(
@@ -275,7 +297,11 @@ fn fix3_analogical_recall_uses_vector_arithmetic() {
     assert!(
         used_vector,
         "Should have used vector arithmetic (used_vector_analogy=true), got: {:?}",
-        result.results.iter().flat_map(|r| &r.strategy_details).collect::<Vec<_>>()
+        result
+            .results
+            .iter()
+            .flat_map(|r| &r.strategy_details)
+            .collect::<Vec<_>>()
     );
 
     println!("[Fix 3] PASS: analogical recall uses real vector arithmetic");

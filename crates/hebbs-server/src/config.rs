@@ -88,8 +88,8 @@ impl Default for EmbeddingConfig {
             dimensions: 384,
             max_batch_size: 256,
             auto_download: true,
-            download_base_url:
-                "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main".to_string(),
+            download_base_url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main"
+                .to_string(),
         }
     }
 }

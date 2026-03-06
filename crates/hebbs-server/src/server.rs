@@ -11,11 +11,11 @@ use hebbs_core::engine::Engine;
 use hebbs_core::rate_limit::RateLimiter;
 use hebbs_core::reflect::ReflectConfig;
 use hebbs_embed::{EmbedderConfig, MockEmbedder, OnnxEmbedder};
-use hebbs_reflect::{LlmProviderConfig, ProviderType};
 use hebbs_proto::generated::{
     health_service_server::HealthServiceServer, memory_service_server::MemoryServiceServer,
     reflect_service_server::ReflectServiceServer, subscribe_service_server::SubscribeServiceServer,
 };
+use hebbs_reflect::{LlmProviderConfig, ProviderType};
 use hebbs_storage::RocksDbBackend;
 
 use crate::config::HebbsConfig;
@@ -114,7 +114,9 @@ pub async fn run(config: HebbsConfig) -> Result<(), Box<dyn std::error::Error>> 
             eprintln!("║  To disable auth: HEBBS_AUTH_ENABLED=false                       ║");
             eprintln!("╚══════════════════════════════════════════════════════════════════╝");
             eprintln!();
-            info!("bootstrap admin API key generated (tenant=default, permissions=read,write,admin)");
+            info!(
+                "bootstrap admin API key generated (tenant=default, permissions=read,write,admin)"
+            );
         }
     }
 
@@ -171,9 +173,13 @@ pub async fn run(config: HebbsConfig) -> Result<(), Box<dyn std::error::Error>> 
         max_memories_per_reflect: config.reflect.max_memories_per_reflect,
         min_memories_for_reflect: config.reflect.min_memories_for_reflect,
         threshold_trigger_count: config.reflect.threshold_trigger_count,
-        schedule_trigger_interval_us: config.reflect.schedule_trigger_interval_secs
+        schedule_trigger_interval_us: config
+            .reflect
+            .schedule_trigger_interval_secs
             .saturating_mul(1_000_000),
-        trigger_check_interval_us: config.reflect.trigger_check_interval_secs
+        trigger_check_interval_us: config
+            .reflect
+            .trigger_check_interval_secs
             .saturating_mul(1_000_000),
         enabled: config.reflect.enabled,
         proposal_provider_config,
@@ -181,48 +187,50 @@ pub async fn run(config: HebbsConfig) -> Result<(), Box<dyn std::error::Error>> 
         ..ReflectConfig::default()
     }
     .validated();
-    let proposal_provider: Arc<dyn hebbs_reflect::LlmProvider> = match hebbs_reflect::create_provider(&reflect_config.proposal_provider_config) {
-        Ok(p) => Arc::from(p),
-        Err(e) => {
-            warn!(
-                error = %e,
-                "failed to create reflect proposal LLM provider, falling back to mock"
-            );
-            Arc::from(
-                hebbs_reflect::create_provider(&LlmProviderConfig {
-                    provider_type: ProviderType::Mock,
-                    api_key: None,
-                    base_url: None,
-                    model: "mock".to_string(),
-                    timeout_secs: 30,
-                    max_retries: 0,
-                    retry_backoff_ms: 0,
-                })
-                .expect("mock provider should never fail"),
-            )
-        }
-    };
-    let validation_provider: Arc<dyn hebbs_reflect::LlmProvider> = match hebbs_reflect::create_provider(&reflect_config.validation_provider_config) {
-        Ok(p) => Arc::from(p),
-        Err(e) => {
-            warn!(
-                error = %e,
-                "failed to create reflect validation LLM provider, falling back to mock"
-            );
-            Arc::from(
-                hebbs_reflect::create_provider(&LlmProviderConfig {
-                    provider_type: ProviderType::Mock,
-                    api_key: None,
-                    base_url: None,
-                    model: "mock".to_string(),
-                    timeout_secs: 30,
-                    max_retries: 0,
-                    retry_backoff_ms: 0,
-                })
-                .expect("mock provider should never fail"),
-            )
-        }
-    };
+    let proposal_provider: Arc<dyn hebbs_reflect::LlmProvider> =
+        match hebbs_reflect::create_provider(&reflect_config.proposal_provider_config) {
+            Ok(p) => Arc::from(p),
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    "failed to create reflect proposal LLM provider, falling back to mock"
+                );
+                Arc::from(
+                    hebbs_reflect::create_provider(&LlmProviderConfig {
+                        provider_type: ProviderType::Mock,
+                        api_key: None,
+                        base_url: None,
+                        model: "mock".to_string(),
+                        timeout_secs: 30,
+                        max_retries: 0,
+                        retry_backoff_ms: 0,
+                    })
+                    .expect("mock provider should never fail"),
+                )
+            }
+        };
+    let validation_provider: Arc<dyn hebbs_reflect::LlmProvider> =
+        match hebbs_reflect::create_provider(&reflect_config.validation_provider_config) {
+            Ok(p) => Arc::from(p),
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    "failed to create reflect validation LLM provider, falling back to mock"
+                );
+                Arc::from(
+                    hebbs_reflect::create_provider(&LlmProviderConfig {
+                        provider_type: ProviderType::Mock,
+                        api_key: None,
+                        base_url: None,
+                        model: "mock".to_string(),
+                        timeout_secs: 30,
+                        max_retries: 0,
+                        retry_backoff_ms: 0,
+                    })
+                    .expect("mock provider should never fail"),
+                )
+            }
+        };
     let reflect_svc = ReflectServiceImpl {
         engine: engine.clone(),
         metrics: metrics.clone(),

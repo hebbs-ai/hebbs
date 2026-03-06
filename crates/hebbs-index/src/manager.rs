@@ -207,7 +207,10 @@ impl IndexManager {
         });
 
         // 3. VectorsAssociative CF entry
-        ops.push(self.assoc_index.prepare_assoc_insert(memory_id, assoc_embedding));
+        ops.push(
+            self.assoc_index
+                .prepare_assoc_insert(memory_id, assoc_embedding),
+        );
 
         // 4. Graph CF entries
         let metadata = EdgeMetadata::new(1.0, created_at);
@@ -373,7 +376,8 @@ impl IndexManager {
             *last_access = Instant::now();
             graph.mark_deleted(memory_id);
         }
-        self.assoc_index.commit_delete_for_tenant(tenant_id, memory_id);
+        self.assoc_index
+            .commit_delete_for_tenant(tenant_id, memory_id);
     }
 
     // ─── Prepare/Commit for UPDATE (Phase 5) ────────────────────────
@@ -586,9 +590,7 @@ impl IndexManager {
     /// Number of nodes in the default tenant's HNSW graph (including tombstones).
     pub fn hnsw_node_count(&self) -> usize {
         let graphs = self.hnsw_graphs.read();
-        graphs
-            .get(DEFAULT_TENANT)
-            .map_or(0, |(g, _)| g.len())
+        graphs.get(DEFAULT_TENANT).map_or(0, |(g, _)| g.len())
     }
 
     /// Number of active (non-tombstoned) nodes in the default tenant's HNSW.
@@ -932,7 +934,14 @@ mod tests {
             let embedding = normalized_vec(16, i as u64);
 
             let (ops, _) = mgr
-                .prepare_insert(&id, &embedding, &embedding, Some("entity"), i as u64 * 100, &[])
+                .prepare_insert(
+                    &id,
+                    &embedding,
+                    &embedding,
+                    Some("entity"),
+                    i as u64 * 100,
+                    &[],
+                )
                 .unwrap();
             storage.write_batch(&ops).unwrap();
             mgr.commit_insert(id, embedding).unwrap();
@@ -1095,19 +1104,14 @@ mod tests {
         let id = make_id(1);
         let emb = normalized_vec(16, 1);
 
-        mgr.commit_insert_for_tenant("t1", id, emb.clone())
-            .unwrap();
+        mgr.commit_insert_for_tenant("t1", id, emb.clone()).unwrap();
 
-        let results = mgr
-            .search_vector_for_tenant("t1", &emb, 1, None)
-            .unwrap();
+        let results = mgr.search_vector_for_tenant("t1", &emb, 1, None).unwrap();
         assert_eq!(results.len(), 1);
 
         mgr.commit_delete_for_tenant("t1", &id);
 
-        let results = mgr
-            .search_vector_for_tenant("t1", &emb, 1, None)
-            .unwrap();
+        let results = mgr.search_vector_for_tenant("t1", &emb, 1, None).unwrap();
         assert!(results.is_empty());
     }
 

@@ -448,9 +448,7 @@ pub fn hebbs_error_to_status(e: hebbs_core::error::HebbsError) -> tonic::Status 
         HebbsError::Reflect(_) => tonic::Status::unavailable(e.to_string()),
         HebbsError::Unauthorized { .. } => tonic::Status::unauthenticated(e.to_string()),
         HebbsError::Forbidden { .. } => tonic::Status::permission_denied(e.to_string()),
-        HebbsError::RateLimited { .. } => {
-            tonic::Status::resource_exhausted(e.to_string())
-        }
+        HebbsError::RateLimited { .. } => tonic::Status::resource_exhausted(e.to_string()),
         HebbsError::TenantNotFound { .. } => tonic::Status::not_found(e.to_string()),
         _ => tonic::Status::internal(e.to_string()),
     }

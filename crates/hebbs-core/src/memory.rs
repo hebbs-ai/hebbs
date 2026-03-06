@@ -217,8 +217,7 @@ impl Memory {
                 return Err("deserialization failed: checksummed data too short".to_string());
             }
             let payload = &bytes[1..bytes.len() - 4];
-            let stored_checksum =
-                u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+            let stored_checksum = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
             let computed = crc32c(payload);
             if stored_checksum != computed {
                 return Err("CRC-32C checksum mismatch".to_string());

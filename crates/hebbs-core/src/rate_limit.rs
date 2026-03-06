@@ -314,12 +314,30 @@ mod tests {
 
     #[test]
     fn operation_class_mapping() {
-        assert_eq!(OperationClass::from_operation("remember"), OperationClass::Write);
-        assert_eq!(OperationClass::from_operation("revise"), OperationClass::Write);
-        assert_eq!(OperationClass::from_operation("forget"), OperationClass::Write);
-        assert_eq!(OperationClass::from_operation("recall"), OperationClass::Read);
-        assert_eq!(OperationClass::from_operation("prime"), OperationClass::Read);
+        assert_eq!(
+            OperationClass::from_operation("remember"),
+            OperationClass::Write
+        );
+        assert_eq!(
+            OperationClass::from_operation("revise"),
+            OperationClass::Write
+        );
+        assert_eq!(
+            OperationClass::from_operation("forget"),
+            OperationClass::Write
+        );
+        assert_eq!(
+            OperationClass::from_operation("recall"),
+            OperationClass::Read
+        );
+        assert_eq!(
+            OperationClass::from_operation("prime"),
+            OperationClass::Read
+        );
         assert_eq!(OperationClass::from_operation("get"), OperationClass::Read);
-        assert_eq!(OperationClass::from_operation("reflect"), OperationClass::Admin);
+        assert_eq!(
+            OperationClass::from_operation("reflect"),
+            OperationClass::Admin
+        );
     }
 }

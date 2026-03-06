@@ -34,9 +34,10 @@ impl MemoryService for MemoryServiceImpl {
         let input = convert::proto_to_remember_input(req).map_err(Status::invalid_argument)?;
 
         let engine = self.engine.clone();
-        let result = tokio::task::spawn_blocking(move || engine.remember_for_tenant(&tenant, input))
-            .await
-            .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
+        let result =
+            tokio::task::spawn_blocking(move || engine.remember_for_tenant(&tenant, input))
+                .await
+                .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
 
         match result {
             Ok(memory) => {
@@ -111,10 +112,9 @@ impl MemoryService for MemoryServiceImpl {
         let input = convert::proto_to_recall_input(req).map_err(Status::invalid_argument)?;
 
         let engine = self.engine.clone();
-        let result =
-            tokio::task::spawn_blocking(move || engine.recall_for_tenant(&tenant, input))
-                .await
-                .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
+        let result = tokio::task::spawn_blocking(move || engine.recall_for_tenant(&tenant, input))
+            .await
+            .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
 
         match result {
             Ok(output) => {

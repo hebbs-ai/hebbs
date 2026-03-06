@@ -25,7 +25,9 @@ use hebbs_core::recall::{RecallInput, RecallStrategy};
 use hebbs_core::tenant::TenantContext;
 use hebbs_embed::MockEmbedder;
 use hebbs_index::HnswParams;
-use hebbs_storage::{BatchOperation, ColumnFamilyName, InMemoryBackend, StorageBackend, TenantScopedStorage};
+use hebbs_storage::{
+    BatchOperation, ColumnFamilyName, InMemoryBackend, StorageBackend, TenantScopedStorage,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Helpers
@@ -537,7 +539,10 @@ fn auth_revoke_removes_key() {
     let key_hash = record.key_hash;
     cache.insert(storage.as_ref(), record).unwrap();
 
-    assert!(cache.validate(&raw_key).is_ok(), "key should be valid before revoke");
+    assert!(
+        cache.validate(&raw_key).is_ok(),
+        "key should be valid before revoke"
+    );
 
     let removed = cache.revoke(storage.as_ref(), &key_hash).unwrap();
     assert!(removed, "revoke should return true for existing key");
@@ -580,10 +585,13 @@ fn auth_permission_checks() {
 
     let (read_key, read_record) = generate_key("acme", "read-only", PERM_READ, None);
     let (write_key, write_record) = generate_key("acme", "write-only", PERM_WRITE, None);
-    let (admin_key, admin_record) =
-        generate_key("acme", "admin-only", PERM_ADMIN, None);
-    let (full_key, full_record) =
-        generate_key("acme", "full-access", PERM_READ | PERM_WRITE | PERM_ADMIN, None);
+    let (admin_key, admin_record) = generate_key("acme", "admin-only", PERM_ADMIN, None);
+    let (full_key, full_record) = generate_key(
+        "acme",
+        "full-access",
+        PERM_READ | PERM_WRITE | PERM_ADMIN,
+        None,
+    );
 
     cache.insert(storage.as_ref(), read_record).unwrap();
     cache.insert(storage.as_ref(), write_record).unwrap();
@@ -925,8 +933,7 @@ fn concurrent_multi_tenant_no_deadlock() {
                     // Periodically forget oldest
                     if remembered_ids.len() > 10 {
                         let to_forget = remembered_ids.drain(..5).collect::<Vec<_>>();
-                        let _ = engine
-                            .forget_for_tenant(&ctx, ForgetCriteria::by_ids(to_forget));
+                        let _ = engine.forget_for_tenant(&ctx, ForgetCriteria::by_ids(to_forget));
                     }
 
                     cycle += 1;
@@ -939,7 +946,10 @@ fn concurrent_multi_tenant_no_deadlock() {
 
     let cycles: Vec<u64> = handles
         .into_iter()
-        .map(|h| h.join().expect("deadlock detected: thread panicked or hung"))
+        .map(|h| {
+            h.join()
+                .expect("deadlock detected: thread panicked or hung")
+        })
         .collect();
 
     for (t, &c) in cycles.iter().enumerate() {

@@ -451,7 +451,10 @@ fn memory_to_entry(m: &Memory) -> MemoryEntry {
     let len = m.memory_id.len().min(16);
     id[..len].copy_from_slice(&m.memory_id[..len]);
     let content_emb = m.embedding.clone().unwrap_or_default();
-    let assoc_emb = m.associative_embedding.clone().unwrap_or_else(|| content_emb.clone());
+    let assoc_emb = m
+        .associative_embedding
+        .clone()
+        .unwrap_or_else(|| content_emb.clone());
     MemoryEntry {
         id,
         content: m.content.clone(),
