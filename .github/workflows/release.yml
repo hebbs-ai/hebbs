@@ -12,26 +12,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  bench-full:
-    name: Full Benchmarks
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - name: Build
-        run: cargo build -p hebbs-bench --release
-      - name: Run full benchmarks
-        run: ./target/release/hebbs-bench all --tier standard --output release-bench.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-benchmarks
-          path: release-bench.json
-
   build-binaries:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -240,7 +220,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-binaries, bench-full]
+    needs: [build-binaries]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
