@@ -28,6 +28,7 @@ pub struct AuthState {
 
 /// Returns a tonic interceptor closure that validates API keys and sets
 /// `TenantContext` + `KeyRecord` in request extensions.
+#[allow(clippy::result_large_err)]
 pub fn grpc_auth_interceptor(
     auth_state: Arc<AuthState>,
 ) -> impl Fn(tonic::Request<()>) -> Result<tonic::Request<()>, Status> + Clone {
