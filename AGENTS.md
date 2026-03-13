@@ -98,10 +98,39 @@ Every change must propagate across all affected layers: proto → server (gRPC +
 
 ### Commits
 
+- **NEVER add Claude, Cursor, Copilot, or any AI agent as author or co-author of git commits. No `Co-Authored-By` lines. No AI attribution in commits. EVER.**
+- **Commit messages MUST be a single line. No multi-line bodies, no blank lines, no paragraphs.**
 - **Do not run `git commit` or `git push`.** Only generate a single-line commit message for the user to run themselves.
 - Use conventional commit tags: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `perf:`, `ci:`.
 - Format: `<tag>(<scope>): <concise description>` — e.g. `fix(server): return 404 instead of 500 for missing memory`.
 - If a code change requires a doc update, mention it in the commit message scope or body.
+
+### Subtree Push — NON-NEGOTIABLE
+
+**Every time you push to `origin main`, you MUST check ALL subtrees for unpushed changes and report them.** This is mandatory, no exceptions.
+
+Run the subtree diff check script from `MANAGING_GIT.md` after every push to origin:
+
+```bash
+for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap; do
+  t="last-push/$p"
+  if git rev-parse "$t" >/dev/null 2>&1; then
+    s=$(git diff --shortstat "$t" -- "$p/")
+    if [ -n "$s" ]; then
+      echo "CHANGED  $p  $s"
+    else
+      echo "clean    $p"
+    fi
+  else
+    echo "NO TAG   $p"
+  fi
+done
+```
+
+- Report all changed subtrees to the user.
+- Ask the user which subtrees should be pushed upstream.
+- Push only the ones the user confirms.
+- Update `last-push/<prefix>` tags after each successful subtree push.
 
 ---
 
