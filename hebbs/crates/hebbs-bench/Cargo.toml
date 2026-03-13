@@ -12,7 +12,7 @@ name = "hebbs-bench"
 path = "src/main.rs"
 
 [dependencies]
-hebbs-core = { path = "../hebbs-core" }
+hebbs-core = { path = "../hebbs-core", features = ["bench-instrument"] }
 hebbs-storage = { path = "../hebbs-storage" }
 hebbs-embed = { path = "../hebbs-embed" }
 hebbs-index = { path = "../hebbs-index" }
@@ -23,3 +23,5 @@ serde_json = { workspace = true }
 tempfile = { workspace = true }
 rand = { workspace = true }
 libc = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

@@ -55,7 +55,7 @@ hyper-util = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
 toml = "0.8"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "registry"] }
 prometheus = "0.14"
 rustyline = "15"
 comfy-table = "7"

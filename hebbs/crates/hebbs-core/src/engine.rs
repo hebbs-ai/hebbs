@@ -2,6 +2,26 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+/// Instrumentation span that compiles to a no-op unless `bench-instrument` is enabled.
+/// Zero cost in production builds. Returns an entered span guard; use `bench_span_drop!`
+/// to end the span early before the variable goes out of scope.
+macro_rules! bench_span {
+    ($name:expr) => {{
+        #[cfg(feature = "bench-instrument")]
+        let _guard = tracing::debug_span!($name).entered();
+        #[cfg(not(feature = "bench-instrument"))]
+        let _guard = ();
+        _guard
+    }};
+}
+
+macro_rules! bench_span_drop {
+    ($guard:ident) => {
+        #[cfg(feature = "bench-instrument")]
+        drop($guard);
+    };
+}
+
 use parking_lot::Mutex;
 use sha2::{Digest, Sha256};
 use ulid::Generator;
@@ -300,6 +320,7 @@ impl Engine {
     ) -> Result<RememberOutput> {
         let storage = self.scoped_storage(tenant);
 
+        let _validate_span = bench_span!("remember.validate");
         if input.content.is_empty() {
             return Err(HebbsError::InvalidInput {
                 operation: "remember",
@@ -347,14 +368,18 @@ impl Engine {
                 });
             }
         }
+        bench_span_drop!(_validate_span);
 
+        let _embed_span = bench_span!("remember.embed");
         let embed_start = Instant::now();
         let embedding = self.embedder.embed(&input.content)?;
         let embed_duration_us = embed_start.elapsed().as_micros() as u64;
+        bench_span_drop!(_embed_span);
 
         // Associative embedding starts equal to content embedding.
         let assoc_embedding = embedding.clone();
 
+        let _build_span = bench_span!("remember.build_memory");
         let ulid = self
             .ulid_gen
             .lock()
@@ -395,7 +420,9 @@ impl Engine {
                 confidence: e.confidence.unwrap_or(1.0),
             })
             .collect();
+        bench_span_drop!(_build_span);
 
+        let _prep_span = bench_span!("remember.prepare_insert");
         let (index_ops, _temp_node) = self.index_manager.prepare_insert(
             &memory_id,
             &embedding,
@@ -404,7 +431,9 @@ impl Engine {
             now_us,
             &edge_inputs,
         )?;
+        bench_span_drop!(_prep_span);
 
+        let _ser_span = bench_span!("remember.serialize");
         let memory_value = memory.to_bytes();
         let memory_key = keys::encode_memory_key(&memory_id);
 
@@ -415,12 +444,16 @@ impl Engine {
             value: memory_value,
         });
         all_ops.extend(index_ops);
+        bench_span_drop!(_ser_span);
 
+        let _write_span = bench_span!("remember.write_batch");
         storage.write_batch(&all_ops)?;
+        bench_span_drop!(_write_span);
 
         // Main HNSW is global — similarity isolation is enforced by TenantScopedStorage at read
         // time (cross-tenant memory IDs fail to load and are silently skipped).
         // Assoc HNSW is per-tenant — causal/analogy traversal must not leak across tenants.
+        let _hnsw_span = bench_span!("remember.hnsw_commit");
         self.index_manager
             .commit_insert(memory_id, embedding.clone())?;
         self.index_manager.commit_assoc_insert_for_tenant(
@@ -428,8 +461,10 @@ impl Engine {
             memory_id,
             assoc_embedding.clone(),
         )?;
+        bench_span_drop!(_hnsw_span);
 
         // Hebbian update: for each edge, learn the type offset from source to target.
+        let _hebbian_span = bench_span!("remember.hebbian_update");
         for edge in &edge_inputs {
             if let Ok(target_mem) = Self::get_from_storage(&*storage, &edge.target_id) {
                 let target_assoc = target_mem
@@ -445,6 +480,7 @@ impl Engine {
                 }
             }
         }
+        bench_span_drop!(_hebbian_span);
 
         self.subscribe_registry.notify_new_write(memory_id);
 
@@ -705,6 +741,7 @@ impl Engine {
     ) -> Result<RecallOutput> {
         let storage = self.scoped_storage(tenant);
 
+        let _validate_span = bench_span!("recall.validate");
         if input.cue.is_empty() {
             return Err(HebbsError::InvalidInput {
                 operation: "recall",
@@ -732,6 +769,7 @@ impl Engine {
         let max_depth = input.max_depth.unwrap_or(5).min(MAX_TRAVERSAL_DEPTH);
         let weights = input.scoring_weights.unwrap_or_default();
         let now_us = now_microseconds();
+        bench_span_drop!(_validate_span);
 
         let needs_embedding = input.strategies.iter().any(|s| {
             matches!(
@@ -742,6 +780,7 @@ impl Engine {
 
         let mut embed_duration_us: Option<u64> = None;
         let cue_embedding = if needs_embedding {
+            let _embed_span = bench_span!("recall.embed");
             let embed_start = Instant::now();
             match self.embedder.embed(&input.cue) {
                 Ok(emb) => {
@@ -785,11 +824,13 @@ impl Engine {
             analogical_alpha: input.analogical_alpha,
         };
 
+        let _exec_span = bench_span!("recall.execute_strategies");
         let outcomes = if input.strategies.len() == 1 {
             vec![self.execute_strategy(&*storage, &input.strategies[0], &ctx)]
         } else {
             self.execute_strategies_parallel(&*storage, &input.strategies, &ctx)
         };
+        bench_span_drop!(_exec_span);
 
         let mut strategy_errors = Vec::new();
         let mut truncated = HashMap::new();
@@ -814,9 +855,13 @@ impl Engine {
             truncated.insert(strategy.clone(), count >= top_k);
         }
 
+        let _merge_span = bench_span!("recall.merge_and_rank");
         let merged = self.merge_and_rank(all_results, &weights, now_us, top_k);
+        bench_span_drop!(_merge_span);
 
+        let _reinforce_span = bench_span!("recall.reinforce");
         Self::reinforce_memories(&*storage, &merged, now_us);
+        bench_span_drop!(_reinforce_span);
 
         Ok(RecallOutput {
             results: merged,
@@ -2111,6 +2156,7 @@ impl Engine {
             top_k
         };
 
+        let _hnsw_span = bench_span!("recall.similarity.hnsw_search");
         let search_results = match self
             .index_manager
             .search_vector(embedding, fetch_k, ef_search)
@@ -2123,7 +2169,9 @@ impl Engine {
                 );
             }
         };
+        bench_span_drop!(_hnsw_span);
 
+        let _load_span = bench_span!("recall.similarity.load_memories");
         let mut results = Vec::with_capacity(top_k.min(search_results.len()));
         for (memory_id, distance) in search_results {
             match Self::get_from_storage(storage, &memory_id) {
@@ -2150,6 +2198,7 @@ impl Engine {
                 Err(_) => continue,
             }
         }
+        bench_span_drop!(_load_span);
 
         StrategyOutcome::Ok(results)
     }
@@ -2176,6 +2225,7 @@ impl Engine {
 
         let (start_us, end_us) = time_range.unwrap_or((0, u64::MAX));
 
+        let _idx_span = bench_span!("recall.temporal.index_query");
         let temporal_results = match self.index_manager.query_temporal(
             eid,
             start_us,
@@ -2191,7 +2241,9 @@ impl Engine {
                 );
             }
         };
+        bench_span_drop!(_idx_span);
 
+        let _load_span = bench_span!("recall.temporal.load_memories");
         let total = temporal_results.len();
         let mut results = Vec::with_capacity(total);
         for (rank, (memory_id, timestamp)) in temporal_results.iter().enumerate() {
@@ -2216,6 +2268,7 @@ impl Engine {
                 Err(_) => continue,
             }
         }
+        bench_span_drop!(_load_span);
 
         StrategyOutcome::Ok(results)
     }
@@ -2243,6 +2296,7 @@ impl Engine {
         entity_id: Option<&str>,
         seed_memory_id: Option<[u8; 16]>,
     ) -> StrategyOutcome {
+        let _seed_span = bench_span!("recall.causal.seed_resolve");
         if let Some(seed) = seed_memory_id {
             match Self::get_from_storage(storage, &seed) {
                 Ok(mem) => {
@@ -2404,6 +2458,7 @@ impl Engine {
         direction: &CausalDirection,
         entity_id: Option<&str>,
     ) -> StrategyOutcome {
+        let _traverse_span = bench_span!("recall.causal.graph_traverse");
         let default_edge_types = vec![
             EdgeType::CausedBy,
             EdgeType::RelatedTo,
@@ -2555,6 +2610,7 @@ impl Engine {
         entity_id: Option<&str>,
         analogical_alpha: Option<f32>,
     ) -> StrategyOutcome {
+        let _hnsw_span = bench_span!("recall.analogical.hnsw_search");
         if let (Some(a_id), Some(b_id)) = (analogy_a_id, analogy_b_id) {
             let a_mem = Self::get_from_storage(storage, &a_id);
             let b_mem = Self::get_from_storage(storage, &b_id);
@@ -2661,6 +2717,7 @@ impl Engine {
                 }
             };
 
+        let _load_span = bench_span!("recall.analogical.load_memories");
         let mut analogical_weights = AnalogicalWeights::default();
         if let Some(alpha) = analogical_alpha {
             analogical_weights.alpha = alpha.clamp(0.0, 1.0);
@@ -2702,12 +2759,16 @@ impl Engine {
             }
         }
 
+        bench_span_drop!(_load_span);
+
+        let _rerank_span = bench_span!("recall.analogical.structural_rerank");
         scored_candidates.sort_by(|a, b| {
             b.relevance
                 .partial_cmp(&a.relevance)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         scored_candidates.truncate(top_k);
+        bench_span_drop!(_rerank_span);
 
         StrategyOutcome::Ok(scored_candidates)
     }

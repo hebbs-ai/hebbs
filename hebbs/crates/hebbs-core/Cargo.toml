@@ -22,6 +22,10 @@ crossbeam-channel.workspace = true
 sha2.workspace = true
 tracing.workspace = true
 
+[features]
+default = []
+bench-instrument = []
+
 [dev-dependencies]
 tempfile.workspace = true
 proptest.workspace = true

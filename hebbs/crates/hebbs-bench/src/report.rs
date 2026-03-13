@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::degradation::DegradationResults;
 use crate::latency::LatencyResults;
 use crate::resources::ResourceResults;
 use crate::scalability::ScalabilityResults;
@@ -92,6 +93,149 @@ pub fn print_resources_report(results: &ResourceResults) {
         );
     }
     println!("  └──────────────┴──────────────┴──────────────┴──────────────┘");
+    println!();
+}
+
+pub fn print_degradation_report(results: &DegradationResults) {
+    // Table 1: Degradation with deltas
+    let col_w = 16;
+    let strategies = ["Similarity", "Temporal", "Causal", "Analogical"];
+    let strat_headers = ["Similarity p99", "Temporal p99", "Causal p99", "Analogic p99"];
+
+    println!("  Degradation Curve — Latency (µs)");
+
+    // Header
+    print!("  ┌──────────┬──────────────────");
+    for _ in &strategies {
+        print!("┬{}", "─".repeat(col_w + 2));
+    }
+    println!("┐");
+
+    print!("  │ {:>8} │ {:>16} ", "Memories", "Remember p99");
+    for h in &strat_headers {
+        print!("│ {:>width$} ", h, width = col_w);
+    }
+    println!("│");
+
+    print!("  ├──────────┼──────────────────");
+    for _ in &strategies {
+        print!("┼{}", "─".repeat(col_w + 2));
+    }
+    println!("┤");
+
+    // Rows
+    for cp in &results.checkpoints {
+        // Remember column
+        let rem_delta = match &cp.deltas {
+            Some(d) => format!("{:+.1}%", d.remember_p99_delta_pct),
+            None => "—".to_string(),
+        };
+        print!(
+            "  │ {:>8} │ {:>8} {:>7} ",
+            cp.memory_count, cp.remember.p99_us, rem_delta
+        );
+
+        // Strategy columns
+        for (i, strat_name) in strategies.iter().enumerate() {
+            let p99 = cp
+                .strategies
+                .iter()
+                .find(|s| s.strategy == *strat_name)
+                .map(|s| s.p99_us)
+                .unwrap_or(0);
+
+            let delta_str = match &cp.deltas {
+                Some(d) => d
+                    .strategy_deltas
+                    .iter()
+                    .find(|sd| sd.strategy == *strat_name)
+                    .map(|sd| format!("{:+.1}%", sd.p99_delta_pct))
+                    .unwrap_or_else(|| "—".to_string()),
+                None => "—".to_string(),
+            };
+            let _ = i; // suppress unused warning
+            print!("│ {:>8} {:>7} ", p99, delta_str);
+        }
+        println!("│");
+    }
+
+    print!("  └──────────┴──────────────────");
+    for _ in &strategies {
+        print!("┴{}", "─".repeat(col_w + 2));
+    }
+    println!("┘");
+    println!();
+
+    // Table 2: Phase breakdown (top 8 by mean_us at last checkpoint)
+    print_phase_breakdown(results);
+}
+
+fn print_phase_breakdown(results: &DegradationResults) {
+    let last = match results.checkpoints.last() {
+        Some(cp) => cp,
+        None => return,
+    };
+
+    if last.phases.is_empty() {
+        return;
+    }
+
+    // Pick top 8 phases by mean_us at the last checkpoint
+    let mut phase_list: Vec<(&String, &crate::degradation::PhaseStats)> =
+        last.phases.iter().collect();
+    phase_list.sort_by(|a, b| b.1.mean_us.partial_cmp(&a.1.mean_us).unwrap());
+    phase_list.truncate(8);
+
+    let phase_names: Vec<String> = phase_list.iter().map(|(name, _)| (*name).clone()).collect();
+
+    if phase_names.is_empty() {
+        return;
+    }
+
+    println!("  Phase Breakdown — Mean µs");
+
+    let col_w = 10;
+
+    // Header
+    print!("  ┌──────────");
+    for _ in &phase_names {
+        print!("┬{}", "─".repeat(col_w + 2));
+    }
+    println!("┐");
+
+    print!("  │ {:>8} ", "Memories");
+    for name in &phase_names {
+        // Abbreviate to 8 chars
+        let abbrev: String = name.chars().take(8).collect();
+        print!("│ {:>width$} ", abbrev, width = col_w);
+    }
+    println!("│");
+
+    print!("  ├──────────");
+    for _ in &phase_names {
+        print!("┼{}", "─".repeat(col_w + 2));
+    }
+    println!("┤");
+
+    // Rows
+    for cp in &results.checkpoints {
+        print!("  │ {:>8} ", cp.memory_count);
+        for name in &phase_names {
+            let val = cp
+                .phases
+                .get(name)
+                .map(|ps| ps.mean_us)
+                .unwrap_or(0.0);
+            print!("│ {:>10.1} ", val);
+        }
+        println!("│");
+    }
+
+    print!("  └──────────");
+    for _ in &phase_names {
+        print!("┴{}", "─".repeat(col_w + 2));
+    }
+    println!("┘");
     println!();
 }
 

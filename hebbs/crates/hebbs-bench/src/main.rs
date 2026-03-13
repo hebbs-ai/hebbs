@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 mod dataset;
+mod degradation;
 mod latency;
 mod report;
 mod resources;
@@ -54,6 +55,30 @@ enum Commands {
         #[arg(long, default_value = "42")]
         seed: u64,
     },
+    /// Measure latency degradation as memory count grows
+    DegradationCurve {
+        /// Total memories to insert (default 1000)
+        #[arg(long, default_value = "1000")]
+        total: usize,
+        /// Checkpoint interval — measure every N memories (default 50)
+        #[arg(long, default_value = "50")]
+        interval: usize,
+        /// Number of probe operations per checkpoint (default 20)
+        #[arg(long, default_value = "20")]
+        measure_runs: usize,
+        /// Embedder backend: mock (fast, 8-dim) or onnx (real model)
+        #[arg(long, default_value = "mock")]
+        embedder: EmbedderChoice,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+        #[arg(long, default_value = "42")]
+        seed: u64,
+        /// Enable tracing spans to stderr (JSON format)
+        #[arg(long)]
+        verbose: bool,
+    },
     /// Run all benchmark categories
     All {
         #[arg(long, default_value = "quick")]
@@ -67,6 +92,12 @@ enum Commands {
         #[arg(long, default_value = "42")]
         seed: u64,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum EmbedderChoice {
+    Mock,
+    Onnx,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -166,6 +197,33 @@ fn main() {
                     Some(&results),
                     None,
                 );
+                report::write_json(&report, output_path);
+            }
+        }
+        Commands::DegradationCurve {
+            total,
+            interval,
+            measure_runs,
+            embedder,
+            output,
+            data_dir,
+            seed,
+            verbose,
+        } => {
+            let results =
+                degradation::run(total, interval, measure_runs, embedder, data_dir.as_deref(), seed, verbose);
+            report::print_degradation_report(&results);
+            if let Some(output_path) = &output {
+                let report = report::build_report(
+                    "degradation",
+                    &serde_json::Value::Null,
+                    None,
+                    None,
+                    None,
+                );
+                let mut report = report;
+                report["results"]["degradation"] =
+                    serde_json::to_value(&results).unwrap_or_default();
                 report::write_json(&report, output_path);
             }
         }
