@@ -23,6 +23,7 @@ hebbs-repos/
     ...
   hebbs-typescript/            ← TypeScript SDK (public repo, Node.js gRPC client)
   hebbs-website/               ← landing page (public repo, Astro + Tailwind)
+  hebbs-blog/                  ← blog (public repo, Astro + Tailwind, GitHub Pages)
   legal/                       ← IP ownership templates (never committed publicly)
 ```
 

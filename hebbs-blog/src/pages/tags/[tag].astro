@@ -1,0 +1,47 @@
+---
+import Base from "../../layouts/Base.astro";
+import BlogCard from "../../components/BlogCard.astro";
+import { getCollection } from "astro:content";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog", ({ data }) => !data.draft);
+  const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+  return tags.map((tag) => ({
+    params: { tag },
+    props: {
+      tag,
+      posts: posts
+        .filter((post) => post.data.tags.includes(tag))
+        .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()),
+    },
+  }));
+}
+
+const { tag, posts } = Astro.props;
+---
+
+<Base
+  title={`Posts tagged "${tag}"`}
+  description={`All blog posts tagged with "${tag}" on the HEBBS Blog.`}
+>
+  <div class="max-w-3xl mx-auto px-4 py-12">
+    <header class="mb-8">
+      <a href="/" class="text-sm text-accent hover:underline mb-4 inline-block">&larr; All posts</a>
+      <h1 class="text-3xl font-bold text-themed">
+        Posts tagged <span class="text-accent">"{tag}"</span>
+      </h1>
+    </header>
+    <section class="flex flex-col gap-6">
+      {posts.map((post: any) => (
+        <BlogCard
+          title={post.data.title}
+          description={post.data.description}
+          pubDate={post.data.pubDate}
+          slug={post.id}
+          tags={post.data.tags}
+          heroImage={post.data.heroImage}
+        />
+      ))}
+    </section>
+  </div>
+</Base>

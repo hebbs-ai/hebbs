@@ -11,6 +11,7 @@ declare -A REMOTES=(
   [hebbs-docs]="git@github.com:hebbs-ai/hebbs-docs.git"
   [hebbs-deploy]="git@github.com:hebbs-ai/hebbs-deploy.git"
   [hebbs-skill]="git@github.com:hebbs-ai/hebbs-skill.git"
+  [hebbs-blog]="git@github.com:hebbs-ai/hebbs-blog.git"
   [homebrew-tap]="git@github.com:hebbs-ai/homebrew-tap.git"
 )
 

@@ -1,0 +1,48 @@
+---
+import Base from "../layouts/Base.astro";
+import BlogCard from "../components/BlogCard.astro";
+import { getCollection } from "astro:content";
+
+const posts = (await getCollection("blog", ({ data }) => !data.draft))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "HEBBS Blog",
+  url: "https://blog.hebbs.ai",
+  description: "Engineering insights, product updates, and deep dives from the HEBBS team.",
+  publisher: {
+    "@type": "Organization",
+    name: "HEBBS",
+    url: "https://hebbs.ai",
+  },
+};
+---
+
+<Base
+  title="HEBBS Blog"
+  description="Engineering insights, product updates, and deep dives from the HEBBS team."
+>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <div class="max-w-3xl mx-auto px-4 py-12">
+    <section class="mb-12">
+      <h1 class="text-3xl sm:text-4xl font-bold text-themed mb-2">HEBBS Blog</h1>
+      <p class="text-lg text-themed-muted">
+        Engineering insights, product updates, and deep dives from the HEBBS team.
+      </p>
+    </section>
+    <section class="flex flex-col gap-6">
+      {posts.map((post) => (
+        <BlogCard
+          title={post.data.title}
+          description={post.data.description}
+          pubDate={post.data.pubDate}
+          slug={post.id}
+          tags={post.data.tags}
+          heroImage={post.data.heroImage}
+        />
+      ))}
+    </section>
+  </div>
+</Base>

@@ -1,0 +1,83 @@
+---
+import Base from "./Base.astro";
+import FormattedDate from "../components/FormattedDate.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  heroImage?: string;
+  tags?: string[];
+}
+
+const { title, description, pubDate, updatedDate, heroImage, tags = [] } = Astro.props;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: title,
+  description,
+  datePublished: pubDate.toISOString(),
+  ...(updatedDate && { dateModified: updatedDate.toISOString() }),
+  ...(heroImage && { image: new URL(heroImage, Astro.site).href }),
+  author: {
+    "@type": "Organization",
+    name: "HEBBS",
+    url: "https://hebbs.ai",
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "HEBBS",
+    url: "https://hebbs.ai",
+    logo: {
+      "@type": "ImageObject",
+      url: new URL("/logo-icon.svg", Astro.site).href,
+    },
+  },
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": new URL(Astro.url.pathname, Astro.site).href,
+  },
+};
+---
+
+<Base title={title} description={description} type="article" pubDate={pubDate} updatedDate={updatedDate} image={heroImage}>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <article class="max-w-3xl mx-auto px-4 py-12">
+    <header class="mb-8">
+      <div class="text-sm text-themed-muted mb-3">
+        <FormattedDate date={pubDate} />
+        {updatedDate && (
+          <span>
+            &middot; Updated <FormattedDate date={updatedDate} />
+          </span>
+        )}
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-bold text-themed leading-tight mb-4">{title}</h1>
+      <p class="text-lg text-themed-muted">{description}</p>
+      {tags.length > 0 && (
+        <div class="flex flex-wrap gap-2 mt-4">
+          {tags.map((tag) => (
+            <a
+              href={`/tags/${tag}/`}
+              class="text-xs px-2 py-1 rounded-md bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors"
+            >
+              {tag}
+            </a>
+          ))}
+        </div>
+      )}
+    </header>
+    {heroImage && (
+      <img
+        src={heroImage}
+        alt={title}
+        class="w-full rounded-lg mb-8 object-cover aspect-video"
+      />
+    )}
+    <div class="prose text-themed">
+      <slot />
+    </div>
+  </article>
+</Base>

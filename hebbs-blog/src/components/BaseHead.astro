@@ -1,0 +1,80 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  image?: string;
+  canonicalURL?: string;
+  type?: "website" | "article";
+  pubDate?: Date;
+  updatedDate?: Date;
+}
+
+const {
+  title,
+  description,
+  image = "/logo-icon.svg",
+  canonicalURL = new URL(Astro.url.pathname, Astro.site).href,
+  type = "website",
+  pubDate,
+  updatedDate,
+} = Astro.props;
+
+const siteName = "HEBBS Blog";
+const fullTitle = title === siteName ? title : `${title} | ${siteName}`;
+const imageURL = new URL(image, Astro.site).href;
+---
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="generator" content={Astro.generator} />
+
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalURL} />
+<meta name="theme-color" content="#0A0A0B" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)" />
+
+<meta property="og:type" content={type} />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={imageURL} />
+<meta property="og:site_name" content={siteName} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:url" content={canonicalURL} />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageURL} />
+
+{pubDate && <meta property="article:published_time" content={pubDate.toISOString()} />}
+{updatedDate && <meta property="article:modified_time" content={updatedDate.toISOString()} />}
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="alternate" type="application/rss+xml" title={siteName} href={new URL("/rss.xml", Astro.site).href} />
+<link rel="sitemap" href="/sitemap-index.xml" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- Prevent FOUC: apply theme before render -->
+<script is:inline>
+(function () {
+  const stored = localStorage.getItem("theme");
+  if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+    document.documentElement.classList.add("dark");
+  } else if (stored === "light") {
+    document.documentElement.classList.remove("dark");
+  } else {
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      document.documentElement.classList.add("dark");
+    }
+  }
+})();
+</script>
