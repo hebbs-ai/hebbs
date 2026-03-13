@@ -7,9 +7,9 @@ declare -A REMOTES=(
   [hebbs-engine]="git@github.com:hebbs-ai/hebbs.git"
   [hebbs-ts]="git@github.com:hebbs-ai/hebbs-typescript.git"
   [hebbs-py]="git@github.com:hebbs-ai/hebbs-python.git"
-  [hebbs-web]="https://github.com/hebbs-ai/hebbs-website.git"
+  [hebbs-web]="git@github.com:hebbs-ai/hebbs-website.git"
   [hebbs-docs]="git@github.com:hebbs-ai/hebbs-docs.git"
-  [hebbs-deploy]="https://github.com/hebbs-ai/hebbs-deploy.git"
+  [hebbs-deploy]="git@github.com:hebbs-ai/hebbs-deploy.git"
   [hebbs-skill]="git@github.com:hebbs-ai/hebbs-skill.git"
   [homebrew-tap]="git@github.com:hebbs-ai/homebrew-tap.git"
 )
