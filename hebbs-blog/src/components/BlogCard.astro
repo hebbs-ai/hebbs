@@ -14,7 +14,7 @@ const { title, description, pubDate, slug, tags = [], heroImage } = Astro.props;
 ---
 
 <article class="surface border border-themed rounded-lg p-6 hover:border-accent transition-colors group">
-  <a href={`/blog/${slug}/`} class="block">
+  <a href={`/${slug}/`} class="block">
     {heroImage && (
       <img
         src={heroImage}

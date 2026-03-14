@@ -251,6 +251,7 @@ fn process_cluster(
             confidence: compute_insight_importance(
                 mean_importance,
                 confidence,
+                final_source_ids.len(),
                 config.insight_importance_weight,
             ),
             source_memory_ids: final_source_ids,
@@ -270,12 +271,20 @@ fn process_cluster(
     Ok((produced, status))
 }
 
+/// Compute insight importance from source memory importance, LLM confidence,
+/// and source count. Larger clusters (more memories converging on the same
+/// insight) get a logarithmic boost — diminishing returns so a cluster of 100
+/// isn't 10x more important than a cluster of 10.
 fn compute_insight_importance(
     mean_source_importance: f32,
     llm_confidence: f32,
+    source_count: usize,
     weight: f32,
 ) -> f32 {
-    (weight * mean_source_importance + (1.0 - weight) * llm_confidence).clamp(0.0, 1.0)
+    let base = weight * mean_source_importance + (1.0 - weight) * llm_confidence;
+    // ln(1 + n) / 10 gives: 1 source → 0.069, 3 → 0.139, 10 → 0.240, 50 → 0.392
+    let freq_boost = (1.0 + source_count as f32).ln() / 10.0;
+    (base + freq_boost).clamp(0.0, 1.0)
 }
 
 fn parse_proposal_response(content: &str) -> Result<Vec<CandidateInsight>> {
@@ -465,12 +474,20 @@ mod tests {
 
     #[test]
     fn insight_importance_in_valid_range() {
-        assert_eq!(
-            compute_insight_importance(0.5, 0.8, 0.7),
-            0.5 * 0.7 + 0.8 * 0.3
-        );
-        assert_eq!(compute_insight_importance(1.0, 1.0, 0.7), 1.0);
-        assert_eq!(compute_insight_importance(0.0, 0.0, 0.7), 0.0);
+        // With 1 source: freq_boost = ln(2)/10 ≈ 0.0693
+        let base = 0.5 * 0.7 + 0.8 * 0.3;
+        let boost_1 = (2.0_f32).ln() / 10.0;
+        assert!((compute_insight_importance(0.5, 0.8, 1, 0.7) - (base + boost_1)).abs() < 1e-6);
+        assert_eq!(compute_insight_importance(1.0, 1.0, 1, 0.7), 1.0); // clamped
+        // With 0 sources: freq_boost = ln(1)/10 = 0
+        assert_eq!(compute_insight_importance(0.0, 0.0, 0, 0.7), 0.0);
+    }
+
+    #[test]
+    fn larger_cluster_boosts_importance() {
+        let small = compute_insight_importance(0.5, 0.5, 3, 0.7);
+        let large = compute_insight_importance(0.5, 0.5, 20, 0.7);
+        assert!(large > small, "larger cluster should produce higher importance");
     }
 
     #[test]

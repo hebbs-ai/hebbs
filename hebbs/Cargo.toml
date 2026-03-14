@@ -13,6 +13,7 @@ members = [
     "crates/hebbs-ffi",
     "crates/hebbs-python-native",
     "crates/hebbs-bench",
+    "crates/hebbs-vault",
 ]
 
 [workspace.package]
