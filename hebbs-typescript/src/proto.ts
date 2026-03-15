@@ -58,6 +58,7 @@ export const EDGE_TYPE_RELATED_TO = 2;
 export const EDGE_TYPE_FOLLOWED_BY = 3;
 export const EDGE_TYPE_REVISED_FROM = 4;
 export const EDGE_TYPE_INSIGHT_FROM = 5;
+export const EDGE_TYPE_CONTRADICTS = 6;
 
 export const STRATEGY_UNSPECIFIED = 0;
 export const STRATEGY_SIMILARITY = 1;
@@ -75,6 +76,7 @@ const EDGE_TYPE_TO_PROTO: Record<string, number> = {
   [EdgeType.FOLLOWED_BY]: EDGE_TYPE_FOLLOWED_BY,
   [EdgeType.REVISED_FROM]: EDGE_TYPE_REVISED_FROM,
   [EdgeType.INSIGHT_FROM]: EDGE_TYPE_INSIGHT_FROM,
+  [EdgeType.CONTRADICTS]: EDGE_TYPE_CONTRADICTS,
 };
 
 const STRATEGY_TO_PROTO: Record<string, number> = {

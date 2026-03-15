@@ -31,6 +31,13 @@ export {
   type SubscribeParams,
   type ReflectParams,
   type InsightsParams,
+  type ClusterMemorySummary,
+  type ClusterPrompt,
+  type ProducedInsightInput,
+  type ReflectCommitResult,
+  type ReflectPrepareResult,
+  type ReflectPrepareParams,
+  type ReflectCommitParams,
 } from './types.js';
 
 export {

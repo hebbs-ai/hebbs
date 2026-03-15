@@ -544,6 +544,16 @@ class ReflectServiceStub(object):
                 request_serializer=hebbs__pb2.GetInsightsRequest.SerializeToString,
                 response_deserializer=hebbs__pb2.GetInsightsResponse.FromString,
                 _registered_method=True)
+        self.ReflectPrepare = channel.unary_unary(
+                '/hebbs.v1.ReflectService/ReflectPrepare',
+                request_serializer=hebbs__pb2.ReflectPrepareRequest.SerializeToString,
+                response_deserializer=hebbs__pb2.ReflectPrepareResponse.FromString,
+                _registered_method=True)
+        self.ReflectCommit = channel.unary_unary(
+                '/hebbs.v1.ReflectService/ReflectCommit',
+                request_serializer=hebbs__pb2.ReflectCommitRequest.SerializeToString,
+                response_deserializer=hebbs__pb2.ReflectCommitResponse.FromString,
+                _registered_method=True)
 
 
 class ReflectServiceServicer(object):
@@ -561,6 +571,18 @@ class ReflectServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReflectPrepare(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReflectCommit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ReflectServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -573,6 +595,16 @@ def add_ReflectServiceServicer_to_server(servicer, server):
                     servicer.GetInsights,
                     request_deserializer=hebbs__pb2.GetInsightsRequest.FromString,
                     response_serializer=hebbs__pb2.GetInsightsResponse.SerializeToString,
+            ),
+            'ReflectPrepare': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReflectPrepare,
+                    request_deserializer=hebbs__pb2.ReflectPrepareRequest.FromString,
+                    response_serializer=hebbs__pb2.ReflectPrepareResponse.SerializeToString,
+            ),
+            'ReflectCommit': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReflectCommit,
+                    request_deserializer=hebbs__pb2.ReflectCommitRequest.FromString,
+                    response_serializer=hebbs__pb2.ReflectCommitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -629,6 +661,60 @@ class ReflectService(object):
             '/hebbs.v1.ReflectService/GetInsights',
             hebbs__pb2.GetInsightsRequest.SerializeToString,
             hebbs__pb2.GetInsightsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReflectPrepare(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hebbs.v1.ReflectService/ReflectPrepare',
+            hebbs__pb2.ReflectPrepareRequest.SerializeToString,
+            hebbs__pb2.ReflectPrepareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReflectCommit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hebbs.v1.ReflectService/ReflectCommit',
+            hebbs__pb2.ReflectCommitRequest.SerializeToString,
+            hebbs__pb2.ReflectCommitResponse.FromString,
             options,
             channel_credentials,
             insecure,

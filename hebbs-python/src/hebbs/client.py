@@ -22,13 +22,17 @@ from hebbs.services.memory import MemoryServiceClient
 from hebbs.services.reflect import ReflectServiceClient
 from hebbs.services.subscribe import SubscribeServiceClient, Subscription
 from hebbs.types import (
+    ClusterPrompt,
     Edge,
     ForgetResult,
     HealthStatus,
     Memory,
     PrimeOutput,
+    ProducedInsightInput,
     RecallOutput,
     RecallStrategyConfig,
+    ReflectCommitResult,
+    ReflectPrepareResult,
     ReflectResult,
     ScoringWeights,
 )
@@ -276,6 +280,22 @@ class HebbsClient:
         self._ensure_connected()
         assert self._reflect is not None
         return await self._reflect.get_insights(entity_id, max_results)
+
+    async def reflect_prepare(self, entity_id: str | None = None) -> ReflectPrepareResult:
+        """Prepare a two-step reflect: get cluster prompts for agent-driven insight generation."""
+        self._ensure_connected()
+        assert self._reflect is not None
+        return await self._reflect.reflect_prepare(entity_id)
+
+    async def reflect_commit(
+        self,
+        session_id: str,
+        insights: list[ProducedInsightInput],
+    ) -> ReflectCommitResult:
+        """Commit agent-produced insights from a reflect_prepare session."""
+        self._ensure_connected()
+        assert self._reflect is not None
+        return await self._reflect.reflect_commit(session_id, insights)
 
     # ── HealthService ────────────────────────────────────────────────────
 

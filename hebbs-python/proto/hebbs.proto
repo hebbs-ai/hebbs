@@ -27,6 +27,8 @@ service SubscribeService {
 service ReflectService {
   rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc GetInsights(GetInsightsRequest) returns (GetInsightsResponse);
+  rpc ReflectPrepare(ReflectPrepareRequest) returns (ReflectPrepareResponse);
+  rpc ReflectCommit(ReflectCommitRequest) returns (ReflectCommitResponse);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -47,6 +49,7 @@ enum EdgeType {
   EDGE_TYPE_FOLLOWED_BY = 3;
   EDGE_TYPE_REVISED_FROM = 4;
   EDGE_TYPE_INSIGHT_FROM = 5;
+  EDGE_TYPE_CONTRADICTS = 6;
 }
 
 enum RecallStrategyType {
@@ -78,6 +81,8 @@ message Memory {
   MemoryKind kind = 12;
   optional string device_id = 13;
   uint64 logical_clock = 14;
+  // Lineage: for Insight-kind memories, the source memory IDs that produced this insight
+  // (populated via InsightFrom graph edges). Empty for non-insight memories.
   repeated bytes source_memory_ids = 15;
 }
 
@@ -344,6 +349,56 @@ message GetInsightsRequest {
 
 message GetInsightsResponse {
   repeated Memory insights = 1;
+}
+
+// --- ReflectPrepare / ReflectCommit (agent-driven two-step reflect) ---
+
+message ReflectPrepareRequest {
+  ReflectScope scope = 1;
+  optional string tenant_id = 2;
+}
+
+message ClusterMemorySummary {
+  string memory_id = 1;
+  string content = 2;
+  float importance = 3;
+  optional string entity_id = 4;
+  uint64 created_at = 5;
+}
+
+message ClusterPrompt {
+  uint32 cluster_id = 1;
+  uint32 member_count = 2;
+  string proposal_system_prompt = 3;
+  string proposal_user_prompt = 4;
+  repeated string memory_ids = 5;
+  string validation_context = 6;
+  repeated ClusterMemorySummary memories = 7;
+}
+
+message ReflectPrepareResponse {
+  string session_id = 1;
+  uint64 memories_processed = 2;
+  repeated ClusterPrompt clusters = 3;
+  uint64 existing_insight_count = 4;
+}
+
+message ProducedInsightInput {
+  string content = 1;
+  float confidence = 2;
+  repeated string source_memory_ids = 3;
+  repeated string tags = 4;
+  optional uint32 cluster_id = 5;
+}
+
+message ReflectCommitRequest {
+  string session_id = 1;
+  repeated ProducedInsightInput insights = 2;
+  optional string tenant_id = 3;
+}
+
+message ReflectCommitResponse {
+  uint64 insights_created = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

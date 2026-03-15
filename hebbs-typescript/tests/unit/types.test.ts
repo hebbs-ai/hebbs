@@ -16,6 +16,11 @@ import {
   type RecallStrategyConfig,
   type StrategyDetail,
   type StrategyError,
+  type ClusterMemorySummary,
+  type ClusterPrompt,
+  type ProducedInsightInput,
+  type ReflectCommitResult,
+  type ReflectPrepareResult,
 } from '../../src/index.js';
 
 describe('MemoryKind', () => {
@@ -34,6 +39,7 @@ describe('EdgeType', () => {
     expect(EdgeType.FOLLOWED_BY).toBe('followed_by');
     expect(EdgeType.REVISED_FROM).toBe('revised_from');
     expect(EdgeType.INSIGHT_FROM).toBe('insight_from');
+    expect(EdgeType.CONTRADICTS).toBe('contradicts');
     expect(EdgeType.UNSPECIFIED).toBe('unspecified');
   });
 });
@@ -308,5 +314,92 @@ describe('PrimeOutput interface', () => {
 
     expect(output.temporalCount).toBe(5);
     expect(output.similarityCount).toBe(3);
+  });
+});
+
+describe('ReflectPrepareResult interface', () => {
+  it('can construct a full result', () => {
+    const result: ReflectPrepareResult = {
+      sessionId: 'sess-123',
+      memoriesProcessed: 42,
+      clusters: [
+        {
+          clusterId: 0,
+          memberCount: 5,
+          proposalSystemPrompt: 'You are...',
+          proposalUserPrompt: 'Analyze...',
+          memoryIds: ['m1', 'm2'],
+          validationContext: 'context',
+          memories: [
+            {
+              memoryId: 'm1',
+              content: 'Test memory',
+              importance: 0.8,
+              entityId: 'ent-1',
+              createdAt: 1000,
+            },
+          ],
+        },
+      ],
+      existingInsightCount: 3,
+    };
+
+    expect(result.sessionId).toBe('sess-123');
+    expect(result.memoriesProcessed).toBe(42);
+    expect(result.clusters).toHaveLength(1);
+    expect(result.clusters[0].memberCount).toBe(5);
+    expect(result.clusters[0].memories).toHaveLength(1);
+    expect(result.clusters[0].memories[0].content).toBe('Test memory');
+    expect(result.existingInsightCount).toBe(3);
+  });
+});
+
+describe('ProducedInsightInput interface', () => {
+  it('can construct with all fields', () => {
+    const insight: ProducedInsightInput = {
+      content: 'Users prefer API-first',
+      confidence: 0.85,
+      sourceMemoryIds: ['m1', 'm2', 'm3'],
+      tags: ['preference', 'api'],
+      clusterId: 2,
+    };
+
+    expect(insight.content).toBe('Users prefer API-first');
+    expect(insight.confidence).toBe(0.85);
+    expect(insight.sourceMemoryIds).toHaveLength(3);
+    expect(insight.clusterId).toBe(2);
+  });
+
+  it('works with minimal fields', () => {
+    const insight: ProducedInsightInput = {
+      content: 'test',
+      confidence: 0.5,
+    };
+
+    expect(insight.sourceMemoryIds).toBeUndefined();
+    expect(insight.tags).toBeUndefined();
+    expect(insight.clusterId).toBeUndefined();
+  });
+});
+
+describe('ReflectCommitResult interface', () => {
+  it('captures insights created', () => {
+    const result: ReflectCommitResult = {
+      insightsCreated: 5,
+    };
+    expect(result.insightsCreated).toBe(5);
+  });
+});
+
+describe('Edge with CONTRADICTS type', () => {
+  it('supports CONTRADICTS edge type', () => {
+    const edge: Edge = {
+      targetId: Buffer.alloc(16),
+      edgeType: EdgeType.CONTRADICTS,
+      confidence: 0.75,
+    };
+
+    expect(edge.edgeType).toBe(EdgeType.CONTRADICTS);
+    expect(edge.confidence).toBe(0.75);
   });
 });

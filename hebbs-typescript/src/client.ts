@@ -43,6 +43,12 @@ import type {
   SubscribeParams,
   ReflectParams,
   InsightsParams,
+  ClusterPrompt,
+  ProducedInsightInput,
+  ReflectCommitResult,
+  ReflectPrepareResult,
+  ReflectPrepareParams,
+  ReflectCommitParams,
 } from './types.js';
 
 export interface HebbsClientOptions {
@@ -299,6 +305,19 @@ export class HebbsClient {
     return this.reflectService!.getInsights(
       params?.entityId,
       params?.maxResults,
+    );
+  }
+
+  async reflectPrepare(params?: ReflectPrepareParams): Promise<ReflectPrepareResult> {
+    this.ensureConnected();
+    return this.reflectService!.reflectPrepare(params?.entityId);
+  }
+
+  async reflectCommit(params: ReflectCommitParams): Promise<ReflectCommitResult> {
+    this.ensureConnected();
+    return this.reflectService!.reflectCommit(
+      params.sessionId,
+      params.insights,
     );
   }
 

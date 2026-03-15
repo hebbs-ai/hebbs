@@ -23,6 +23,7 @@ class EdgeType(Enum):
     FOLLOWED_BY = "followed_by"
     REVISED_FROM = "revised_from"
     INSIGHT_FROM = "insight_from"
+    CONTRADICTS = "contradicts"
     UNSPECIFIED = "unspecified"
 
 
@@ -166,3 +167,45 @@ class HealthStatus:
     version: str
     memory_count: int
     uptime_seconds: int
+
+
+@dataclass
+class ClusterMemorySummary:
+    memory_id: str
+    content: str
+    importance: float
+    entity_id: str | None = None
+    created_at: int = 0
+
+
+@dataclass
+class ClusterPrompt:
+    cluster_id: int
+    member_count: int
+    proposal_system_prompt: str
+    proposal_user_prompt: str
+    memory_ids: list[str] = field(default_factory=list)
+    validation_context: str = ""
+    memories: list[ClusterMemorySummary] = field(default_factory=list)
+
+
+@dataclass
+class ReflectPrepareResult:
+    session_id: str
+    memories_processed: int
+    clusters: list[ClusterPrompt] = field(default_factory=list)
+    existing_insight_count: int = 0
+
+
+@dataclass
+class ProducedInsightInput:
+    content: str
+    confidence: float
+    source_memory_ids: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    cluster_id: int | None = None
+
+
+@dataclass
+class ReflectCommitResult:
+    insights_created: int

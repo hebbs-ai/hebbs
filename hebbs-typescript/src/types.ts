@@ -19,6 +19,7 @@ export enum EdgeType {
   FOLLOWED_BY = 'followed_by',
   REVISED_FROM = 'revised_from',
   INSIGHT_FROM = 'insight_from',
+  CONTRADICTS = 'contradicts',
   UNSPECIFIED = 'unspecified',
 }
 
@@ -217,4 +218,52 @@ export interface ReflectParams {
 export interface InsightsParams {
   readonly entityId?: string;
   readonly maxResults?: number;
+}
+
+export interface ReflectPrepareParams {
+  readonly entityId?: string;
+}
+
+export interface ReflectCommitParams {
+  readonly sessionId: string;
+  readonly insights: ProducedInsightInput[];
+}
+
+// ── Reflect Prepare/Commit Types ────────────────────────────────────
+
+export interface ClusterMemorySummary {
+  readonly memoryId: string;
+  readonly content: string;
+  readonly importance: number;
+  readonly entityId?: string;
+  readonly createdAt: number;
+}
+
+export interface ClusterPrompt {
+  readonly clusterId: number;
+  readonly memberCount: number;
+  readonly proposalSystemPrompt: string;
+  readonly proposalUserPrompt: string;
+  readonly memoryIds: string[];
+  readonly validationContext: string;
+  readonly memories: ClusterMemorySummary[];
+}
+
+export interface ReflectPrepareResult {
+  readonly sessionId: string;
+  readonly memoriesProcessed: number;
+  readonly clusters: ClusterPrompt[];
+  readonly existingInsightCount: number;
+}
+
+export interface ProducedInsightInput {
+  readonly content: string;
+  readonly confidence: number;
+  readonly sourceMemoryIds?: string[];
+  readonly tags?: string[];
+  readonly clusterId?: number;
+}
+
+export interface ReflectCommitResult {
+  readonly insightsCreated: number;
 }
