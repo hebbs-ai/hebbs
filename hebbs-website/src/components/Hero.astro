@@ -20,14 +20,18 @@
       Four recall strategies. Native consolidation. Automatic decay. Drop-in agent skill.
     </p>
 
-    <div class="inline-flex items-center rounded-xl border border-border bg-surface/60 pl-6 pr-2 py-3 mb-10 gap-3 group cursor-pointer" onclick="navigator.clipboard.writeText('brew install hebbs-ai/tap/hebbs')">
+    <div class="inline-flex items-center rounded-xl border border-border bg-surface/60 pl-6 pr-2 py-3 mb-4 gap-3 group cursor-pointer" onclick="navigator.clipboard.writeText('curl -sSf https://hebbs.ai/install | sh')">
       <code class="font-mono text-sm md:text-base text-muted">
-        <span class="text-accent">$</span> brew install hebbs-ai/tap/hebbs
+        <span class="text-accent">$</span> curl -sSf https://hebbs.ai/install | sh
       </code>
       <span class="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted group-hover:text-text group-hover:border-muted transition-colors">
         Copy
       </span>
     </div>
+
+    <p class="text-xs text-muted/60 mb-10">
+      or <code class="font-mono text-xs text-muted/80 cursor-pointer hover:text-muted transition-colors" onclick="navigator.clipboard.writeText('brew install hebbs-ai/tap/hebbs')">brew install hebbs-ai/tap/hebbs</code>
+    </p>
 
     <div class="flex items-center justify-center gap-4 mb-14">
       <a
