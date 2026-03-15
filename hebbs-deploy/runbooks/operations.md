@@ -32,25 +32,25 @@ For deployments outside Kubernetes, HEBBS runs as a systemd service. The install
 
 | Path | Purpose |
 |------|---------|
-| `/usr/local/bin/hebbs-server` | Server binary |
+| `/usr/local/bin/hebbs` | Unified binary (server, CLI, vault) |
 | `/etc/hebbs/hebbs.toml` | TOML configuration |
 | `/etc/hebbs/hebbs.env` | Environment overrides and API keys (mode 600) |
 | `/var/lib/hebbs/` | Data directory (RocksDB, models, auth keys) |
-| `/etc/systemd/system/hebbs-server.service` | Systemd unit |
+| `/etc/systemd/system/hebbs.service` | Systemd unit (`hebbs serve --foreground`) |
 
 ### Service Management
 
 ```bash
 # Start / stop / restart
-sudo systemctl start hebbs-server
-sudo systemctl stop hebbs-server       # sends SIGTERM, waits TimeoutStopSec
-sudo systemctl restart hebbs-server
+sudo systemctl start hebbs
+sudo systemctl stop hebbs       # sends SIGTERM, waits TimeoutStopSec
+sudo systemctl restart hebbs
 
 # Enable auto-start on boot
-sudo systemctl enable hebbs-server
+sudo systemctl enable hebbs
 
 # Check status
-sudo systemctl status hebbs-server
+sudo systemctl status hebbs
 ```
 
 ### Viewing Logs
@@ -59,19 +59,19 @@ Logs go to journald (structured JSON when `logging.format = "json"`):
 
 ```bash
 # Stream live logs
-journalctl -u hebbs-server -f
+journalctl -u hebbs -f
 
 # Last 200 lines
-journalctl -u hebbs-server -n 200
+journalctl -u hebbs -n 200
 
 # Logs since last boot
-journalctl -u hebbs-server -b
+journalctl -u hebbs -b
 
 # Filter by severity
-journalctl -u hebbs-server -p err
+journalctl -u hebbs -p err
 
 # Logs within a time window
-journalctl -u hebbs-server --since "2025-01-15 10:00" --until "2025-01-15 12:00"
+journalctl -u hebbs --since "2025-01-15 10:00" --until "2025-01-15 12:00"
 ```
 
 ### Configuration Changes
@@ -79,7 +79,7 @@ journalctl -u hebbs-server --since "2025-01-15 10:00" --until "2025-01-15 12:00"
 After editing `/etc/hebbs/hebbs.toml` or `/etc/hebbs/hebbs.env`:
 
 ```bash
-sudo systemctl restart hebbs-server
+sudo systemctl restart hebbs
 ```
 
 ### Shutdown Timeout
@@ -89,7 +89,7 @@ The server enforces `shutdown_timeout_secs` (default 15s) after receiving SIGTER
 The systemd unit sets `TimeoutStopSec=20` — 5 seconds higher than the default — so the application handles its own timeout before systemd sends SIGKILL. If you increase `shutdown_timeout_secs` in `hebbs.toml`, increase `TimeoutStopSec` in the unit file to match:
 
 ```bash
-sudo systemctl edit hebbs-server
+sudo systemctl edit hebbs
 ```
 
 ```ini
@@ -101,13 +101,13 @@ TimeoutStopSec=35
 
 ```bash
 # 1. Download the new version
-HEBBS_VERSION=v0.2.0 curl -sSf https://hebbs.ai/install | sudo sh
+HEBBS_VERSION=v0.3.0 curl -sSf https://hebbs.ai/install | sudo sh
 
 # 2. Restart the service (picks up the new binary)
-sudo systemctl restart hebbs-server
+sudo systemctl restart hebbs
 
 # 3. Verify
-sudo systemctl status hebbs-server
+sudo systemctl status hebbs
 curl -s http://localhost:6381/v1/health/ready
 ```
 
@@ -140,7 +140,7 @@ HEBBS_POD=$(kubectl get pods -l app=hebbs -o jsonpath='{.items[0].metadata.name}
 # 2. Create a checkpoint directory inside the container
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 kubectl exec "$HEBBS_POD" -- \
-  hebbs-cli backup create --output /data/backups/checkpoint-${TIMESTAMP}
+  hebbs backup create --output /data/backups/checkpoint-${TIMESTAMP}
 
 # 3. Verify the checkpoint was created
 kubectl exec "$HEBBS_POD" -- ls -la /data/backups/checkpoint-${TIMESTAMP}
@@ -253,7 +253,7 @@ The 2.5x multiplier accounts for RocksDB write amplification, HNSW index overhea
 ```bash
 # 1. Create a pre-upgrade backup
 HEBBS_POD=$(kubectl get pods -l app=hebbs -o jsonpath='{.items[0].metadata.name}')
-kubectl exec "$HEBBS_POD" -- hebbs-cli backup create --output /data/backups/pre-upgrade
+kubectl exec "$HEBBS_POD" -- hebbs backup create --output /data/backups/pre-upgrade
 
 # 2. Update the image tag
 kubectl set image deployment/hebbs hebbs=ghcr.io/hebbs-ai/hebbs:NEW_VERSION
@@ -275,7 +275,7 @@ grpcurl -plaintext localhost:50051 hebbs.v1.HebbsService/Health
 ```bash
 # 1. Create a backup from one replica
 HEBBS_POD=$(kubectl get pods -l app=hebbs -o jsonpath='{.items[0].metadata.name}')
-kubectl exec "$HEBBS_POD" -- hebbs-cli backup create --output /data/backups/pre-upgrade
+kubectl exec "$HEBBS_POD" -- hebbs backup create --output /data/backups/pre-upgrade
 
 # 2. Update the image — Kubernetes will drain one pod at a time
 kubectl set image deployment/hebbs hebbs=ghcr.io/hebbs-ai/hebbs:NEW_VERSION
@@ -453,7 +453,7 @@ kubectl set env deployment/hebbs HEBBS_ROCKSDB_MAX_BACKGROUND_JOBS=4
 kubectl rollout status deployment/hebbs
 
 # If urgent, trigger a manual compaction (blocks writes briefly)
-kubectl exec "$HEBBS_POD" -- hebbs-cli db compact
+kubectl exec "$HEBBS_POD" -- hebbs db compact
 ```
 
 **HNSW saturation:**
@@ -646,12 +646,12 @@ Common causes, ranked by likelihood:
 kubectl exec "$HEBBS_POD" -- rm -rf /data/backups/checkpoint-*
 
 # 2. If that's not enough, trigger compaction to reclaim space from deleted keys
-kubectl exec "$HEBBS_POD" -- hebbs-cli db compact
+kubectl exec "$HEBBS_POD" -- hebbs db compact
 
 # 3. If still critical, run an emergency forget sweep (remove oldest memories)
 # WARNING: This deletes data. Ensure you have a backup first.
-kubectl exec "$HEBBS_POD" -- hebbs-cli forget --older-than 90d --dry-run
-kubectl exec "$HEBBS_POD" -- hebbs-cli forget --older-than 90d --confirm
+kubectl exec "$HEBBS_POD" -- hebbs forget --older-than 90d --dry-run
+kubectl exec "$HEBBS_POD" -- hebbs forget --older-than 90d --confirm
 ```
 
 **Planned (>85% — warning):**
@@ -759,7 +759,7 @@ kubectl rollout status deployment/hebbs
 
 **Trigger a manual reflect run:**
 ```bash
-kubectl exec "$HEBBS_POD" -- hebbs-cli reflect --run-now
+kubectl exec "$HEBBS_POD" -- hebbs reflect --run-now
 ```
 
 ### 5. Verification

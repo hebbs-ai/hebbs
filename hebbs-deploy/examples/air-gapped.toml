@@ -42,7 +42,7 @@
 #   5. Mount the model file into the container at /models/.
 #
 # Usage:
-#   hebbs-server --config air-gapped.toml
+#   hebbs serve --config air-gapped.toml
 
 [server]
 grpc_port = 6380

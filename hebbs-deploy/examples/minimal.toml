@@ -5,7 +5,7 @@
 # suitable for development and small single-tenant deployments.
 #
 # Usage:
-#   hebbs-server --config minimal.toml
+#   hebbs serve --config minimal.toml
 #
 # Defaults applied when not overridden:
 #   gRPC port:     6380

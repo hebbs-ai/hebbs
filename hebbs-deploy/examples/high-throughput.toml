@@ -11,7 +11,7 @@
 #   - NVMe SSD storage
 #
 # Usage:
-#   hebbs-server --config high-throughput.toml
+#   hebbs serve --config high-throughput.toml
 
 [server]
 grpc_port = 6380

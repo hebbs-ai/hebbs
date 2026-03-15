@@ -39,7 +39,7 @@ The fastest way to get HEBBS running on a single machine.
 curl -sSf https://hebbs.ai/install | sh
 ```
 
-This downloads pre-built binaries (`hebbs-server`, `hebbs-cli`, `hebbs-bench`) from GitHub Releases with SHA-256 checksum verification.
+This downloads the pre-built `hebbs` binary from GitHub Releases with SHA-256 checksum verification.
 
 | Variable | Description |
 |----------|-------------|

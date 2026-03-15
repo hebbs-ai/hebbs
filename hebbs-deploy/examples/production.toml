@@ -5,7 +5,7 @@
 # moderate-traffic single-node deployment (≤1M memories, ≤100 req/s).
 #
 # Usage:
-#   hebbs-server --config production.toml
+#   hebbs serve --config production.toml
 #
 # Environment variable overrides follow the pattern HEBBS_<SECTION>_<KEY>,
 # e.g. HEBBS_SERVER_GRPC_PORT=6380.
@@ -17,7 +17,7 @@
 
 # Port for the gRPC API (protobuf service definitions in proto/).
 # Default: 6380
-# Change if 6380 collides with another service. Clients (hebbs-cli, SDKs)
+# Change if 6380 collides with another service. Clients (hebbs, SDKs)
 # must match. Setting to 0 disables gRPC.
 grpc_port = 6380
 
