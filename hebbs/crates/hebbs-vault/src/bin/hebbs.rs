@@ -1114,7 +1114,7 @@ async fn run_local(cli: Cli) -> i32 {
                         top_k: Some(top_k as usize),
                         entity_id: entity_id.clone(),
                         time_range: None,
-                        edge_types: edge_types.as_ref().and_then(|_| None), // edge type parsing omitted for brevity in local
+                        edge_types: edge_types.as_ref().and(None), // edge type parsing omitted for brevity in local
                         max_depth: max_depth.map(|d| d as usize),
                         ef_search: ef_search.map(|e| e as usize),
                         scoring_weights,

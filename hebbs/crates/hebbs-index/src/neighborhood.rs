@@ -735,11 +735,11 @@ mod tests {
         assert!(label_a >= 0);
         assert!(label_b >= 0);
 
-        for i in 0..5 {
-            assert_eq!(labels[i], label_a);
+        for label in labels.iter().take(5) {
+            assert_eq!(*label, label_a);
         }
-        for i in 5..10 {
-            assert_eq!(labels[i], label_b);
+        for label in labels.iter().take(10).skip(5) {
+            assert_eq!(*label, label_b);
         }
     }
 

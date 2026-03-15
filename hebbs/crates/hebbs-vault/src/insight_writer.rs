@@ -87,7 +87,7 @@ impl<'a> InsightWriter<'a> {
 
         // Generate filename
         let ulid_prefix = &ulid::Ulid::new().to_string()[..8];
-        let content_slug = slug::slugify(&insight.content.chars().take(50).collect::<String>());
+        let content_slug = slug::slugify(insight.content.chars().take(50).collect::<String>());
         let filename = format!("{}-{}.md", ulid_prefix, content_slug);
 
         let file_path = insight_dir.join(&filename);
@@ -125,7 +125,7 @@ impl<'a> InsightWriter<'a> {
                             if section.heading_path.is_empty() {
                                 sources.push(file_path.clone());
                             } else {
-                                let heading = slug::slugify(&section.heading_path.join("-"));
+                                let heading = slug::slugify(section.heading_path.join("-"));
                                 sources.push(format!("{}#{}", file_path, heading));
                             }
                             continue;

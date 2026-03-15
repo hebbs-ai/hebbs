@@ -61,6 +61,8 @@ jobs:
           cache-on-failure: true
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Build unified binary (needed by skill_e2e tests)
+        run: cargo build -p hebbs-vault
       - name: Run workspace tests
         run: cargo test --workspace
 

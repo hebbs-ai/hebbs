@@ -592,7 +592,7 @@ async fn dispatch_command(
                 edge_types: None,
                 max_depth: max_depth.map(|d| d as usize),
                 ef_search: ef_search.map(|e| e as usize),
-                scoring_weights: scoring_weights.clone(),
+                scoring_weights,
                 cue_context: None,
                 causal_direction: None,
                 analogy_a_id: None,

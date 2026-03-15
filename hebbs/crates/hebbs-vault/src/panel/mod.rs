@@ -100,6 +100,7 @@ pub async fn start_panel_server(
 ///
 /// Uses a pre-opened engine from the VaultManager. The vault_manager reference
 /// enables vault switching via the panel's API.
+#[allow(clippy::too_many_arguments)]
 pub async fn start_panel_server_from_daemon(
     engine: Arc<Engine>,
     embedder: Arc<dyn Embedder>,

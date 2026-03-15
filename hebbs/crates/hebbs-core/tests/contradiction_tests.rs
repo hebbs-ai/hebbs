@@ -525,18 +525,16 @@ fn heuristic_multiple_antonyms_increase_confidence() {
             // Compare with single antonym
             let a2 = "The system is reliable.";
             let b2 = "The system is unreliable.";
-            match heuristic_classify(a2, b2) {
-                EntailmentResult::Contradiction {
-                    confidence: c_single,
-                } => {
-                    assert!(
-                        c_multi >= c_single,
-                        "multiple antonyms should yield >= confidence: {} vs {}",
-                        c_multi,
-                        c_single
-                    );
-                }
-                _ => {} // single antonym alone may not trigger
+            if let EntailmentResult::Contradiction {
+                confidence: c_single,
+            } = heuristic_classify(a2, b2)
+            {
+                assert!(
+                    c_multi >= c_single,
+                    "multiple antonyms should yield >= confidence: {} vs {}",
+                    c_multi,
+                    c_single
+                );
             }
         }
         other => panic!("expected Contradiction, got {:?}", other),

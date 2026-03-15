@@ -175,7 +175,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
         if !in_code_block {
             // Check if line is a heading
             let level = line_bytes.iter().take_while(|&&b| b == b'#').count();
-            if level >= 1 && level <= 6 && line_bytes.get(level) == Some(&b' ') {
+            if (1..=6).contains(&level) && line_bytes.get(level) == Some(&b' ') {
                 let title = line[level..].trim().to_string();
                 if !title.is_empty() {
                     heading_positions.push((line_start, level as u8, title));
@@ -223,7 +223,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
         // Update heading stack
         if is_split_heading {
             // Pop everything at or below this level
-            while heading_stack.last().map_or(false, |(l, _)| *l >= level) {
+            while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
                 heading_stack.pop();
             }
             heading_stack.push((level, title.clone()));
@@ -233,7 +233,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
             // Sub-headings within a split section: they're part of the parent section content,
             // but we track them in the heading stack for path building
             // Update stack for nested headings
-            while heading_stack.last().map_or(false, |(l, _)| *l >= level) {
+            while heading_stack.last().is_some_and(|(l, _)| *l >= level) {
                 heading_stack.pop();
             }
             heading_stack.push((level, title.clone()));
@@ -343,9 +343,9 @@ fn extract_links_and_tags(
 fn remove_inline_code(line: &str) -> String {
     let mut result = String::with_capacity(line.len());
     let mut in_code = false;
-    let mut chars = line.chars().peekable();
+    let chars = line.chars().peekable();
 
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         if ch == '`' {
             in_code = !in_code;
             result.push(' '); // replace backtick with space to preserve word boundaries

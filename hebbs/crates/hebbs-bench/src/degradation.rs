@@ -24,6 +24,7 @@ struct SpanCollector {
 }
 
 impl SpanCollector {
+    #[allow(clippy::type_complexity)]
     fn new() -> (Self, Arc<Mutex<Vec<(String, u64)>>>) {
         let records = Arc::new(Mutex::new(Vec::new()));
         (
@@ -148,7 +149,7 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-fn compute_op_stats(timings: &mut Vec<u64>, errors: usize) -> OpStats {
+fn compute_op_stats(timings: &mut [u64], errors: usize) -> OpStats {
     timings.sort();
     let sum: u64 = timings.iter().sum();
     let mean = if timings.is_empty() {

@@ -512,17 +512,14 @@ pub async fn phase2_ingest(
         let mut any_embedded = false;
 
         for section in &mut file_entry.sections {
-            match section.state {
-                SectionState::ContentStale => {
-                    // Check if we successfully processed it
-                    let was_processed =
-                        processed_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
-                    if was_processed {
-                        section.state = SectionState::Synced;
-                        any_embedded = true;
-                    }
+            if section.state == SectionState::ContentStale {
+                // Check if we successfully processed it
+                let was_processed =
+                    processed_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
+                if was_processed {
+                    section.state = SectionState::Synced;
+                    any_embedded = true;
                 }
-                _ => {}
             }
         }
 
@@ -639,7 +636,13 @@ mod tests {
         let config = VaultConfig::default();
 
         // First ingest
-        phase1_ingest(&[file_path.clone()], dir.path(), &mut manifest, &config).unwrap();
+        phase1_ingest(
+            std::slice::from_ref(&file_path),
+            dir.path(),
+            &mut manifest,
+            &config,
+        )
+        .unwrap();
 
         // Second ingest (file unchanged)
         let stats = phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
@@ -656,7 +659,13 @@ mod tests {
         let mut manifest = Manifest::new();
         let config = VaultConfig::default();
 
-        phase1_ingest(&[file_path.clone()], dir.path(), &mut manifest, &config).unwrap();
+        phase1_ingest(
+            std::slice::from_ref(&file_path),
+            dir.path(),
+            &mut manifest,
+            &config,
+        )
+        .unwrap();
         let original_id = manifest.files["test.md"].sections[0].memory_id.clone();
 
         // Modify content
@@ -682,7 +691,13 @@ mod tests {
         let mut manifest = Manifest::new();
         let config = VaultConfig::default();
 
-        phase1_ingest(&[file_path.clone()], dir.path(), &mut manifest, &config).unwrap();
+        phase1_ingest(
+            std::slice::from_ref(&file_path),
+            dir.path(),
+            &mut manifest,
+            &config,
+        )
+        .unwrap();
 
         // Delete
         let orphaned = phase1_delete(&file_path, dir.path(), &mut manifest).unwrap();
@@ -702,7 +717,13 @@ mod tests {
         let mut manifest = Manifest::new();
         let config = VaultConfig::default();
 
-        phase1_ingest(&[file_path.clone()], dir.path(), &mut manifest, &config).unwrap();
+        phase1_ingest(
+            std::slice::from_ref(&file_path),
+            dir.path(),
+            &mut manifest,
+            &config,
+        )
+        .unwrap();
 
         // Rename heading
         std::fs::write(&file_path, "## New Name\n\nContent.\n").unwrap();

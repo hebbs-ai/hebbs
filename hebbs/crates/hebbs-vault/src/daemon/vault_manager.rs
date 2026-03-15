@@ -263,7 +263,7 @@ impl VaultManager {
     /// Returns paths of vaults whose `.hebbs/` directory has disappeared.
     pub fn health_check(&mut self) -> Vec<PathBuf> {
         let mut unhealthy = Vec::new();
-        for (path, _) in &self.open_vaults {
+        for path in self.open_vaults.keys() {
             let hebbs_dir = path.join(".hebbs");
             if !hebbs_dir.exists() {
                 warn!("vault data directory missing: {}", hebbs_dir.display());

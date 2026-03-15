@@ -137,7 +137,7 @@ impl<'a> ContradictionWriter<'a> {
                     if section.heading_path.is_empty() {
                         return file_path.clone();
                     } else {
-                        let heading = slug::slugify(&section.heading_path.join("-"));
+                        let heading = slug::slugify(section.heading_path.join("-"));
                         return format!("{}#{}", file_path, heading);
                     }
                 }

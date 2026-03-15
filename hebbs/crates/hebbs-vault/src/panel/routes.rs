@@ -461,10 +461,7 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 .projection_cache
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            match &*cache {
-                Some(c) if c.node_count == node_count => false,
-                _ => true,
-            }
+            !matches!(&*cache, Some(c) if c.node_count == node_count)
         };
 
         if needs_recompute {
@@ -1328,7 +1325,7 @@ async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthRespo
 
     // Collect orphaned memories: sections marked Orphaned in manifest.
     let mut orphaned_memories = Vec::new();
-    for (_file_path, file_entry) in &manifest.files {
+    for file_entry in manifest.files.values() {
         for section in &file_entry.sections {
             if section.state != SectionState::Orphaned {
                 continue;
@@ -1359,7 +1356,7 @@ async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthRespo
     // Find low decay_score memories (candidates for auto-forget).
     let auto_forget_threshold: f32 = 0.01;
     let mut decay_candidates = Vec::new();
-    for (_file_path, file_entry) in &manifest.files {
+    for file_entry in manifest.files.values() {
         for section in &file_entry.sections {
             if section.state == SectionState::Orphaned {
                 continue;
@@ -1479,7 +1476,7 @@ async fn timeline_data(
     let mut min_ts: u64 = u64::MAX;
     let mut max_ts: u64 = 0;
 
-    for (_file_path, file_entry) in &manifest.files {
+    for file_entry in manifest.files.values() {
         for section in &file_entry.sections {
             if section.state == SectionState::Orphaned {
                 continue;
@@ -1569,7 +1566,7 @@ async fn timeline_snapshot(
     let at_us = query.at;
     let mut memory_ids = Vec::new();
 
-    for (_file_path, file_entry) in &manifest.files {
+    for file_entry in manifest.files.values() {
         for section in &file_entry.sections {
             let id_bytes = match parse_memory_id(&section.memory_id) {
                 Ok(b) => b,
@@ -2196,7 +2193,7 @@ async fn list_memories(
     let total_pages = if total == 0 {
         1
     } else {
-        (total + per_page - 1) / per_page
+        total.div_ceil(per_page)
     };
     let start = (page - 1) * per_page;
     let page_entries: Vec<MemoryListEntry> =
@@ -2321,7 +2318,7 @@ async fn ws_connection(mut socket: WebSocket, state: AppState) {
                         continue;
                     }
                 };
-                if socket.send(Message::Text(json.into())).await.is_err() {
+                if socket.send(Message::Text(json)).await.is_err() {
                     break;
                 }
             }

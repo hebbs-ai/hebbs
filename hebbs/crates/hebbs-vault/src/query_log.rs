@@ -329,6 +329,7 @@ pub fn now_us() -> u64 {
 }
 
 /// Build a QueryLogEntry from recall results. Helper for daemon/panel.
+#[allow(clippy::too_many_arguments)]
 pub fn build_recall_entry(
     caller: &str,
     cue: &str,
@@ -359,6 +360,7 @@ pub fn build_recall_entry(
 }
 
 /// Build a QueryLogEntry from prime results. Helper for daemon/panel.
+#[allow(clippy::too_many_arguments)]
 pub fn build_prime_entry(
     caller: &str,
     entity_id: &str,

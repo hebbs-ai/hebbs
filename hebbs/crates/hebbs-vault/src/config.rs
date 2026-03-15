@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 
 /// Vault configuration stored in `.hebbs/config.toml`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct VaultConfig {
     #[serde(default)]
     pub chunking: ChunkingConfig,
@@ -131,7 +131,7 @@ pub struct ContradictionConfig {
 /// When `provider` and `model` are set, features like cluster labeling
 /// can use the LLM for higher-quality output. Falls back to heuristics
 /// when unconfigured.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ReflectLlmConfig {
     /// Provider name: "anthropic", "openai", "gemini", "ollama".
     #[serde(default)]
@@ -148,18 +148,6 @@ pub struct ReflectLlmConfig {
     /// Base URL override for the provider.
     #[serde(default)]
     pub base_url: Option<String>,
-}
-
-impl Default for ReflectLlmConfig {
-    fn default() -> Self {
-        Self {
-            provider: None,
-            model: None,
-            api_key: None,
-            api_key_env: None,
-            base_url: None,
-        }
-    }
 }
 
 impl ReflectLlmConfig {
@@ -327,22 +315,6 @@ fn default_contradiction_dir() -> String {
 }
 fn default_true() -> bool {
     true
-}
-
-impl Default for VaultConfig {
-    fn default() -> Self {
-        Self {
-            chunking: ChunkingConfig::default(),
-            embedding: EmbeddingConfig::default(),
-            watch: WatchConfig::default(),
-            output: OutputConfig::default(),
-            scoring: ScoringConfig::default(),
-            decay: DecayConfig::default(),
-            contradiction: ContradictionConfig::default(),
-            reflect_llm: ReflectLlmConfig::default(),
-            query_log: QueryLogConfig::default(),
-        }
-    }
 }
 
 impl Default for ChunkingConfig {
