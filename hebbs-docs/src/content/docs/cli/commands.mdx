@@ -1,26 +1,129 @@
 ---
 title: "Commands Reference"
-description: "All HEBBS CLI commands with flags, defaults, and examples — verified against the CLI source code."
+description: "All HEBBS CLI commands with flags, defaults, and examples."
 ---
 
-All commands connect to the HEBBS server over gRPC. Use global flags to configure the connection.
+This page covers commands for both the **unified `hebbs` binary** (local vault mode) and the **`hebbs-cli`** (remote server mode). Commands marked **(vault only)** are exclusive to the unified binary. All memory commands work in both modes.
 
 ## Global Flags
 
+### Unified binary (`hebbs`)
+
+| Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `--vault PATH` | `HEBBS_VAULT` | auto-discover | Explicit vault path |
+| `--global` | | off | Use global brain (`~/.hebbs/`) |
+| `--endpoint` | `HEBBS_ENDPOINT` | | Switch to remote mode |
+| `--api-key` | `HEBBS_API_KEY` | | API key (remote mode) |
+| `--tenant` | `HEBBS_TENANT` | | Explicit tenant ID |
+| `--format` | | `human` | Output format: `human`, `json`, `raw` |
+| `--color` | | `auto` | Color: `always`, `never`, `auto` |
+| `-v` / `-vv` | | off | Verbose / trace logging |
+
+### Remote client (`hebbs-cli`)
+
 | Flag | Short | Env Var | Default | Description |
 |---|---|---|---|---|
-| `--endpoint` | — | `HEBBS_ENDPOINT` | `localhost:50051` | Server gRPC endpoint |
-| `--http-port` | — | `HEBBS_HTTP_PORT` | — | Server HTTP port (for metrics) |
-| `--timeout` | — | `HEBBS_TIMEOUT` | — | Request timeout in milliseconds |
-| `--api-key` | — | `HEBBS_API_KEY` | — | API key for authentication |
-| `--tenant` | — | `HEBBS_TENANT` | — | Explicit tenant ID. Normally derived from the API key. Set this when running without auth or to override. |
-| `--format` | — | — | `human` | Output format: `human`, `json`, `raw` |
-| `--color` | — | — | `auto` | Color output: `always`, `never`, `auto` |
-| `-v` / `-vv` | — | — | off | Verbose mode (debug / trace) |
+| `--endpoint` | | `HEBBS_ENDPOINT` | `localhost:50051` | Server gRPC endpoint |
+| `--http-port` | | `HEBBS_HTTP_PORT` | | Server HTTP port (for metrics) |
+| `--timeout` | | `HEBBS_TIMEOUT` | | Request timeout in milliseconds |
+| `--api-key` | | `HEBBS_API_KEY` | | API key for authentication |
+| `--tenant` | | `HEBBS_TENANT` | | Explicit tenant ID |
+| `--format` | | | `human` | Output format: `human`, `json`, `raw` |
+| `--color` | | | `auto` | Color output: `always`, `never`, `auto` |
+| `-v` / `-vv` | | | off | Verbose mode (debug / trace) |
 
 ---
 
-## remember
+## Vault Commands (vault only)
+
+### init
+
+Initialize a new vault (`.hebbs/` directory).
+
+```bash
+hebbs init [PATH]
+hebbs init --force          # Reinitialize even if .hebbs/ exists
+```
+
+| Flag | Description |
+|---|---|
+| `PATH` (positional) | Vault directory (default: current directory) |
+| `--force` | Reinitialize even if `.hebbs/` already exists |
+
+### index
+
+Index all markdown files in the vault.
+
+```bash
+hebbs index [PATH]
+```
+
+### watch
+
+Watch vault for file changes and sync in real-time.
+
+```bash
+hebbs watch [PATH]
+```
+
+### rebuild
+
+Delete `.hebbs/` and rebuild index from scratch.
+
+```bash
+hebbs rebuild [PATH]
+```
+
+### list
+
+List all indexed files and their sections.
+
+```bash
+hebbs list
+hebbs list --sections       # Show section details
+```
+
+| Flag | Description |
+|---|---|
+| `--sections` | Show section headings, memory IDs, and states |
+
+### serve
+
+Start the daemon (serves all vaults via Unix socket + panel HTTP).
+
+```bash
+hebbs serve
+hebbs serve --foreground
+hebbs serve --idle-timeout 600 --panel-port 8080
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--foreground` | off | Run in foreground (do not daemonize) |
+| `--idle-timeout` | `300` | Idle shutdown in seconds (0 to disable) |
+| `--panel-port` | `6381` | HTTP port for Memory Palace (0 to disable) |
+
+### panel
+
+Open the Memory Palace control panel in a browser.
+
+```bash
+hebbs panel
+hebbs panel --port 8080
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port` | `6381` | HTTP port for the panel server |
+
+---
+
+## Memory Commands
+
+These commands work in both vault mode (`hebbs`) and remote mode (`hebbs-cli`).
+
+### remember
 
 Store a new memory. Content is a positional argument (or piped via stdin).
 
@@ -93,6 +196,7 @@ hebbs-cli recall "How does the customer prefer to be contacted?" \
 | `--top-k` | `-k` | No | `10` | Maximum results to return |
 | `--entity-id` | `-e` | No | — | Entity scope (required for `temporal` strategy) |
 | `--weights` | `-w` | No | `0.5:0.2:0.2:0.1` | Composite scoring weights as `R:T:I:F` (see below) |
+| `--all` | — | No | off | Search both project and global vaults, merge by score (vault mode only) |
 | `--format` | — | No | `human` | Output format: `human`, `json`, `raw` |
 
 Only `cue` and `--strategy` are required. All other flags use smart defaults suitable for most workloads.
@@ -268,6 +372,7 @@ hebbs-cli prime customer-42 --max-memories 20 --similarity-cue "account history"
 | `--max-memories` | `-m` | No | — | Maximum memories to return |
 | `--recency-us` | — | No | — | Recency window in microseconds |
 | `--similarity-cue` | — | No | — | Text cue for similarity-based selection within the entity |
+| `--all` | — | No | off | Search both project and global vaults, merge by score (vault mode only) |
 
 ---
 

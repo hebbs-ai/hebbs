@@ -1,0 +1,70 @@
+---
+title: "Contradiction Detection"
+description: "How HEBBS automatically detects and surfaces conflicting beliefs in your memory graph."
+---
+
+HEBBS can automatically detect contradictions between memories during ingest. When a new memory is semantically similar to an existing one but expresses a conflicting statement, HEBBS creates a `CONTRADICTS` edge and writes a human-readable report.
+
+## How It Works
+
+During ingest (indexing or watch), for each new or revised memory section:
+
+1. **Candidate selection**: Find the top `candidates_k` nearest neighbors by cosine similarity (default: 10).
+2. **Similarity filter**: Discard candidates below `min_similarity` (default: 0.7). Only semantically related memories are checked.
+3. **Contradiction scoring**: Compare the content of each pair using embedding-space heuristics to estimate contradiction confidence.
+4. **Edge creation**: If confidence exceeds `min_confidence` (default: 0.7), create a `CONTRADICTS` edge between the two memories.
+5. **Report generation**: Write a markdown file to the `contradiction_dir` with both memories, the confidence score, and source file locations.
+
+## Configuration
+
+In `.hebbs/config.toml`:
+
+```toml
+[contradiction]
+enabled = true          # Enable/disable contradiction detection
+candidates_k = 10       # Max neighbors to check per memory
+min_similarity = 0.7    # Minimum cosine similarity to consider a pair
+min_confidence = 0.7    # Minimum confidence to create a CONTRADICTS edge
+```
+
+### Tuning
+
+- **Lower `min_similarity`** to catch contradictions between less obviously related memories. This increases false positives.
+- **Raise `min_confidence`** to only surface high-confidence contradictions. This reduces noise.
+- **Increase `candidates_k`** if you have a large knowledge base and want more thorough checking. This increases ingest latency linearly.
+
+## Contradiction Reports
+
+Reports are written to the `contradiction_dir` (default: `contradictions/`) as markdown files. Each report contains:
+
+- The two contradicting memories with their content
+- Source file paths and headings
+- Confidence score
+- Memory IDs for reference
+
+These files are excluded from indexing by default (the `contradictions/` directory is in the ignore patterns). If you use Obsidian, contradiction reports appear as navigable notes.
+
+## Graph Edges
+
+Contradictions create bidirectional `CONTRADICTS` edges in the memory graph. These edges:
+
+- Are visible in the Memory Palace graph view
+- Are returned by `hebbs inspect` on either memory
+- Can be traversed by causal recall with `--edge-types contradicts`
+- Include the confidence score as edge metadata
+
+## Use Cases
+
+- **Knowledge base maintenance**: Surface when documentation in different files makes conflicting claims
+- **Project notes**: Detect when decisions recorded in one meeting contradict another
+- **Learning notes**: Find where your understanding has evolved and earlier notes are outdated
+- **Agent memory**: Prevent AI agents from holding contradictory beliefs
+
+## Disabling
+
+To disable contradiction detection entirely:
+
+```toml
+[contradiction]
+enabled = false
+```

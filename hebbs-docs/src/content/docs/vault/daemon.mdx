@@ -1,0 +1,106 @@
+---
+title: "Daemon"
+description: "The HEBBS daemon: a single background process serving all vaults via Unix socket."
+---
+
+The HEBBS daemon is a long-lived background process that serves all vaults on your machine through a single Unix domain socket. It loads the ONNX embedding model once and shares it across all vault handles.
+
+## Why a Daemon?
+
+Without the daemon, every `hebbs recall` command must:
+1. Load the ONNX model (~90 MB, ~200ms cold start)
+2. Open the RocksDB database
+3. Run the query
+4. Close everything
+
+The daemon eliminates this overhead. After the first command, subsequent operations complete in milliseconds because the model and databases stay warm in memory.
+
+## How It Works
+
+The daemon listens on `~/.hebbs/daemon.sock` (Unix domain socket). When you run any `hebbs` command:
+
+1. The CLI checks if a daemon is running (probes the socket)
+2. If running, it sends the command over the socket and reads the response
+3. If not running, it auto-starts the daemon in the background, then connects
+
+Vault RocksDB instances are opened on demand when a command targets them and closed after idle.
+
+## Starting the Daemon
+
+### Auto-start (default)
+
+The daemon starts automatically on first use. No manual setup required.
+
+### Manual Start
+
+Run explicitly in the foreground (useful for debugging):
+
+```bash
+hebbs serve --foreground
+```
+
+Or as a background daemon:
+
+```bash
+hebbs serve
+```
+
+### Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--foreground` | off | Run in foreground (do not daemonize) |
+| `--idle-timeout` | `300` | Idle shutdown timeout in seconds (0 to disable) |
+| `--panel-port` | `6381` | HTTP port for the Memory Palace panel (0 to disable) |
+
+## Idle Shutdown
+
+By default, the daemon shuts down after 5 minutes (300 seconds) of inactivity. This means:
+
+- No CLI commands received
+- No panel HTTP requests
+- No file watch events
+
+This keeps resource usage minimal when you are not actively using HEBBS. The next command will auto-start it again.
+
+Set `--idle-timeout 0` to keep the daemon running indefinitely.
+
+## Multi-Vault Serving
+
+The daemon manages multiple vaults simultaneously. Each vault is identified by its absolute path. When a command arrives for a vault that is not yet open, the daemon:
+
+1. Opens the RocksDB database at that vault's `.hebbs/` directory
+2. Starts a file watcher for that vault
+3. Serves the command
+
+Subsequent commands for the same vault reuse the existing handle.
+
+## File Watching
+
+The daemon watches all active vaults for file changes and re-indexes automatically. This is equivalent to running `hebbs watch` on each vault, but with the advantage of a single process and shared embedding model.
+
+## Socket Protocol
+
+The daemon uses a length-prefixed JSON protocol over the Unix socket:
+
+- Wire format: `[4-byte big-endian length][JSON payload]`
+- Maximum message size: 16 MiB
+- Request envelope: `{ command, vault_path, vault_paths }`
+- Response envelope: `{ status, data, error }`
+
+## Checking Status
+
+```bash
+hebbs status
+```
+
+Shows whether the daemon is running, how many vaults are active, and memory/uptime statistics.
+
+## Stopping the Daemon
+
+```bash
+# Graceful shutdown
+hebbs serve --shutdown
+```
+
+Or let it idle-timeout naturally.

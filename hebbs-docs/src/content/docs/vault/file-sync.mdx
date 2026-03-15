@@ -1,0 +1,106 @@
+---
+title: "File Sync"
+description: "How HEBBS indexes markdown files, tracks changes, and syncs in real-time."
+---
+
+HEBBS Vault turns your markdown files into searchable memories. This page explains how files become memories and how changes stay in sync.
+
+## Indexing
+
+When you run `hebbs index`, HEBBS:
+
+1. **Scans** the vault directory for `.md` files, respecting ignore patterns from `config.toml`.
+2. **Splits** each file by heading level (default: `##` headings). Sections shorter than `min_section_length` merge with their parent.
+3. **Hashes** each section's content (SHA-256) and compares against the manifest to detect changes.
+4. **Embeds** new or changed sections using the on-device ONNX model (bge-small-en-v1.5, 384 dimensions).
+5. **Stores** each section as a HEBBS memory in RocksDB with the file path and heading as metadata.
+6. **Detects contradictions** against existing memories if contradiction detection is enabled.
+
+Unchanged sections are skipped. Deleted sections are forgotten. Revised sections create new revisions linked to the original memory.
+
+### What Gets Indexed
+
+- All `.md` files in the vault directory (recursive)
+- Each heading-delimited section becomes one memory
+- File path and heading are stored as context metadata
+
+### What Gets Ignored
+
+Default ignore patterns (configurable in `[watch].ignore_patterns`):
+
+- `.hebbs/` (vault runtime data)
+- `.git/` (version control)
+- `.obsidian/` (Obsidian metadata)
+- `node_modules/` (dependencies)
+- `contradictions/` (generated output)
+- `insights/` (reflection output, excluded from reflect input)
+
+## The Manifest
+
+The manifest (`.hebbs/manifest.json`) tracks:
+
+- File path to content hash mapping
+- Section-level memory ID assignments
+- Last-indexed timestamps
+
+This allows HEBBS to perform incremental indexing: only changed files are re-processed. The manifest is the source of truth for what has been indexed.
+
+## Real-time Watch
+
+```bash
+hebbs watch
+```
+
+Starts a file watcher that monitors the vault directory for changes and re-indexes affected files automatically. Uses a two-phase debounce to handle rapid changes gracefully:
+
+**Phase 1 (500ms default):** Collect file events. If a file changes, wait 500ms for more changes before proceeding.
+
+**Phase 2 (3000ms default):** After phase 1 settles, wait an additional 3 seconds for the directory to fully stabilize.
+
+**Burst mode (10s):** If more than 20 events arrive in a single phase 1 window (e.g. during `git checkout`), extend the debounce to 10 seconds to avoid thrashing.
+
+All debounce timings are configurable in `[watch]` section of `config.toml`.
+
+### Events Handled
+
+| Event | Action |
+|---|---|
+| File created | Index new file, embed sections, store memories |
+| File modified | Re-hash sections, embed changed ones, revise or create memories |
+| File deleted | Forget all memories from that file, remove from manifest |
+| File renamed | Treated as delete + create |
+
+## Rebuild
+
+To delete the entire index and rebuild from scratch:
+
+```bash
+hebbs rebuild
+```
+
+This removes the `.hebbs/` directory (except `config.toml`) and re-runs a full index. Useful after changing chunking settings or if the index becomes corrupted.
+
+## Listing Indexed Files
+
+See what has been indexed:
+
+```bash
+hebbs list
+```
+
+With section details:
+
+```bash
+hebbs list --sections
+```
+
+This shows every indexed file, its sections, their memory IDs, and current states (active, revised, forgotten).
+
+## Obsidian Compatibility
+
+HEBBS Vault works alongside Obsidian. The default ignore patterns exclude `.obsidian/` metadata. Your markdown files are indexed as-is, including wiki-links and frontmatter.
+
+For best results with Obsidian vaults:
+- Use `split_on = "##"` (default) to align with typical Obsidian note structure
+- Keep `min_section_length` at 50 to avoid indexing empty headings
+- The insight and contradiction output directories create markdown files that are visible in Obsidian

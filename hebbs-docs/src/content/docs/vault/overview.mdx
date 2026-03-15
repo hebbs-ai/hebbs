@@ -1,0 +1,72 @@
+---
+title: "Vault Overview"
+description: "File-first cognitive memory: HEBBS indexes your markdown files locally, no server required."
+---
+
+HEBBS Vault is the local, file-first mode of HEBBS. Instead of connecting to a remote server, Vault indexes the markdown files in a directory, embeds them locally using an on-device ONNX model, and gives you the full HEBBS recall engine over your own files.
+
+No server. No API key. No network calls. One binary, one command.
+
+## Two Modes of HEBBS
+
+| | **Server mode** | **Vault mode** |
+|---|---|---|
+| Binary | `hebbs-server` + `hebbs-cli` | `hebbs` (unified) |
+| Storage | Remote RocksDB managed by server | Local `.hebbs/` directory inside your project |
+| Embedding | Server-side (ONNX or remote API) | On-device ONNX (bge-small-en-v1.5) |
+| Auth | API key required | None (local filesystem) |
+| Use case | Multi-tenant production workloads | Personal knowledge, project notes, coding agents |
+| File sync | Not applicable | Watches markdown files, auto-indexes on change |
+
+Both modes share the same core engine, the same four recall strategies (similarity, temporal, causal, analogical), and the same composite scoring.
+
+## How It Works
+
+1. **`hebbs init`** creates a `.hebbs/` directory in your project root, downloads the embedding model, and writes a default `config.toml`.
+2. **`hebbs index`** scans all `.md` files, splits them by heading, embeds each section, and stores them in RocksDB inside `.hebbs/`.
+3. **`hebbs watch`** monitors the directory for file changes and re-indexes modified files in real-time with a two-phase debounce.
+4. **`hebbs recall`** runs the full HEBBS recall engine against your local index.
+
+The `.hebbs/` directory contains everything: the RocksDB database, the ONNX embedding model, a manifest tracking file hashes, and the vault configuration. Add `.hebbs/` to your `.gitignore`.
+
+## The Daemon
+
+When you have multiple vaults (e.g. one per project plus a global `~/.hebbs/`), the **daemon** avoids loading the ONNX model repeatedly. A single long-lived process serves all vaults through a Unix domain socket at `~/.hebbs/daemon.sock`.
+
+The daemon starts automatically on first use and shuts down after 5 minutes of idle. You can also run it explicitly with `hebbs serve`.
+
+See [Daemon](/vault/daemon/) for details.
+
+## Memory Palace
+
+The **Memory Palace** is a built-in web UI for visualizing your memory graph. Run `hebbs panel` to open it in your browser.
+
+It shows a 2D projection of all memories with clusters, edges, and live updates as files change. You can search, inspect individual memories, switch between vaults, and edit configuration.
+
+See [Memory Palace](/vault/memory-palace/) for details.
+
+## Quick Example
+
+```bash
+# Initialize a vault in your project
+cd ~/projects/my-notes
+hebbs init
+
+# Index all markdown files
+hebbs index
+
+# Recall memories
+hebbs recall "meeting notes from last week"
+
+# Watch for changes in the background
+hebbs watch
+```
+
+## What's Next
+
+- [Initialization](/vault/initialization/) - set up your first vault
+- [Configuration](/vault/configuration/) - tune chunking, scoring, decay, and more
+- [File Sync](/vault/file-sync/) - how markdown files become memories
+- [Daemon](/vault/daemon/) - the background process that serves all vaults
+- [Memory Palace](/vault/memory-palace/) - the visual control panel
+- [Contradiction Detection](/vault/contradiction-detection/) - automatic belief conflict surfacing

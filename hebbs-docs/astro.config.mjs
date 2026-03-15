@@ -61,7 +61,22 @@ localStorage.setItem('starlight-theme', 'dark');`,
           ],
         },
         {
-          label: "Server",
+          label: "Vault (Local Mode)",
+          items: [
+            { label: "Overview", slug: "vault/overview" },
+            { label: "Initialization", slug: "vault/initialization" },
+            { label: "File Sync", slug: "vault/file-sync" },
+            { label: "Configuration", slug: "vault/configuration" },
+            { label: "Daemon", slug: "vault/daemon" },
+            { label: "Memory Palace", slug: "vault/memory-palace" },
+            {
+              label: "Contradiction Detection",
+              slug: "vault/contradiction-detection",
+            },
+          ],
+        },
+        {
+          label: "Server (Remote Mode)",
           items: [
             { label: "Running the Server", slug: "server/running" },
             { label: "Configuration", slug: "server/configuration" },

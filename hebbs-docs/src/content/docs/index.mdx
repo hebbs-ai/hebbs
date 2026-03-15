@@ -3,7 +3,7 @@ title: HEBBS Documentation
 description: The cognitive memory engine for AI agents. Four recall strategies. Native consolidation. Drop-in agent skill.
 template: splash
 hero:
-  tagline: The memory engine for AI agents. Four recall strategies. Native consolidation. Automatic decay. Drop-in agent skill.
+  tagline: The cognitive memory engine for AI agents. File-first local vaults. Four recall strategies. Native consolidation. Drop-in agent skill.
   actions:
     - text: Quickstart (5 min)
       link: /getting-started/quickstart/
@@ -23,6 +23,14 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
     minutes.
 
     [Get started →](/getting-started/quickstart/)
+
+  </Card>
+
+  <Card title="Vault (Local Mode)" icon="document">
+    File-first cognitive memory. Index your markdown files, watch for changes,
+    and recall locally with no server required.
+
+    [Vault docs →](/vault/overview/)
 
   </Card>
 
@@ -76,6 +84,9 @@ HEBBS is the cognitive memory engine that didn't exist until now:
 - **Automatic decay and reinforcement** - memories fade over time unless reinforced by access. Signal-to-noise improves naturally. No manual pruning.
 - **Revision with lineage** - `revise()` replaces beliefs while preserving the predecessor chain. No contradictory facts coexisting.
 - **Drop-in agent skill** - install the SKILL.md file and any compatible agent gets cognitive memory without SDK integration or glue code.
+- **File-first vault mode** - `hebbs init` in any directory and your markdown files become searchable memories. A background daemon shares the embedding model across all your vaults.
+- **Contradiction detection** - HEBBS automatically surfaces conflicting beliefs in your knowledge base and writes human-readable reports.
+- **Memory Palace** - a built-in web UI (`hebbs panel`) for visualizing your memory graph with clusters, edges, and live updates.
 - **One binary, zero external dependencies** - and it does all of this in under 10ms at 10 million memories.
 
 ## Core Operations

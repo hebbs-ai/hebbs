@@ -1,63 +1,83 @@
 ---
 title: "CLI Overview"
-description: "Interactive command-line interface for HEBBS."
+description: "HEBBS command-line interfaces: the unified hebbs binary and the hebbs-cli remote client."
 ---
 
-The HEBBS CLI (`hebbs-cli`) provides full access to the HEBBS engine from your terminal. It supports two modes of operation: one-shot commands for scripts and automation, and an interactive REPL for exploration and debugging.
+HEBBS provides two CLIs depending on your deployment mode:
 
-## Two Modes
+| Binary | Mode | Description |
+|---|---|---|
+| **`hebbs`** | Local (vault) | Unified binary: vault management, all memory operations, daemon, panel. No server required. |
+| **`hebbs-cli`** | Remote (server) | Client that connects to a running `hebbs-server` over gRPC. |
 
-### One-Shot Commands
+Both CLIs share the same memory commands (`remember`, `recall`, `revise`, `forget`, `prime`, `reflect`, `insights`). The `hebbs` binary adds vault-specific commands (`init`, `index`, `watch`, `rebuild`, `list`, `serve`, `panel`).
 
-Run a single command and exit. Ideal for shell scripts, CI pipelines, and automation:
+## Unified Binary (`hebbs`)
 
-```bash
-hebbs-cli remember --entity customer-42 --content "Prefers email communication"
-hebbs-cli recall --entity customer-42 --query "contact preferences"
-```
-
-### Interactive REPL
-
-Launch an interactive session with tab completion, command history, and dot-commands:
+The `hebbs` binary operates locally by default. It discovers the nearest `.hebbs/` directory (or uses `--global` for `~/.hebbs/`) and runs the full HEBBS engine in-process.
 
 ```bash
-hebbs-cli repl
+# Vault commands
+hebbs init                    # Create a vault
+hebbs index                   # Index all markdown files
+hebbs watch                   # Watch for file changes
+hebbs rebuild                 # Delete index and rebuild
+hebbs list --sections         # List indexed files and sections
+hebbs serve                   # Start the daemon
+hebbs panel                   # Open the Memory Palace
+
+# Memory commands (local)
+hebbs remember "some fact"
+hebbs recall "query"
+hebbs recall --all "query"    # Search project + global vaults
 ```
 
-The REPL maintains connection state and provides a faster feedback loop for development and exploration.
+### Global Flags
 
-## Key Capabilities
+| Flag | Env Var | Description |
+|---|---|---|
+| `--vault PATH` | `HEBBS_VAULT` | Explicit vault path |
+| `--global` | | Use global brain (`~/.hebbs/`) |
+| `--endpoint URL` | `HEBBS_ENDPOINT` | Switch to remote mode (connect to server) |
+| `--format` | | Output format: `human`, `json`, `raw` |
+| `--color` | | Color: `always`, `never`, `auto` |
+| `-v` / `-vv` | | Verbose/trace logging |
 
-- **All 9 HEBBS operations** — remember, recall, revise, forget, prime, reflect, insights, subscribe, and set-policy are all available as CLI commands.
-- **Multiple output formats** — human-readable tables (default), JSON for scripting, and raw format for piping.
-- **Connection management** — configure server address, TLS, and timeouts via flags or environment variables.
-- **Streaming support** — the `subscribe` command opens a live stream and prints memory pushes as they arrive.
+### Remote Mode
 
-## Authentication
+When `--endpoint` is set, the `hebbs` binary acts as a remote client (like `hebbs-cli`):
 
-The CLI requires an API key when the server has auth enabled (the default). Set it via environment variable or flag:
+```bash
+hebbs --endpoint localhost:50051 --api-key "hb_..." recall "query"
+```
+
+## Remote Client (`hebbs-cli`)
+
+The `hebbs-cli` binary connects to a running `hebbs-server` over gRPC. It supports one-shot commands and an interactive REPL.
+
+```bash
+hebbs-cli remember --entity customer-42 "Prefers email communication"
+hebbs-cli recall --entity customer-42 "contact preferences"
+hebbs-cli repl    # Interactive session
+```
+
+### Authentication
 
 ```bash
 export HEBBS_API_KEY="hb_..."
 hebbs-cli remember "hello world"
-
-# Or per-command:
-hebbs-cli --api-key "hb_..." remember "hello world"
 ```
 
-The server prints a bootstrap API key on first start. See [Running the Server](/server/running/) for details.
+## Key Capabilities
 
-## Configuration
-
-The CLI reads configuration from (in priority order):
-
-1. Command-line flags (`--address`, `--api-key`, `--tls`, `--timeout`)
-2. Environment variables (`HEBBS_API_KEY`, `HEBBS_ADDRESS`, `HEBBS_TLS_CERT`, `HEBBS_TIMEOUT`)
-3. Config file (`~/.config/hebbs/config.toml`)
+- **All 9 HEBBS operations** in both CLIs
+- **Multiple output formats**: human-readable tables (default), JSON for scripting, raw for piping
+- **Streaming support**: `subscribe` opens a live stream
+- **Multi-vault queries**: `--all` flag merges results from project and global vaults (unified binary only)
 
 ## Next Steps
 
-- [Installation](/cli/installation/) — install the CLI
-- [Commands Reference](/cli/commands/) — all available commands
-- [REPL](/cli/repl/) — interactive mode guide
-- [Output Formats](/cli/output-formats/) — control output formatting
+- [Commands Reference](/cli/commands/) - all available commands
+- [Vault Overview](/vault/overview/) - local vault mode
+- [REPL](/cli/repl/) - interactive mode guide
+- [Output Formats](/cli/output-formats/) - control output formatting

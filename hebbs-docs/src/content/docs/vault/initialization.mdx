@@ -1,0 +1,107 @@
+---
+title: "Initialization"
+description: "Create a HEBBS vault, understand the .hebbs/ directory structure, and configure your first vault."
+---
+
+## Creating a Vault
+
+Initialize a vault in any directory:
+
+```bash
+cd ~/projects/my-notes
+hebbs init
+```
+
+Or specify a path:
+
+```bash
+hebbs init ~/projects/my-notes
+```
+
+This creates a `.hebbs/` directory containing:
+
+```
+.hebbs/
+  config.toml          # Vault configuration
+  manifest.json        # File hash tracking (detects changes)
+  index/
+    db/                # RocksDB database (memories, edges, metadata)
+    models/
+      bge-small-en-v1.5/   # ONNX embedding model (~90 MB, downloaded once)
+        config.json
+        tokenizer.json
+```
+
+### Force Reinitialize
+
+If `.hebbs/` already exists, `init` exits with an error. Use `--force` to reinitialize:
+
+```bash
+hebbs init --force
+```
+
+This resets `config.toml` to defaults and clears the manifest. The RocksDB database is preserved; use `hebbs rebuild` to start fresh.
+
+## Global Brain
+
+HEBBS supports a **global vault** at `~/.hebbs/` for memories that span all projects:
+
+```bash
+hebbs init --global
+```
+
+The global brain is useful for personal knowledge that is not project-specific. Use `--global` on any command to target it:
+
+```bash
+hebbs remember --global "Always use UTC for timestamps in APIs"
+hebbs recall --global "timestamp conventions"
+```
+
+## Vault Discovery
+
+When you run `hebbs recall` or any memory command without `--vault` or `--global`, HEBBS walks up the directory tree from the current working directory looking for a `.hebbs/` directory. This is the **project vault**.
+
+The search order is:
+
+1. `--vault /explicit/path` (if provided)
+2. `--global` targets `~/.hebbs/`
+3. Walk up from `$PWD` looking for `.hebbs/`
+4. Fall back to `~/.hebbs/` if no project vault is found
+
+## Multi-Vault Queries
+
+Use `--all` on `recall` and `prime` to search both the project vault and the global brain, merging results by score:
+
+```bash
+hebbs recall --all "how to handle auth tokens"
+```
+
+This queries both vaults, deduplicates, and returns the top-k results sorted by composite score.
+
+## After Initialization
+
+Once initialized, index your files:
+
+```bash
+hebbs index
+```
+
+Then start recalling:
+
+```bash
+hebbs recall "your query here"
+```
+
+## .gitignore
+
+Add `.hebbs/` to your `.gitignore`. The directory contains binary data (RocksDB, ONNX model weights) that should not be committed:
+
+```
+# HEBBS vault runtime data
+.hebbs/
+```
+
+## What's Next
+
+- [Configuration](/vault/configuration/) - customize chunking, scoring, and watch behavior
+- [File Sync](/vault/file-sync/) - how markdown files are indexed and watched

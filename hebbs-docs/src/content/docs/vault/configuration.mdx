@@ -1,0 +1,157 @@
+---
+title: "Vault Configuration"
+description: "Complete reference for .hebbs/config.toml: chunking, embedding, watch, scoring, decay, contradiction, and LLM settings."
+---
+
+Vault configuration lives in `.hebbs/config.toml`. All fields have sensible defaults; you only need to add entries you want to override.
+
+## Full Default Configuration
+
+```toml
+[chunking]
+split_on = "##"              # Heading level to split on
+min_section_length = 50      # Sections shorter than this (chars) merge with parent
+
+[embedding]
+model = "bge-small-en-v1.5"  # ONNX model name
+dimensions = 384             # Embedding dimensions
+batch_size = 50              # Max sections per embed batch
+
+[watch]
+ignore_patterns = [".hebbs/", ".git/", ".obsidian/", "node_modules/", "contradictions/"]
+phase1_debounce_ms = 500     # Initial debounce after file event
+phase2_debounce_ms = 3000    # Settle debounce before processing
+burst_threshold = 20         # Events in phase1 window to trigger burst mode
+burst_debounce_ms = 10000    # Extended debounce during burst (e.g. git checkout)
+
+[output]
+insight_dir = "insights/"              # Directory for reflection output
+contradiction_dir = "contradictions/"  # Directory for contradiction reports
+exclude_insight_dir_from_reflect = true
+
+[scoring]
+w_relevance = 0.5       # Cosine similarity weight
+w_recency = 0.2         # Temporal recency weight
+w_importance = 0.2      # Stored importance weight
+w_reinforcement = 0.1   # Access-count reinforcement weight
+
+[decay]
+half_life_days = 30.0          # Memory strength halves every N days without access
+auto_forget_threshold = 0.01   # Memories below this decay score are candidates for removal
+reinforcement_cap = 100        # Maximum access count that affects scoring
+
+[contradiction]
+enabled = true          # Enable contradiction detection during ingest
+candidates_k = 10       # Max neighbors to check per memory
+min_similarity = 0.7    # Minimum cosine similarity to consider a pair
+min_confidence = 0.7    # Minimum confidence to create a CONTRADICTS edge
+
+[reflect_llm]
+# provider = "anthropic"                # "anthropic", "openai", "gemini", "ollama"
+# model = "claude-sonnet-4-20250514"
+# api_key_env = "ANTHROPIC_API_KEY"     # Prefer env var over raw key
+# base_url = ""                         # Override for self-hosted providers
+```
+
+## Section Reference
+
+### `[chunking]`
+
+Controls how markdown files are split into memory sections.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `split_on` | string | `"##"` | Heading level to split on. `"##"` splits on H2 headings, `"###"` on H3. |
+| `min_section_length` | integer | `50` | Sections shorter than this (in characters) are merged with their parent section. |
+
+### `[embedding]`
+
+Controls the on-device embedding model.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `model` | string | `"bge-small-en-v1.5"` | ONNX model name. Downloaded on first `hebbs init`. |
+| `dimensions` | integer | `384` | Embedding vector dimensions. Must match the model. |
+| `batch_size` | integer | `50` | Maximum sections embedded in a single batch call. |
+
+### `[watch]`
+
+Controls file watching behavior for `hebbs watch` and the daemon.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `ignore_patterns` | string[] | See above | Glob patterns for files/directories to ignore. |
+| `phase1_debounce_ms` | integer | `500` | Initial debounce window after a file event. |
+| `phase2_debounce_ms` | integer | `3000` | Settle period after phase 1 before processing. |
+| `burst_threshold` | integer | `20` | If more than this many events arrive in phase 1, extend to burst debounce. |
+| `burst_debounce_ms` | integer | `10000` | Extended debounce during burst operations (e.g. `git checkout`). |
+
+The two-phase debounce prevents unnecessary re-indexing during rapid file changes. Phase 1 collects events, phase 2 waits for the directory to settle. Burst mode handles large operations like branch switches.
+
+### `[output]`
+
+Controls where generated files are written.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `insight_dir` | string | `"insights/"` | Directory for reflection output files, relative to vault root. |
+| `contradiction_dir` | string | `"contradictions/"` | Directory for contradiction reports, relative to vault root. |
+| `exclude_insight_dir_from_reflect` | bool | `true` | Exclude insight directory from reflect input to prevent feedback loops. |
+
+### `[scoring]`
+
+Controls the composite scoring weights for recall. Weights do not need to sum to 1.0; they are normalized internally.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `w_relevance` | float | `0.5` | Weight for cosine similarity between query and memory embeddings. |
+| `w_recency` | float | `0.2` | Weight for temporal recency. |
+| `w_importance` | float | `0.2` | Weight for stored importance value. |
+| `w_reinforcement` | float | `0.1` | Weight for access-count reinforcement. |
+
+### `[decay]`
+
+Controls memory decay and automatic forgetting.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `half_life_days` | float | `30.0` | Memory strength halves every N days without access. |
+| `auto_forget_threshold` | float | `0.01` | Memories with decay score below this are candidates for auto-forget. |
+| `reinforcement_cap` | integer | `100` | Maximum access count that affects reinforcement scoring. |
+
+### `[contradiction]`
+
+Controls contradiction detection during ingest. See [Contradiction Detection](/vault/contradiction-detection/).
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `true` | Enable contradiction detection. |
+| `candidates_k` | integer | `10` | Maximum nearest neighbors to check per ingested memory. |
+| `min_similarity` | float | `0.7` | Minimum cosine similarity to consider two memories as potentially contradictory. |
+| `min_confidence` | float | `0.7` | Minimum confidence to create a `CONTRADICTS` edge and write a report. |
+
+### `[reflect_llm]`
+
+Optional LLM configuration for the reflection pipeline. When configured, enables higher-quality cluster labeling and insight generation.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `provider` | string | none | Provider: `"anthropic"`, `"openai"`, `"gemini"`, `"ollama"`. |
+| `model` | string | none | Model identifier (e.g. `"claude-sonnet-4-20250514"`, `"gpt-4o-mini"`). |
+| `api_key` | string | none | API key. Prefer `api_key_env` for security. |
+| `api_key_env` | string | none | Environment variable holding the API key (e.g. `"ANTHROPIC_API_KEY"`). |
+| `base_url` | string | none | Base URL override for self-hosted providers. |
+
+## Editing Configuration
+
+Edit `.hebbs/config.toml` directly. Changes take effect on the next command or watch cycle. When using the daemon, the panel can trigger a live config reload.
+
+## Validation
+
+HEBBS validates configuration on load. Invalid values produce clear error messages:
+
+```
+error: invalid config
+  scoring.w_relevance: must be >= 0
+  watch.phase1_debounce_ms: must be >= 50
+```

@@ -1,0 +1,78 @@
+---
+title: "Memory Palace"
+description: "The built-in web UI for visualizing your HEBBS memory graph."
+---
+
+The Memory Palace is a built-in web interface for exploring and managing your HEBBS memory graph. It runs as an embedded HTTP server and opens in your browser.
+
+## Opening the Panel
+
+```bash
+hebbs panel
+```
+
+This starts a local HTTP server on port 6381 and opens your browser to `http://127.0.0.1:6381`.
+
+### Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `vault_path` | auto-discover | Path to the vault directory |
+| `--port` | `6381` | HTTP port for the panel server |
+
+### Daemon Integration
+
+When the daemon is running, `hebbs panel` connects to the daemon's built-in panel server instead of starting a new one. The daemon serves the panel on the same port (configurable via `hebbs serve --panel-port`).
+
+## Features
+
+### Graph View
+
+The main view shows a 2D projection of all memories in the vault:
+
+- Each node is a memory (episode, insight, or revision)
+- Edges show relationships: `caused_by`, `followed_by`, `related_to`, `revised_from`, `insight_from`, `contradicts`
+- Colors indicate clusters (computed via DBSCAN on the UMAP projection)
+- Cluster labels are generated from the most frequent terms in each cluster
+
+### Live Updates
+
+The panel receives real-time events via WebSocket:
+
+- **Memory created**: new node appears in the graph
+- **Memory forgotten**: node is removed
+- **Ingest complete**: graph updates with new/revised sections
+- **Config reloaded**: panel reflects new configuration
+
+### Search
+
+Search across all memories using the full HEBBS recall engine. Results are highlighted in the graph view.
+
+### Memory Inspector
+
+Click any node to see:
+
+- Full content
+- Importance, decay score, access count
+- File path and heading (for file-sourced memories)
+- Graph edges (incoming and outgoing)
+- Created/updated timestamps
+
+### Vault Switching
+
+When running in daemon mode, the panel can switch between all active vaults. Select a different vault from the dropdown to view its memory graph.
+
+### Configuration Editor
+
+View and edit the vault's `config.toml` directly from the panel. Changes trigger a live config reload in the daemon.
+
+## Architecture
+
+The panel is a single-page application served by an embedded axum HTTP server:
+
+- Static files (HTML, CSS, JS) are compiled into the binary
+- API endpoints serve graph data, memory details, and vault management
+- WebSocket endpoint pushes real-time events
+- UMAP projection is cached and recomputed when the node count changes
+
+The panel is designed for local use only (binds to `127.0.0.1`). It does not require authentication.
