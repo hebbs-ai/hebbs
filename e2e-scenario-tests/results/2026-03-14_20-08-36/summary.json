@@ -1,0 +1,11 @@
+{
+  "run_date": "2026-03-14T14:38:36Z",
+  "platform": "Darwin-arm64",
+  "vault_size": "medium",
+  "binary": "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs/target/release/hebbs",
+  "overall_pass": false,
+  "scenarios_passed": 0,
+  "scenarios_failed": 16,
+  "scenarios_total": 16,
+  "scenarios": [{"name":"01_first_install","pass":false,"duration_ms":7,"exit_code":2},{"name":"02_realtime_editing","pass":false,"duration_ms":6,"exit_code":2},{"name":"03_agent_writing","pass":false,"duration_ms":6,"exit_code":2},{"name":"04_bulk_arrival","pass":false,"duration_ms":5,"exit_code":2},{"name":"05_content_stale_query","pass":false,"duration_ms":5,"exit_code":2},{"name":"06_insight_loop","pass":false,"duration_ms":5,"exit_code":2},{"name":"07_crash_recovery","pass":false,"duration_ms":5,"exit_code":2},{"name":"08_rebuild_equivalence","pass":false,"duration_ms":6,"exit_code":2},{"name":"09_delete_and_rename","pass":false,"duration_ms":5,"exit_code":2},{"name":"10_wiki_link_edges","pass":false,"duration_ms":5,"exit_code":2},{"name":"11_agent_lifecycle","pass":false,"duration_ms":6,"exit_code":2},{"name":"12_cli_operations_local","pass":false,"duration_ms":5,"exit_code":2},{"name":"13_mixed_sources","pass":false,"duration_ms":5,"exit_code":2},{"name":"14_global_flag_two_brain","pass":false,"duration_ms":5,"exit_code":2},{"name":"15_multi_vault_agent_hopping","pass":false,"duration_ms":5,"exit_code":2},{"name":"16_vault_discovery_edge_cases","pass":false,"duration_ms":6,"exit_code":2}]
+}

@@ -1,0 +1,7 @@
+{
+  "recall_via_daemon": {"value": 36, "unit": "ms"},
+  "memories_stored": {"value": 3, "unit": "count"},
+  "remember_via_daemon": {"value": 53, "unit": "ms"},
+  "recall_latency_ms": {"value": 36, "unit": "ms"},
+  "remember_latency_ms": {"value": 53, "unit": "ms"}
+}

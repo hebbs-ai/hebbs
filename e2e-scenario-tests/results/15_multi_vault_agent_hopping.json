@@ -1,0 +1,5 @@
+{
+  "cross_vault_leaks": {"value": 0, "unit": "count"},
+  "vaults_used": {"value": 3, "unit": "count"},
+  "total_memories_stored": {"value": 10, "unit": "count"}
+}

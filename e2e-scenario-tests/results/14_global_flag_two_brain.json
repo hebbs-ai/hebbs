@@ -1,0 +1,5 @@
+{
+  "project_memories_stored": {"value": 3, "unit": "count"},
+  "cross_vault_leaks": {"value": 0, "unit": "count"},
+  "global_memories_stored": {"value": 3, "unit": "count"}
+}

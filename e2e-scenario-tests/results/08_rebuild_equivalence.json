@@ -1,0 +1,10 @@
+{
+  "rebuild_time_ms": {"value": 302, "unit": "ms"},
+  "post_files": {"value": 4, "unit": "count"},
+  "post_sections": {"value": 7, "unit": "count"},
+  "initial_index_time_ms": {"value": 39741, "unit": "ms"},
+  "pre_files": {"value": 4, "unit": "count"},
+  "initial_index": {"value": 39741, "unit": "ms"},
+  "pre_sections": {"value": 7, "unit": "count"},
+  "rebuild": {"value": 302, "unit": "ms"}
+}

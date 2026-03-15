@@ -1,0 +1,11 @@
+{
+  "run_date": "2026-03-14T14:42:39Z",
+  "platform": "Darwin-arm64",
+  "vault_size": "medium",
+  "binary": "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs/target/release/hebbs",
+  "overall_pass": false,
+  "scenarios_passed": 0,
+  "scenarios_failed": 1,
+  "scenarios_total": 1,
+  "scenarios": [{"name":"01_first_install","pass":false,"duration_ms":201517,"exit_code":1}]
+}

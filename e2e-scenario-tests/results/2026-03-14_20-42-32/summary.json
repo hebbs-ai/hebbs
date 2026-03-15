@@ -1,0 +1,11 @@
+{
+  "run_date": "2026-03-14T15:24:55Z",
+  "platform": "Darwin-arm64",
+  "vault_size": "medium",
+  "binary": "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs/target/release/hebbs",
+  "overall_pass": false,
+  "scenarios_passed": 2,
+  "scenarios_failed": 2,
+  "scenarios_total": 4,
+  "scenarios": [{"name":"17_daemon_autostart_idle","pass":true,"duration_ms":41754},{"name":"18_daemon_multi_vault","pass":true,"duration_ms":22598},{"name":"19_daemon_health_selfheal","pass":false,"duration_ms":23107,"exit_code":1},{"name":"20_daemon_concurrent","pass":false,"duration_ms":654953,"exit_code":1}]
+}

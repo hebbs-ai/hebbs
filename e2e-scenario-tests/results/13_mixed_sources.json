@@ -1,0 +1,8 @@
+{
+  "recall_api_results": {"value": 9, "unit": "count"},
+  "recall_rate_results": {"value": 9, "unit": "count"},
+  "recall_errors_results": {"value": 9, "unit": "count"},
+  "file_backed_sections": {"value": 5, "unit": "count"},
+  "cli_memories_stored": {"value": 4, "unit": "count"},
+  "recall_logging_results": {"value": 9, "unit": "count"}
+}

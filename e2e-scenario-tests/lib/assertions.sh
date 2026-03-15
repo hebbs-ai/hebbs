@@ -104,6 +104,16 @@ assert_file_not_exists() {
   fi
 }
 
+assert_path_exists() {
+  local name="$1"
+  local path="$2"
+  if [[ -e "${path}" || -S "${path}" ]]; then
+    _record_pass "${name}"
+  else
+    _record_fail "${name}" "path not found: ${path}"
+  fi
+}
+
 assert_dir_exists() {
   local name="$1"
   local path="$2"
@@ -126,6 +136,32 @@ assert_contains() {
     _record_pass "${name}"
   else
     _record_fail "${name}" "file '${file_path}' does not contain '${substring}'"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# String
+# ---------------------------------------------------------------------------
+
+assert_contains_str() {
+  local name="$1"
+  local haystack="$2"
+  local needle="$3"
+  if echo "${haystack}" | grep -qF "${needle}"; then
+    _record_pass "${name}"
+  else
+    _record_fail "${name}" "string does not contain '${needle}'"
+  fi
+}
+
+assert_not_contains_str() {
+  local name="$1"
+  local haystack="$2"
+  local needle="$3"
+  if echo "${haystack}" | grep -qF "${needle}"; then
+    _record_fail "${name}" "string should not contain '${needle}'"
+  else
+    _record_pass "${name}"
   fi
 }
 

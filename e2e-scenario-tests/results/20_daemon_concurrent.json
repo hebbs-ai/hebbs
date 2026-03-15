@@ -1,0 +1,9 @@
+{
+  "parallel_writes_ms": {"value": 629782, "unit": "ms"},
+  "parallel_writes": {"value": 629782, "unit": "ms"},
+  "mixed_parallel": {"value": 35, "unit": "ms"},
+  "parallel_reads": {"value": 33, "unit": "ms"},
+  "parallel_reads_ms": {"value": 33, "unit": "ms"},
+  "total_memories_written": {"value": 8, "unit": "count"},
+  "mixed_parallel_ms": {"value": 35, "unit": "ms"}
+}

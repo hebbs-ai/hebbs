@@ -1,0 +1,10 @@
+{
+  "manifest_files": {"value": 500, "unit": "count"},
+  "manifest_sections": {"value": 1892, "unit": "count"},
+  "phase1": {"value": 125759, "unit": "ms"},
+  "manifest_size_bytes": {"value": 804693, "unit": "bytes"},
+  "init": {"value": 1081, "unit": "ms"},
+  "phase1_time_ms": {"value": 125759, "unit": "ms"},
+  "reindex": {"value": 77498, "unit": "ms"},
+  "reindex_skip_time_ms": {"value": 77498, "unit": "ms"}
+}

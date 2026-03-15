@@ -1,0 +1,15 @@
+{
+  "agent_memory_files": {"value": 3, "unit": "count"},
+  "doc_files": {"value": 3, "unit": "count"},
+  "init_time_ms": {"value": 34, "unit": "ms"},
+  "insight_files": {"value": 1, "unit": "count"},
+  "index_docs": {"value": 38967, "unit": "ms"},
+  "rebuild_time_ms": {"value": 280, "unit": "ms"},
+  "index_with_memories_time_ms": {"value": 219, "unit": "ms"},
+  "total_sections_peak": {"value": 11, "unit": "count"},
+  "init": {"value": 34, "unit": "ms"},
+  "index_with_memories": {"value": 219, "unit": "ms"},
+  "total_files_peak": {"value": 7, "unit": "count"},
+  "index_docs_time_ms": {"value": 38967, "unit": "ms"},
+  "rebuild": {"value": 280, "unit": "ms"}
+}
