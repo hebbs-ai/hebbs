@@ -36,6 +36,8 @@ __pycache__/
 # HEBBS vault runtime data
 .hebbs/
 **/.hebbs/
+**/contradictions/
+**/insights/
 
 # Runtime data and local databases
 hebbs-data/
