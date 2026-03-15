@@ -107,7 +107,7 @@ Every change must propagate across all affected layers: proto → server (gRPC +
 
 - **NEVER add Claude, Cursor, Copilot, or any AI agent as author or co-author of git commits. No `Co-Authored-By` lines. No AI attribution in commits. EVER.**
 - **Commit messages MUST be a single line. No multi-line bodies, no blank lines, no paragraphs.**
-- **Do not run `git commit` or `git push`.** Only generate a single-line commit message for the user to run themselves.
+- **Do not run `git commit` or `git push` unless explicitly told by the user.** By default, only generate a single-line commit message for the user to run themselves.
 - Use conventional commit tags: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `perf:`, `ci:`.
 - Format: `<tag>(<scope>): <concise description>` — e.g. `fix(server): return 404 instead of 500 for missing memory`.
 - If a code change requires a doc update, mention it in the commit message scope or body.
