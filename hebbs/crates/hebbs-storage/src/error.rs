@@ -75,6 +75,7 @@ pub enum ColumnFamilyName {
     Graph,
     Meta,
     VectorsAssociative,
+    QueryLog,
 }
 
 impl ColumnFamilyName {
@@ -86,6 +87,7 @@ impl ColumnFamilyName {
             Self::Graph => "graph",
             Self::Meta => "meta",
             Self::VectorsAssociative => "vectors_associative",
+            Self::QueryLog => "query_log",
         }
     }
 
@@ -98,6 +100,7 @@ impl ColumnFamilyName {
             Self::Graph,
             Self::Meta,
             Self::VectorsAssociative,
+            Self::QueryLog,
         ]
     }
 
@@ -110,6 +113,7 @@ impl ColumnFamilyName {
             Self::Graph,
             Self::Meta,
             Self::VectorsAssociative,
+            Self::QueryLog,
         ]
     }
 }
