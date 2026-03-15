@@ -1,6 +1,6 @@
 # HEBBS Release Instructions
 
-How to cut a release for the server, TypeScript SDK, and Python SDK.
+How to cut a release for the unified CLI, TypeScript SDK, and Python SDK.
 
 ---
 
@@ -8,7 +8,7 @@ How to cut a release for the server, TypeScript SDK, and Python SDK.
 
 | Component | Version | Repo |
 |-----------|---------|------|
-| Server (`hebbs`) | `0.1.0` | `hebbs-ai/hebbs` |
+| Unified CLI (`hebbs`) | `0.2.0` | `hebbs-ai/hebbs` |
 | TypeScript SDK (`@hebbs/sdk`) | `0.1.1` | `hebbs-ai/hebbs-typescript` |
 | Python SDK (`hebbs`) | `0.1.0` | `hebbs-ai/hebbs-python` |
 
@@ -16,11 +16,11 @@ How to cut a release for the server, TypeScript SDK, and Python SDK.
 
 ## How Releases Work
 
-All three repos are **tag-triggered**. Push a `v*` tag → CI builds, tests, and publishes automatically.
+All three repos are **tag-triggered**. Push a `v*` tag and CI builds, tests, and publishes automatically.
 
-- **Server** (`release.yml`): builds binaries for linux-x86_64, linux-aarch64, macos-arm64 + Docker image → creates GitHub Release with assets + checksums → updates Homebrew tap.
-- **TypeScript SDK** (`ci.yml` publish job): runs build + tests → `npm publish --provenance` to npmjs.
-- **Python SDK** (`publish.yml`): builds sdist + wheel → publishes to PyPI via trusted publishing (no API key needed, uses OIDC).
+- **Unified CLI** (`release.yml`): builds the single `hebbs` binary for linux-x86_64, linux-aarch64, macos-arm64 + Docker image. Creates GitHub Release with assets + checksums. Updates Homebrew tap. The `hebbs` binary replaces the old `hebbs-server`, `hebbs-cli`, and `hebbs-vault` binaries (see TASK-17).
+- **TypeScript SDK** (`ci.yml` publish job): runs build + tests then `npm publish --provenance` to npmjs.
+- **Python SDK** (`publish.yml`): builds sdist + wheel then publishes to PyPI via trusted publishing (no API key needed, uses OIDC).
 
 The install script at `hebbs-deploy/scripts/install.sh` already reads `releases/latest` from GitHub. Once you tag a stable release, `curl https://hebbs.ai/install | sh` will automatically pick it up.
 
@@ -36,7 +36,7 @@ After a release, users can install HEBBS via:
 brew install hebbs-ai/tap/hebbs
 ```
 
-This is the recommended method for local development and testing. The Homebrew formula is automatically updated by the `update-homebrew` job in `release.yml` (see below).
+This installs the unified `hebbs` binary. The Homebrew formula is automatically updated by the `update-homebrew` job in `release.yml` (see below).
 
 ### Install script (Linux / macOS)
 
@@ -88,7 +88,7 @@ Supported platforms in the formula:
 ```sh
 brew update
 brew install hebbs-ai/tap/hebbs
-hebbs-server version  # should show the new version
+hebbs version  # should show the new version
 ```
 
 ---
@@ -103,7 +103,7 @@ All three should have the same version number for a coordinated release. Decide 
 ```toml
 version = "0.2.0"
 ```
-This propagates to all 12 crates via `[workspace.package]`.
+This propagates to all 13 crates via `[workspace.package]`.
 
 **TypeScript SDK** — `hebbs-typescript/package.json`:
 ```json
@@ -157,7 +157,7 @@ Check the Python SDK repo has a PyPI "trusted publisher" configured at `pypi.org
 
 Tag order matters: **server first**, then SDKs. The SDKs depend on the server's proto/API, not the other way around.
 
-### Step 1 — Tag the server
+### Step 1 -- Tag the unified CLI
 
 ```sh
 cd hebbs
@@ -171,7 +171,7 @@ git tag v0.2.0 -m "Release v0.2.0"
 git push origin v0.2.0
 ```
 
-Watch `Actions → Release` on GitHub. Wait for all three matrix builds (linux-x86_64, linux-aarch64, macos-arm64) + Docker + **Homebrew tap update** to go green before proceeding.
+Watch `Actions / Release` on GitHub. Wait for all three matrix builds (linux-x86_64, linux-aarch64, macos-arm64) + Docker + **Homebrew tap update** to go green before proceeding. The release now produces a single `hebbs` binary that handles both local (embedded engine) and remote (gRPC/REST client) modes.
 
 ### Step 2 — Tag the TypeScript SDK
 
@@ -181,7 +181,7 @@ git tag v0.2.0 -m "Release v0.2.0"
 git push origin v0.2.0
 ```
 
-Watch `Actions → CI & Publish` → publish job. Verify on npmjs: `https://www.npmjs.com/package/@hebbs/sdk`.
+Watch `Actions / CI & Publish` publish job. Verify on npmjs: `https://www.npmjs.com/package/@hebbs/sdk`.
 
 ### Step 3 — Tag the Python SDK
 
@@ -191,7 +191,7 @@ git tag v0.2.0 -m "Release v0.2.0"
 git push origin v0.2.0
 ```
 
-Watch `Actions → Publish to PyPI`. Verify on PyPI: `https://pypi.org/project/hebbs/`.
+Watch `Actions / Publish to PyPI`. Verify on PyPI: `https://pypi.org/project/hebbs/`.
 
 ---
 
@@ -225,9 +225,16 @@ chore(release): bump python sdk to v0.2.0
 
 ---
 
-## What Changed Since Last Release (0.1.x → 0.2.0)
+## What Changed Since Last Release (0.1.x to 0.2.0)
 
 Changes made in this session that should go into the release notes:
+
+**Unified CLI (TASK-17: One Brain, Unified Engine):**
+- `feat(cli): unified hebbs binary replaces hebbs-server, hebbs-cli, and hebbs-vault`
+- `feat(cli): dual-mode engine -- local (embedded RocksDB) or remote (gRPC/REST client)`
+- `feat(cli): brain discovery -- --vault flag, HEBBS_VAULT env, walk-up .hebbs/, ~/.hebbs/ fallback`
+- `feat(cli): all commands in one binary -- init, index, watch, rebuild, remember, recall, forget, prime, reflect, insights, inspect, export, and more`
+- `feat(cli): remote mode delegates to hebbs-cli library for identical output formatting`
 
 **Server fixes:**
 - `fix(subscribe): empty kind_filter now defaults to [Episode, Insight, Revision] instead of rejecting all memories`
@@ -255,7 +262,7 @@ After all three tags are live:
 # Verify Homebrew tap picks up new version
 brew update
 brew install hebbs-ai/tap/hebbs
-hebbs-server version  # should show 0.2.0
+hebbs version  # should show 0.2.0
 
 # Verify install script picks up new version
 curl -sSf https://hebbs.ai/install | sh --dry-run  # if dry-run is supported
