@@ -100,7 +100,7 @@ impl<'a> VaultQuery<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
+    use crate::manifest::{FileEntry, Manifest, SectionEntry, SectionState};
     use chrono::Utc;
 
     fn make_manifest_with_section(
