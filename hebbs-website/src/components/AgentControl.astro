@@ -1,0 +1,139 @@
+---
+const scenarios = [
+  {
+    situation: "User asks about a failed deal",
+    thought: "I need the causal chain scoped to this entity, weighted toward importance.",
+    params: { strategy: "causal", entity_id: '"acme"', scoring: "importance: 0.5", memory_kinds: "episode, insight" },
+    highlight: "strategy",
+  },
+  {
+    situation: "Preparing for a follow-up call",
+    thought: "I need recent interactions in chronological order to rebuild context.",
+    params: { strategy: "temporal", entity_id: '"acme"', scoring: "recency: 0.6", memory_kinds: "episode" },
+    highlight: "scoring",
+  },
+  {
+    situation: "Handling a pricing objection",
+    thought: "I need patterns from similar objections across all accounts.",
+    params: { strategy: "analogical", entity_id: "null", scoring: "reinforcement: 0.5", memory_kinds: "insight" },
+    highlight: "memory_kinds",
+  },
+  {
+    situation: "Quick fact lookup",
+    thought: "Just find the closest semantic match. Fast and simple.",
+    params: { strategy: "similarity", entity_id: "null", scoring: "relevance: 1.0", memory_kinds: "episode" },
+    highlight: "strategy",
+  },
+];
+
+const parameters = [
+  { name: "strategy", values: "similarity, temporal, causal, analogical", desc: "Which recall path to take" },
+  { name: "scoring_weights", values: "relevance, recency, importance, reinforcement", desc: "Blend four signals into one score" },
+  { name: "entity_id", values: "any string or null", desc: "Scope to one entity or search globally" },
+  { name: "memory_kinds", values: "episode, insight, or both", desc: "Filter by memory type" },
+  { name: "top_k", values: "1 to N", desc: "How many results to return" },
+  { name: "time_range", values: "start, end timestamps", desc: "Restrict to a time window" },
+  { name: "scope", values: "project, global, or all", desc: "Search one vault or across vaults" },
+  { name: "min_score", values: "0.0 to 1.0", desc: "Minimum relevance threshold" },
+];
+---
+
+<section class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">Agent-first design</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        Your agent decides. Powerful enough to act on any direction.
+      </h2>
+      <p class="text-muted text-lg max-w-3xl mx-auto">
+        Every parameter of every call is exposed to the agent. Strategy, weights, scope, filters. The agent reasons about what it needs and tells HEBBS exactly how to retrieve it. No black boxes. No fixed pipelines.
+      </p>
+    </div>
+
+    <!-- Anatomy of a recall call -->
+    <div class="rounded-xl border border-accent/30 bg-accent/[0.04] overflow-hidden mb-12">
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-accent/20">
+        <div class="w-3 h-3 rounded-full bg-red/40"></div>
+        <div class="w-3 h-3 rounded-full bg-accent/40"></div>
+        <div class="w-3 h-3 rounded-full bg-green/40"></div>
+        <span class="ml-2 text-xs text-muted font-mono">anatomy of a recall</span>
+      </div>
+      <div class="p-6 md:p-8">
+        <div class="mb-6 rounded-lg bg-bg/60 border border-border/40 px-5 py-4">
+          <p class="text-xs font-mono text-accent/60 uppercase tracking-wider mb-2">Agent reasoning</p>
+          <p class="text-sm text-muted italic leading-relaxed">
+            "User asked why the Acme deal fell through. I need the causal chain, scoped to this entity, weighted toward importance over recency. Episodes and insights both matter here."
+          </p>
+        </div>
+
+        <pre class="font-mono text-sm leading-loose overflow-x-auto"><code><span class="text-text">results</span> <span class="text-cyan">=</span> <span class="text-text">e</span>.<span class="text-text">recall</span>(
+    <span class="text-text">cue</span>            <span class="text-cyan">=</span> <span class="text-green">"why did the Acme deal fail"</span>       <span class="text-muted">  # what to search</span>
+    <span class="text-text">strategy</span>       <span class="text-cyan">=</span> <span class="text-green">"causal"</span>                          <span class="text-muted">  # which of 4 strategies</span>
+    <span class="text-text">entity_id</span>      <span class="text-cyan">=</span> <span class="text-green">"acme"</span>                            <span class="text-muted">  # scope to one entity</span>
+    <span class="text-text">scoring_weights</span><span class="text-cyan">=</span> <span class="text-muted">{</span><span class="text-green">"w_relevance"</span>: <span class="text-accent">0.3</span>,             <span class="text-muted">  # tune the blend</span>
+                      <span class="text-green">"w_recency"</span>: <span class="text-accent">0.1</span>,
+                      <span class="text-green">"w_importance"</span>: <span class="text-accent">0.5</span>,
+                      <span class="text-green">"w_reinforcement"</span>: <span class="text-accent">0.1</span><span class="text-muted">}</span>
+    <span class="text-text">memory_kinds</span>   <span class="text-cyan">=</span> [<span class="text-green">"episode"</span>, <span class="text-green">"insight"</span>]            <span class="text-muted">  # filter by type</span>
+    <span class="text-text">top_k</span>          <span class="text-cyan">=</span> <span class="text-accent">10</span>                                <span class="text-muted">  # how many results</span>
+)</code></pre>
+      </div>
+    </div>
+
+    <!-- Same agent, different decisions -->
+    <div class="mb-6">
+      <h3 class="text-lg font-semibold text-text mb-2 text-center">Same agent. Different situations. Different decisions.</h3>
+      <p class="text-sm text-muted text-center mb-8">The agent picks the right parameters for each moment.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-5 mb-12">
+      {scenarios.map((s) => (
+        <div class="rounded-xl border border-border bg-surface/40 p-5">
+          <p class="text-xs font-mono text-accent uppercase tracking-wider mb-2">{s.situation}</p>
+          <p class="text-sm text-muted italic mb-4">"{s.thought}"</p>
+          <div class="space-y-1.5 font-mono text-xs">
+            {Object.entries(s.params).map(([key, val]) => (
+              <div class="flex gap-2">
+                <span class={key === s.highlight ? 'text-accent font-semibold' : 'text-muted'}>{key}</span>
+                <span class="text-muted/40">=</span>
+                <span class="text-text">{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- All exposed parameters -->
+    <div class="rounded-xl border border-border bg-surface/40 overflow-hidden">
+      <div class="px-6 py-4 border-b border-border/60">
+        <p class="text-xs font-mono text-accent uppercase tracking-wider">Every parameter the agent controls</p>
+        <p class="text-xs text-muted mt-1">All exposed over CLI, Python SDK, TypeScript SDK, gRPC, and REST.</p>
+      </div>
+      <div class="grid sm:grid-cols-2 divide-y sm:divide-y-0 divide-border/40">
+        <div class="divide-y divide-border/40">
+          {parameters.slice(0, 4).map((p) => (
+            <div class="px-6 py-3.5 flex flex-col gap-0.5">
+              <div class="flex items-baseline gap-2">
+                <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
+                <span class="text-[11px] text-muted/60">{p.values}</span>
+              </div>
+              <p class="text-xs text-muted">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div class="divide-y divide-border/40 sm:border-l sm:border-border/40">
+          {parameters.slice(4).map((p) => (
+            <div class="px-6 py-3.5 flex flex-col gap-0.5">
+              <div class="flex items-baseline gap-2">
+                <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
+                <span class="text-[11px] text-muted/60">{p.values}</span>
+              </div>
+              <p class="text-xs text-muted">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
