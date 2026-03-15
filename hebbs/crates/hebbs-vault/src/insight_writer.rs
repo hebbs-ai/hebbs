@@ -30,11 +30,7 @@ pub struct InsightWriter<'a> {
 }
 
 impl<'a> InsightWriter<'a> {
-    pub fn new(
-        vault_root: &'a Path,
-        manifest: &'a Manifest,
-        config: &'a VaultConfig,
-    ) -> Self {
+    pub fn new(vault_root: &'a Path, manifest: &'a Manifest, config: &'a VaultConfig) -> Self {
         Self {
             vault_root,
             manifest,
@@ -68,11 +64,7 @@ impl<'a> InsightWriter<'a> {
         Ok(created_paths)
     }
 
-    fn write_single_insight(
-        &self,
-        insight: &InsightOutput,
-        insight_dir: &Path,
-    ) -> Result<PathBuf> {
+    fn write_single_insight(&self, insight: &InsightOutput, insight_dir: &Path) -> Result<PathBuf> {
         // Resolve source memory IDs to human-readable file paths
         let sources = self.resolve_sources(&insight.source_memory_ids);
 
@@ -95,13 +87,7 @@ impl<'a> InsightWriter<'a> {
 
         // Generate filename
         let ulid_prefix = &ulid::Ulid::new().to_string()[..8];
-        let content_slug = slug::slugify(
-            &insight
-                .content
-                .chars()
-                .take(50)
-                .collect::<String>(),
-        );
+        let content_slug = slug::slugify(&insight.content.chars().take(50).collect::<String>());
         let filename = format!("{}-{}.md", ulid_prefix, content_slug);
 
         let file_path = insight_dir.join(&filename);
@@ -133,10 +119,8 @@ impl<'a> InsightWriter<'a> {
                 if let Some((file_path, _, _)) = memory_index.get(&ulid_str) {
                     // Find heading path for this section
                     if let Some(file_entry) = self.manifest.files.get(file_path) {
-                        if let Some(section) = file_entry
-                            .sections
-                            .iter()
-                            .find(|s| s.memory_id == ulid_str)
+                        if let Some(section) =
+                            file_entry.sections.iter().find(|s| s.memory_id == ulid_str)
                         {
                             if section.heading_path.is_empty() {
                                 sources.push(file_path.clone());

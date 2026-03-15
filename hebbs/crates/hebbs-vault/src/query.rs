@@ -34,10 +34,7 @@ impl<'a> VaultQuery<'a> {
 
     /// Read a section's content from the actual file.
     /// Returns (content, is_stale).
-    pub fn read_section_content(
-        &self,
-        memory_id: &str,
-    ) -> Option<(String, bool)> {
+    pub fn read_section_content(&self, memory_id: &str) -> Option<(String, bool)> {
         let (rel_path, byte_start, byte_end) = self.memory_index.get(memory_id)?;
 
         let file_path = self.vault_root.join(rel_path);
@@ -77,9 +74,7 @@ impl<'a> VaultQuery<'a> {
             Ok(text) => {
                 // Strip heading line if section starts with one
                 let content = if text.starts_with('#') {
-                    text.find('\n')
-                        .map(|pos| &text[pos + 1..])
-                        .unwrap_or("")
+                    text.find('\n').map(|pos| &text[pos + 1..]).unwrap_or("")
                 } else {
                     text
                 };
@@ -105,7 +100,7 @@ impl<'a> VaultQuery<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::{FileEntry, Manifest, SectionEntry, SectionState, sha256_checksum};
+    use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
     use chrono::Utc;
 
     fn make_manifest_with_section(

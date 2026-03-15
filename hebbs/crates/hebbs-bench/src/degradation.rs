@@ -181,7 +181,14 @@ fn compute_phase_stats(records: &[(String, u64)]) -> HashMap<String, PhaseStats>
             sum as f64 / count as f64
         };
         let p99_us = percentile(&timings, 99.0);
-        result.insert(name, PhaseStats { mean_us, p99_us, count });
+        result.insert(
+            name,
+            PhaseStats {
+                mean_us,
+                p99_us,
+                count,
+            },
+        );
     }
     result
 }
@@ -397,11 +404,7 @@ pub fn run(
         );
 
         // --- Measure recall causal ---
-        let causal_stats = measure_causal(
-            &engine,
-            &causal_seed_ids,
-            measure_runs,
-        );
+        let causal_stats = measure_causal(&engine, &causal_seed_ids, measure_runs);
 
         // --- Measure recall analogical ---
         let analog_stats = measure_strategy(

@@ -137,14 +137,14 @@ async fn touch_idle_timer(
 }
 
 /// Bind the panel HTTP server and spawn the axum serve task.
-async fn bind_and_serve(
-    state: Arc<PanelState>,
-    port: u16,
-) -> Result<SocketAddr, String> {
+async fn bind_and_serve(state: Arc<PanelState>, port: u16) -> Result<SocketAddr, String> {
     let app = Router::new()
         .merge(routes::static_routes())
         .merge(routes::api_routes())
-        .layer(middleware::from_fn_with_state(state.clone(), touch_idle_timer))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            touch_idle_timer,
+        ))
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

@@ -86,9 +86,7 @@ fn parse_markdown_str(text: &str, split_level: usize) -> Result<ParsedFile> {
 
 /// Extract YAML frontmatter from the beginning of a markdown file.
 /// Returns (parsed frontmatter, byte offset where body starts).
-fn extract_frontmatter(
-    text: &str,
-) -> (Option<HashMap<String, serde_yaml::Value>>, usize) {
+fn extract_frontmatter(text: &str) -> (Option<HashMap<String, serde_yaml::Value>>, usize) {
     if !text.starts_with("---") {
         return (None, 0);
     }
@@ -124,13 +122,12 @@ fn extract_frontmatter(
             let yaml_str = &remaining[..line_start];
             let body_start = content_start + line_end;
             // Skip the newline after closing ---
-            let body_start = if body_start < text.len()
-                && text.as_bytes().get(body_start) == Some(&b'\n')
-            {
-                body_start + 1
-            } else {
-                body_start
-            };
+            let body_start =
+                if body_start < text.len() && text.as_bytes().get(body_start) == Some(&b'\n') {
+                    body_start + 1
+                } else {
+                    body_start
+                };
 
             match serde_yaml::from_str(yaml_str) {
                 Ok(map) => return (Some(map), body_start),
@@ -206,8 +203,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
     if first_split > 0 {
         let preamble = &body[..first_split];
         if !preamble.trim().is_empty() {
-            let (wiki_links, tags) =
-                extract_links_and_tags(preamble, &wiki_link_re, &tag_re);
+            let (wiki_links, tags) = extract_links_and_tags(preamble, &wiki_link_re, &tag_re);
             sections.push(ParsedSection {
                 heading_path: Vec::new(),
                 heading_level: 0,
@@ -227,10 +223,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
         // Update heading stack
         if is_split_heading {
             // Pop everything at or below this level
-            while heading_stack
-                .last()
-                .map_or(false, |(l, _)| *l >= level)
-            {
+            while heading_stack.last().map_or(false, |(l, _)| *l >= level) {
                 heading_stack.pop();
             }
             heading_stack.push((level, title.clone()));
@@ -240,10 +233,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
             // Sub-headings within a split section: they're part of the parent section content,
             // but we track them in the heading stack for path building
             // Update stack for nested headings
-            while heading_stack
-                .last()
-                .map_or(false, |(l, _)| *l >= level)
-            {
+            while heading_stack.last().map_or(false, |(l, _)| *l >= level) {
                 heading_stack.pop();
             }
             heading_stack.push((level, title.clone()));
@@ -258,8 +248,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
             .map(|(p, _, _)| *p)
             .unwrap_or(body.len());
 
-        let heading_path: Vec<String> =
-            heading_stack.iter().map(|(_, t)| t.clone()).collect();
+        let heading_path: Vec<String> = heading_stack.iter().map(|(_, t)| t.clone()).collect();
 
         let section_text = &body[pos..section_end];
         // Strip the heading line from content
@@ -269,8 +258,7 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
             .unwrap_or(section_text.len());
         let content = &section_text[content_start_in_section..];
 
-        let (wiki_links, tags) =
-            extract_links_and_tags(content, &wiki_link_re, &tag_re);
+        let (wiki_links, tags) = extract_links_and_tags(content, &wiki_link_re, &tag_re);
 
         sections.push(ParsedSection {
             heading_path,
@@ -393,7 +381,8 @@ mod tests {
 
     #[test]
     fn test_frontmatter_extraction() {
-        let input = b"---\ntitle: Test Note\nhebbs-kind: insight\n---\n\n## Body\n\nContent here.\n";
+        let input =
+            b"---\ntitle: Test Note\nhebbs-kind: insight\n---\n\n## Body\n\nContent here.\n";
         let result = parse_markdown(input, 2).unwrap();
         let fm = result.frontmatter.unwrap();
         assert_eq!(
@@ -484,8 +473,7 @@ mod tests {
 
     #[test]
     fn test_preamble_before_first_heading() {
-        let input =
-            b"Some preamble text.\n\n## First Heading\n\nContent under heading.\n";
+        let input = b"Some preamble text.\n\n## First Heading\n\nContent under heading.\n";
         let result = parse_markdown(input, 2).unwrap();
         assert_eq!(result.sections.len(), 2);
         assert_eq!(result.sections[0].heading_level, 0);

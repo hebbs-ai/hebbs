@@ -61,7 +61,11 @@ pub fn phase1_ingest(
         let rel_path = path
             .strip_prefix(vault_root)
             .map_err(|_| VaultError::InvalidPath {
-                reason: format!("{} is not inside vault root {}", path.display(), vault_root.display()),
+                reason: format!(
+                    "{} is not inside vault root {}",
+                    path.display(),
+                    vault_root.display()
+                ),
             })?
             .to_string_lossy()
             .to_string();
@@ -171,10 +175,7 @@ pub fn phase1_ingest(
             FileEntry {
                 checksum: file_checksum,
                 last_parsed: Utc::now(),
-                last_embedded: manifest
-                    .files
-                    .get(&rel_path)
-                    .and_then(|e| e.last_embedded),
+                last_embedded: manifest.files.get(&rel_path).and_then(|e| e.last_embedded),
                 sections: new_sections,
             },
         );
@@ -186,11 +187,7 @@ pub fn phase1_ingest(
 }
 
 /// Mark all sections of a deleted file as orphaned.
-pub fn phase1_delete(
-    path: &Path,
-    vault_root: &Path,
-    manifest: &mut Manifest,
-) -> Result<usize> {
+pub fn phase1_delete(path: &Path, vault_root: &Path, manifest: &mut Manifest) -> Result<usize> {
     let rel_path = path
         .strip_prefix(vault_root)
         .map_err(|_| VaultError::InvalidPath {
@@ -249,7 +246,11 @@ pub async fn phase2_ingest(
                 SectionState::ContentStale => {
                     // Read content from file
                     let file_path = vault_root.join(rel_path);
-                    let content = match read_section_content(&file_path, section.byte_start, section.byte_end) {
+                    let content = match read_section_content(
+                        &file_path,
+                        section.byte_start,
+                        section.byte_end,
+                    ) {
                         Ok(c) => c,
                         Err(e) => {
                             warn!("failed to read section from {}: {}", rel_path, e);
@@ -270,9 +271,19 @@ pub async fn phase2_ingest(
                     };
 
                     if is_new {
-                        new_items.push((rel_path.clone(), section.memory_id.clone(), content, work));
+                        new_items.push((
+                            rel_path.clone(),
+                            section.memory_id.clone(),
+                            content,
+                            work,
+                        ));
                     } else {
-                        modified_items.push((rel_path.clone(), section.memory_id.clone(), content, work));
+                        modified_items.push((
+                            rel_path.clone(),
+                            section.memory_id.clone(),
+                            content,
+                            work,
+                        ));
                     }
                 }
                 SectionState::Orphaned => {
@@ -387,7 +398,11 @@ pub async fn phase2_ingest(
                                 }
                             }
                             Err(e) => {
-                                debug!("contradiction check failed for {}: {}", hex::encode(arr), e);
+                                debug!(
+                                    "contradiction check failed for {}: {}",
+                                    hex::encode(arr),
+                                    e
+                                );
                             }
                         }
                     }
@@ -500,8 +515,8 @@ pub async fn phase2_ingest(
             match section.state {
                 SectionState::ContentStale => {
                     // Check if we successfully processed it
-                    let was_processed = processed_ids
-                        .contains(&(rel_path.clone(), section.memory_id.clone()));
+                    let was_processed =
+                        processed_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
                     if was_processed {
                         section.state = SectionState::Synced;
                         any_embedded = true;
@@ -529,9 +544,7 @@ pub async fn phase2_ingest(
     }
 
     // Remove file entries with no sections left
-    manifest
-        .files
-        .retain(|_, entry| !entry.sections.is_empty());
+    manifest.files.retain(|_, entry| !entry.sections.is_empty());
 
     // Write contradiction files (after all manifest mutations are done)
     if !contradiction_outputs.is_empty() {
@@ -575,9 +588,7 @@ fn read_section_content(path: &Path, byte_start: usize, byte_end: usize) -> Resu
 
     // Strip heading line if present
     let content = if text.starts_with('#') {
-        text.find('\n')
-            .map(|pos| &text[pos + 1..])
-            .unwrap_or("")
+        text.find('\n').map(|pos| &text[pos + 1..]).unwrap_or("")
     } else {
         text
     };
@@ -606,8 +617,7 @@ mod tests {
         let mut manifest = Manifest::new();
         let config = VaultConfig::default();
 
-        let stats =
-            phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
+        let stats = phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
 
         assert_eq!(stats.files_processed, 1);
         assert_eq!(stats.sections_new, 1);
@@ -632,8 +642,7 @@ mod tests {
         phase1_ingest(&[file_path.clone()], dir.path(), &mut manifest, &config).unwrap();
 
         // Second ingest (file unchanged)
-        let stats =
-            phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
+        let stats = phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
         assert_eq!(stats.files_skipped, 1);
         assert_eq!(stats.files_processed, 0);
     }
@@ -653,15 +662,11 @@ mod tests {
         // Modify content
         std::fs::write(&file_path, "## Hello\n\nUpdated world.\n").unwrap();
 
-        let stats =
-            phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
+        let stats = phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
         assert_eq!(stats.sections_modified, 1);
 
         // Same memory_id (revise, not re-create)
-        assert_eq!(
-            manifest.files["test.md"].sections[0].memory_id,
-            original_id
-        );
+        assert_eq!(manifest.files["test.md"].sections[0].memory_id, original_id);
         assert_eq!(
             manifest.files["test.md"].sections[0].state,
             SectionState::ContentStale
@@ -701,8 +706,7 @@ mod tests {
 
         // Rename heading
         std::fs::write(&file_path, "## New Name\n\nContent.\n").unwrap();
-        let stats =
-            phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
+        let stats = phase1_ingest(&[file_path], dir.path(), &mut manifest, &config).unwrap();
 
         assert_eq!(stats.sections_new, 1);
         assert_eq!(stats.sections_orphaned, 1);

@@ -45,7 +45,10 @@ pub use parser::{ParsedFile, ParsedSection, WikiLink};
 pub fn init(vault_root: &Path, force: bool) -> Result<()> {
     if !vault_root.exists() || !vault_root.is_dir() {
         return Err(VaultError::InvalidPath {
-            reason: format!("{} does not exist or is not a directory", vault_root.display()),
+            reason: format!(
+                "{} does not exist or is not a directory",
+                vault_root.display()
+            ),
         });
     }
 
@@ -105,9 +108,7 @@ pub async fn index(
     let total_files = all_files.len();
 
     if let Some(cb) = progress {
-        cb(IndexProgress::Phase1Started {
-            total_files,
-        });
+        cb(IndexProgress::Phase1Started { total_files });
     }
 
     // Phase 1: parse all files
@@ -229,11 +230,7 @@ pub fn status(vault_root: &Path) -> Result<VaultStatus> {
     let (synced, stale, orphaned) = manifest.section_counts();
     let total_sections = synced + stale + orphaned;
 
-    let last_parsed = manifest
-        .files
-        .values()
-        .map(|e| e.last_parsed)
-        .max();
+    let last_parsed = manifest.files.values().map(|e| e.last_parsed).max();
 
     let last_embedded = manifest
         .files
@@ -286,14 +283,18 @@ fn add_to_gitignore(vault_root: &Path) -> Result<()> {
 /// Progress callback for index/rebuild operations.
 #[derive(Debug)]
 pub enum IndexProgress {
-    Phase1Started { total_files: usize },
+    Phase1Started {
+        total_files: usize,
+    },
     Phase1Complete {
         files_processed: usize,
         files_skipped: usize,
         sections_new: usize,
         sections_modified: usize,
     },
-    Phase2Started { sections_to_process: usize },
+    Phase2Started {
+        sections_to_process: usize,
+    },
     Phase2Complete {
         sections_embedded: usize,
         sections_remembered: usize,

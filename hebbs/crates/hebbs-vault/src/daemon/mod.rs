@@ -88,10 +88,7 @@ impl DaemonConfig {
 /// This function blocks until shutdown (signal, idle timeout, or explicit
 /// shutdown command). It returns `Ok(())` on clean shutdown.
 pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
-    let runtime_dir = config
-        .socket_path
-        .parent()
-        .ok_or("invalid socket path")?;
+    let runtime_dir = config.socket_path.parent().ok_or("invalid socket path")?;
     std::fs::create_dir_all(runtime_dir)
         .map_err(|e| format!("failed to create runtime directory: {}", e))?;
 
@@ -113,7 +110,10 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
         hebbs_embed::OnnxEmbedder::new(embed_config)
             .map_err(|e| format!("failed to load embedder: {}", e))?,
     );
-    info!("embedding model loaded ({} dimensions)", embedder.dimensions());
+    info!(
+        "embedding model loaded ({} dimensions)",
+        embedder.dimensions()
+    );
 
     // Create vault manager
     let idle_vault_timeout = if config.idle_timeout_secs > 0 {
@@ -129,8 +129,13 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
         std::fs::remove_file(&config.socket_path)
             .map_err(|e| format!("failed to remove stale socket: {}", e))?;
     }
-    let listener = UnixListener::bind(&config.socket_path)
-        .map_err(|e| format!("failed to bind socket {}: {}", config.socket_path.display(), e))?;
+    let listener = UnixListener::bind(&config.socket_path).map_err(|e| {
+        format!(
+            "failed to bind socket {}: {}",
+            config.socket_path.display(),
+            e
+        )
+    })?;
     info!("daemon listening on {}", config.socket_path.display());
 
     // Set socket permissions to owner-only (0o600)
@@ -197,10 +202,7 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
                         Err(_) => continue, // mutex held = daemon is busy
                     };
                     if elapsed > timeout {
-                        info!(
-                            "idle shutdown: no requests for {}s",
-                            elapsed.as_secs()
-                        );
+                        info!("idle shutdown: no requests for {}s", elapsed.as_secs());
                         cancel_idle.cancel();
                         break;
                     }
@@ -251,13 +253,18 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     {
         let registered = read_vaults_json(runtime_dir);
         if !registered.is_empty() {
-            info!("proactively opening {} registered vault(s)", registered.len());
+            info!(
+                "proactively opening {} registered vault(s)",
+                registered.len()
+            );
             let mut vm = vault_manager.lock().await;
             for vault_path in &registered {
                 if vault_path.join(".hebbs").exists() {
                     match vm.get_or_open(vault_path) {
                         Ok(_) => info!("proactively opened vault: {}", vault_path.display()),
-                        Err(e) => warn!("failed to proactively open {}: {}", vault_path.display(), e),
+                        Err(e) => {
+                            warn!("failed to proactively open {}: {}", vault_path.display(), e)
+                        }
                     }
                 }
             }
@@ -270,23 +277,28 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     let (vaults_json_tx, vaults_json_rx) = tokio::sync::mpsc::channel::<()>(16);
     let _vaults_json_watcher = {
         let tx = vaults_json_tx.clone();
-        let mut watcher = notify::recommended_watcher(move |res: std::result::Result<notify::Event, notify::Error>| {
-            if let Ok(event) = res {
-                let is_vaults_json = event.paths.iter().any(|p| {
-                    p.file_name()
-                        .map(|n| n == "vaults.json")
-                        .unwrap_or(false)
-                });
-                if is_vaults_json {
-                    let _ = tx.blocking_send(());
+        let mut watcher = notify::recommended_watcher(
+            move |res: std::result::Result<notify::Event, notify::Error>| {
+                if let Ok(event) = res {
+                    let is_vaults_json = event
+                        .paths
+                        .iter()
+                        .any(|p| p.file_name().map(|n| n == "vaults.json").unwrap_or(false));
+                    if is_vaults_json {
+                        let _ = tx.blocking_send(());
+                    }
                 }
-            }
-        });
+            },
+        );
         match &mut watcher {
             Ok(w) => {
                 use notify::Watcher;
                 if let Err(e) = w.watch(runtime_dir, notify::RecursiveMode::NonRecursive) {
-                    warn!("failed to watch {} for vaults.json changes: {}", runtime_dir.display(), e);
+                    warn!(
+                        "failed to watch {} for vaults.json changes: {}",
+                        runtime_dir.display(),
+                        e
+                    );
                 } else {
                     info!("watching {} for vaults.json changes", runtime_dir.display());
                 }
@@ -308,7 +320,16 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     let event_tx_watch = panel_event_tx.clone();
     let runtime_dir_watch = runtime_dir.to_path_buf();
     tokio::spawn(async move {
-        run_watch_loop(watch_rx, vm_watch, cancel_watch, config_notify_watch, event_tx_watch, vaults_json_rx, runtime_dir_watch).await;
+        run_watch_loop(
+            watch_rx,
+            vm_watch,
+            cancel_watch,
+            config_notify_watch,
+            event_tx_watch,
+            vaults_json_rx,
+            runtime_dir_watch,
+        )
+        .await;
     });
 
     // ── Panel HTTP server (Milestone 6) ──────────────────────────────
@@ -324,16 +345,17 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
         // Ensure global vault is initialized (it might not exist yet)
         let panel_engine = if global_vault_root.join(".hebbs").exists() {
             match vault_manager.lock().await.get_or_open(&global_vault_root) {
-                Ok((engine, panel_embedder)) => {
-                    Some((engine, panel_embedder, global_vault_root))
-                }
+                Ok((engine, panel_embedder)) => Some((engine, panel_embedder, global_vault_root)),
                 Err(e) => {
                     warn!("panel: failed to open global vault: {}, panel disabled", e);
                     None
                 }
             }
         } else {
-            warn!("panel: global vault not initialized at {}, panel disabled", global_vault_root.display());
+            warn!(
+                "panel: global vault not initialized at {}, panel disabled",
+                global_vault_root.display()
+            );
             None
         };
 
@@ -429,7 +451,9 @@ async fn handle_connection(
         // Check for shutdown command
         if matches!(request.command, Command::Shutdown) {
             let resp = DaemonResponse::ok(serde_json::json!({"shutdown": true}));
-            write_message(&mut writer, &resp).await.map_err(|e| e.to_string())?;
+            write_message(&mut writer, &resp)
+                .await
+                .map_err(|e| e.to_string())?;
             cancel.cancel();
             return Ok(());
         }
@@ -621,10 +645,16 @@ async fn dispatch_command(
             // Query audit log: fire-and-forget, never degrades recall latency
             let latency_us = recall_start.elapsed().as_micros() as u64;
             if let Some(engine) = engines.first() {
-                let result_ids: Vec<String> = results.iter()
-                    .filter_map(|r| r.get("memory_id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                let result_ids: Vec<String> = results
+                    .iter()
+                    .filter_map(|r| {
+                        r.get("memory_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                    })
                     .collect();
-                let top_score = results.first()
+                let top_score = results
+                    .first()
                     .and_then(|r| r.get("score").and_then(|v| v.as_f64()))
                     .unwrap_or(0.0) as f32;
                 let entry = crate::query_log::build_recall_entry(
@@ -778,10 +808,16 @@ async fn dispatch_command(
             // Query audit log: fire-and-forget
             let latency_us = prime_start.elapsed().as_micros() as u64;
             if let Some(engine) = engines.first() {
-                let result_ids: Vec<String> = results.iter()
-                    .filter_map(|r| r.get("memory_id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                let result_ids: Vec<String> = results
+                    .iter()
+                    .filter_map(|r| {
+                        r.get("memory_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                    })
                     .collect();
-                let top_score = results.first()
+                let top_score = results
+                    .first()
                     .and_then(|r| r.get("score").and_then(|v| v.as_f64()))
                     .unwrap_or(0.0) as f32;
                 let entry = crate::query_log::build_prime_entry(
@@ -980,9 +1016,7 @@ async fn dispatch_command(
                             file_obj
                         })
                         .collect();
-                    files.sort_by(|a, b| {
-                        a["path"].as_str().cmp(&b["path"].as_str())
-                    });
+                    files.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
                     DaemonResponse::ok(serde_json::json!({
                         "files": files,
                         "total_files": manifest.files.len(),
@@ -1014,11 +1048,7 @@ async fn dispatch_command(
             };
             let config = ReflectConfig::default();
 
-            match engine.reflect_prepare_for_tenant(
-                &TenantContext::default(),
-                scope,
-                &config,
-            ) {
+            match engine.reflect_prepare_for_tenant(&TenantContext::default(), scope, &config) {
                 Ok(result) => {
                     let clusters: Vec<serde_json::Value> = result
                         .clusters
@@ -1063,11 +1093,7 @@ async fn dispatch_command(
                 Err(e) => return DaemonResponse::err(e),
             };
 
-            match engine.reflect_commit_for_tenant(
-                &TenantContext::default(),
-                &session_id,
-                parsed,
-            ) {
+            match engine.reflect_commit_for_tenant(&TenantContext::default(), &session_id, parsed) {
                 Ok(result) => DaemonResponse::ok(serde_json::json!({
                     "insights_created": result.insights_created,
                 })),
@@ -1137,9 +1163,8 @@ async fn dispatch_command(
                 ..Default::default()
             };
 
-            let store = crate::query_log::QueryLogStore::new(
-                std::sync::Arc::new(StorageRef(engine)),
-            );
+            let store =
+                crate::query_log::QueryLogStore::new(std::sync::Arc::new(StorageRef(engine)));
             match store.list(&params) {
                 Ok(entries) => {
                     let count = entries.len();
@@ -1158,16 +1183,28 @@ async fn dispatch_command(
 struct StorageRef(Arc<hebbs_core::engine::Engine>);
 
 impl hebbs_storage::StorageBackend for StorageRef {
-    fn put(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8], value: &[u8]) -> hebbs_storage::Result<()> {
+    fn put(
+        &self,
+        cf: hebbs_storage::ColumnFamilyName,
+        key: &[u8],
+        value: &[u8],
+    ) -> hebbs_storage::Result<()> {
         self.0.storage().put(cf, key, value)
     }
-    fn get(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<Option<Vec<u8>>> {
+    fn get(
+        &self,
+        cf: hebbs_storage::ColumnFamilyName,
+        key: &[u8],
+    ) -> hebbs_storage::Result<Option<Vec<u8>>> {
         self.0.storage().get(cf, key)
     }
     fn delete(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<()> {
         self.0.storage().delete(cf, key)
     }
-    fn write_batch(&self, operations: &[hebbs_storage::BatchOperation]) -> hebbs_storage::Result<()> {
+    fn write_batch(
+        &self,
+        operations: &[hebbs_storage::BatchOperation],
+    ) -> hebbs_storage::Result<()> {
         self.0.storage().write_batch(operations)
     }
     fn prefix_iterator(
@@ -1692,16 +1729,12 @@ fn parse_produced_insights_json(
     json_str: &str,
 ) -> Result<Vec<hebbs_reflect::ProducedInsight>, String> {
     let parsed: Vec<serde_json::Value> =
-        serde_json::from_str(json_str)
-            .map_err(|e| format!("invalid JSON for insights: {}", e))?;
+        serde_json::from_str(json_str).map_err(|e| format!("invalid JSON for insights: {}", e))?;
 
     parsed
         .iter()
         .map(|v| {
-            let content = v["content"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
+            let content = v["content"].as_str().unwrap_or_default().to_string();
             let confidence = v["confidence"].as_f64().unwrap_or(0.8) as f32;
 
             let source_memory_ids: Vec<[u8; 16]> = v["source_memory_ids"]

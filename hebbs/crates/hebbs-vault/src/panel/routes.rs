@@ -12,7 +12,7 @@ use axum::Router;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use hebbs_core::forget::{ForgetCriteria, Tombstone, tombstone_prefix};
+use hebbs_core::forget::{tombstone_prefix, ForgetCriteria, Tombstone};
 use hebbs_core::memory::MemoryKind;
 use hebbs_core::recall::{RecallInput, RecallStrategy, ScoringWeights};
 use hebbs_index::graph::EdgeType;
@@ -46,17 +46,11 @@ async fn serve_index() -> Html<&'static str> {
 }
 
 async fn serve_app_js() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/javascript")],
-        APP_JS,
-    )
+    ([(header::CONTENT_TYPE, "application/javascript")], APP_JS)
 }
 
 async fn serve_graph_js() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "application/javascript")],
-        GRAPH_JS,
-    )
+    ([(header::CONTENT_TYPE, "application/javascript")], GRAPH_JS)
 }
 
 async fn serve_panel_css() -> impl IntoResponse {
@@ -122,8 +116,7 @@ async fn list_vaults(State(state): State<AppState>) -> Json<Vec<VaultEntry>> {
                             .and_then(|l| l.as_str())
                             .unwrap_or("")
                             .to_string();
-                        let entry_canonical =
-                            std::path::Path::new(&path).canonicalize().ok();
+                        let entry_canonical = std::path::Path::new(&path).canonicalize().ok();
                         let active = match (&active_path, &entry_canonical) {
                             (Some(a), Some(e)) => a == e,
                             _ => false,
@@ -286,45 +279,53 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 Err(_) => continue,
             };
 
-            let (kind, importance, decay_score, access_count, created_at, content_preview, embedding, confidence) =
-                match state.engine.get(&id_bytes) {
-                    Ok(mem) => {
-                        let k = match mem.kind {
-                            MemoryKind::Episode => "episode",
-                            MemoryKind::Insight => "insight",
-                            MemoryKind::Revision => "revision",
-                        };
-                        let preview = if mem.content.len() > 200 {
-                            format!("{}...", &mem.content[..200])
-                        } else {
-                            mem.content.clone()
-                        };
-                        // Extract confidence from context for insights
-                        let conf = if mem.kind == MemoryKind::Insight {
-                            mem.context().ok().and_then(|ctx| {
-                                ctx.get("hebbs-confidence")
-                                    .and_then(|v| v.as_f64())
-                                    .map(|f| f as f32)
-                            })
-                        } else {
-                            None
-                        };
-                        (
-                            k,
-                            mem.importance,
-                            mem.decay_score,
-                            mem.access_count,
-                            mem.created_at,
-                            preview,
-                            mem.embedding.clone(),
-                            conf,
-                        )
-                    }
-                    Err(_) => {
-                        // Memory not in engine (maybe not yet embedded)
-                        ("episode", 0.5, 1.0, 0u64, 0u64, String::new(), None, None)
-                    }
-                };
+            let (
+                kind,
+                importance,
+                decay_score,
+                access_count,
+                created_at,
+                content_preview,
+                embedding,
+                confidence,
+            ) = match state.engine.get(&id_bytes) {
+                Ok(mem) => {
+                    let k = match mem.kind {
+                        MemoryKind::Episode => "episode",
+                        MemoryKind::Insight => "insight",
+                        MemoryKind::Revision => "revision",
+                    };
+                    let preview = if mem.content.len() > 200 {
+                        format!("{}...", &mem.content[..200])
+                    } else {
+                        mem.content.clone()
+                    };
+                    // Extract confidence from context for insights
+                    let conf = if mem.kind == MemoryKind::Insight {
+                        mem.context().ok().and_then(|ctx| {
+                            ctx.get("hebbs-confidence")
+                                .and_then(|v| v.as_f64())
+                                .map(|f| f as f32)
+                        })
+                    } else {
+                        None
+                    };
+                    (
+                        k,
+                        mem.importance,
+                        mem.decay_score,
+                        mem.access_count,
+                        mem.created_at,
+                        preview,
+                        mem.embedding.clone(),
+                        conf,
+                    )
+                }
+                Err(_) => {
+                    // Memory not in engine (maybe not yet embedded)
+                    ("episode", 0.5, 1.0, 0u64, 0u64, String::new(), None, None)
+                }
+            };
 
             // Compute recency signal [0, 1]
             let age_us = now_us.saturating_sub(created_at);
@@ -456,7 +457,10 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
     if node_count >= 3 {
         // Check cache validity
         let needs_recompute = {
-            let cache = state.projection_cache.lock().unwrap_or_else(|e| e.into_inner());
+            let cache = state
+                .projection_cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             match &*cache {
                 Some(c) if c.node_count == node_count => false,
                 _ => true,
@@ -494,7 +498,10 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 let labels = compute_cluster_labels_llm(&nodes, &clusters, &state.vault_root)
                     .unwrap_or_else(|| compute_cluster_labels(&nodes, &clusters));
 
-                let mut cache = state.projection_cache.lock().unwrap_or_else(|e| e.into_inner());
+                let mut cache = state
+                    .projection_cache
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 *cache = Some(super::ProjectionCache {
                     positions,
                     clusters,
@@ -507,7 +514,10 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
         }
 
         // Apply cached projection to nodes
-        let cache = state.projection_cache.lock().unwrap_or_else(|e| e.into_inner());
+        let cache = state
+            .projection_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(ref proj) = *cache {
             has_projection = true;
             n_clusters = proj.n_clusters;
@@ -548,7 +558,9 @@ const PIN_PREFIX: &[u8] = b"panel_pin:";
 
 /// Load all pinned positions from Meta CF.
 /// Key format: `panel_pin:{memory_id_hex}` -> 8 bytes (f32 x, f32 y).
-fn load_pinned_positions(storage: &dyn hebbs_storage::StorageBackend) -> HashMap<String, (f32, f32)> {
+fn load_pinned_positions(
+    storage: &dyn hebbs_storage::StorageBackend,
+) -> HashMap<String, (f32, f32)> {
     let mut pinned = HashMap::new();
     if let Ok(iter) = storage.prefix_iterator(ColumnFamilyName::Meta, PIN_PREFIX) {
         for (key, value) in iter {
@@ -606,7 +618,10 @@ async fn pin_position(
 ) -> Result<StatusCode, StatusCode> {
     save_pinned_position(state.engine.storage(), &id, body.x, body.y)?;
     // Update in-memory cache
-    let mut cache = state.projection_cache.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache = state
+        .projection_cache
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(ref mut proj) = *cache {
         proj.pinned.insert(id, (body.x, body.y));
     }
@@ -620,7 +635,10 @@ async fn unpin_position(
 ) -> Result<StatusCode, StatusCode> {
     delete_pinned_position(state.engine.storage(), &id)?;
     // Update in-memory cache
-    let mut cache = state.projection_cache.lock().unwrap_or_else(|e| e.into_inner());
+    let mut cache = state
+        .projection_cache
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     if let Some(ref mut proj) = *cache {
         proj.pinned.remove(&id);
     }
@@ -631,9 +649,9 @@ async fn unpin_position(
 
 /// Stop words to exclude from cluster labels.
 const STOP_WORDS: &[&str] = &[
-    "a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "with",
-    "is", "it", "at", "by", "from", "as", "be", "was", "are", "has", "had",
-    "not", "but", "if", "so", "no", "do", "my", "we", "up", "how", "what",
+    "a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "with", "is", "it", "at", "by",
+    "from", "as", "be", "was", "are", "has", "had", "not", "but", "if", "so", "no", "do", "my",
+    "we", "up", "how", "what",
 ];
 
 /// Attempt to generate cluster labels using a configured LLM provider.
@@ -782,7 +800,8 @@ fn compute_cluster_labels(
         let mut word_counts: HashMap<String, usize> = HashMap::new();
         for heading in headings {
             for word in heading.split_whitespace() {
-                let clean: String = word.chars()
+                let clean: String = word
+                    .chars()
                     .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
                     .collect::<String>()
                     .to_lowercase();
@@ -795,8 +814,13 @@ fn compute_cluster_labels(
         let mut ranked: Vec<(String, usize)> = word_counts.into_iter().collect();
         ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
-        let top_n = if ranked.len() >= 3 && ranked[2].1 == ranked[1].1 { 3 } else { 2.min(ranked.len()) };
-        let label_words: Vec<String> = ranked.into_iter()
+        let top_n = if ranked.len() >= 3 && ranked[2].1 == ranked[1].1 {
+            3
+        } else {
+            2.min(ranked.len())
+        };
+        let label_words: Vec<String> = ranked
+            .into_iter()
             .take(top_n)
             .map(|(w, _)| {
                 let mut c = w.chars();
@@ -970,12 +994,12 @@ async fn memory_detail(
 
     // Look up file info from manifest
     let hebbs_dir = state.vault_root.join(".hebbs");
-    let (file_path, heading_path, section_state) =
-        if let Ok(manifest) = Manifest::load(&hebbs_dir) {
-            find_section_info(&manifest, &id)
-        } else {
-            (None, vec![], None)
-        };
+    let (file_path, heading_path, section_state) = if let Ok(manifest) = Manifest::load(&hebbs_dir)
+    {
+        find_section_info(&manifest, &id)
+    } else {
+        (None, vec![], None)
+    };
 
     // Use engine content (section-level), not the full file
     let content = mem.content.clone();
@@ -1224,7 +1248,8 @@ async fn recall_search(
     {
         let result_ids: Vec<String> = results.iter().map(|r| r.memory_id.clone()).collect();
         let top_score = results.first().map(|r| r.score).unwrap_or(0.0);
-        let strategy_str = strategy_strs.as_ref()
+        let strategy_str = strategy_strs
+            .as_ref()
             .and_then(|s| s.first())
             .map(|s| s.as_str())
             .unwrap_or("similarity");
@@ -1281,9 +1306,7 @@ struct HealthResponse {
     auto_forget_threshold: f32,
 }
 
-async fn health_detail(
-    State(state): State<AppState>,
-) -> Result<Json<HealthResponse>, StatusCode> {
+async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthResponse>, StatusCode> {
     let hebbs_dir = state.vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1636,9 +1659,7 @@ async fn forgotten_timeline(
 
 // ── Config endpoints (Phase 4, Steps 20-21) ─────────────────────────────
 
-async fn get_config(
-    State(state): State<AppState>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn get_config(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
     let hebbs_dir = state.vault_root.join(".hebbs");
     let config = VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let val = serde_json::to_value(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1660,8 +1681,8 @@ async fn update_config(
     Json(req): Json<ConfigUpdateRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let hebbs_dir = state.vault_root.join(".hebbs");
-    let mut config =
-        VaultConfig::load(&hebbs_dir).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut config = VaultConfig::load(&hebbs_dir)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Merge partial updates into existing config
     if let Some(c) = req.chunking {
@@ -1707,7 +1728,10 @@ async fn update_config(
         if let Some(v) = o.get("insight_dir").and_then(|v| v.as_str()) {
             config.output.insight_dir = v.to_string();
         }
-        if let Some(v) = o.get("exclude_insight_dir_from_reflect").and_then(|v| v.as_bool()) {
+        if let Some(v) = o
+            .get("exclude_insight_dir_from_reflect")
+            .and_then(|v| v.as_bool())
+        {
             config.output.exclude_insight_dir_from_reflect = v;
         }
     }
@@ -1755,8 +1779,8 @@ async fn update_config(
         notify.notify_one();
     }
 
-    let val =
-        serde_json::to_value(&config).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let val = serde_json::to_value(&config)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(val))
 }
 
@@ -1778,9 +1802,7 @@ async fn reset_config(
     Ok(Json(val))
 }
 
-async fn export_config(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, StatusCode> {
+async fn export_config(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
     let hebbs_dir = state.vault_root.join(".hebbs");
     let config = VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let toml_str =
@@ -1864,7 +1886,8 @@ async fn dashboard_data(
 
     // Read scoring/decay config for this vault
     let vault_config = VaultConfig::load(&hebbs_dir).unwrap_or_default();
-    let max_age_us: u64 = (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
+    let max_age_us: u64 =
+        (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
     let sc = &vault_config.scoring;
 
     struct MemEntry {
@@ -1943,7 +1966,11 @@ async fn dashboard_data(
     }
 
     // Top memories by composite score
-    all_memories.sort_by(|a, b| b.composite_score.partial_cmp(&a.composite_score).unwrap_or(std::cmp::Ordering::Equal));
+    all_memories.sort_by(|a, b| {
+        b.composite_score
+            .partial_cmp(&a.composite_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let top_memories: Vec<DashboardTopMemory> = all_memories
         .iter()
         .take(10)
@@ -2140,22 +2167,40 @@ async fn list_memories(
 
     entries.sort_by(|a, b| {
         let cmp = match sort_by {
-            "importance" => a.importance.partial_cmp(&b.importance).unwrap_or(std::cmp::Ordering::Equal),
-            "recency" => a.recency.partial_cmp(&b.recency).unwrap_or(std::cmp::Ordering::Equal),
-            "decay_score" => a.decay_score.partial_cmp(&b.decay_score).unwrap_or(std::cmp::Ordering::Equal),
+            "importance" => a
+                .importance
+                .partial_cmp(&b.importance)
+                .unwrap_or(std::cmp::Ordering::Equal),
+            "recency" => a
+                .recency
+                .partial_cmp(&b.recency)
+                .unwrap_or(std::cmp::Ordering::Equal),
+            "decay_score" => a
+                .decay_score
+                .partial_cmp(&b.decay_score)
+                .unwrap_or(std::cmp::Ordering::Equal),
             "access_count" => a.access_count.cmp(&b.access_count),
             "label" => a.label.cmp(&b.label),
             _ => a.created_at.cmp(&b.created_at),
         };
-        if sort_desc { cmp.reverse() } else { cmp }
+        if sort_desc {
+            cmp.reverse()
+        } else {
+            cmp
+        }
     });
 
     let total = entries.len();
     let per_page = query.per_page.unwrap_or(50).min(200);
     let page = query.page.unwrap_or(1).max(1);
-    let total_pages = if total == 0 { 1 } else { (total + per_page - 1) / per_page };
+    let total_pages = if total == 0 {
+        1
+    } else {
+        (total + per_page - 1) / per_page
+    };
     let start = (page - 1) * per_page;
-    let page_entries: Vec<MemoryListEntry> = entries.into_iter().skip(start).take(per_page).collect();
+    let page_entries: Vec<MemoryListEntry> =
+        entries.into_iter().skip(start).take(per_page).collect();
 
     Ok(Json(MemoryListResponse {
         memories: page_entries,
@@ -2242,8 +2287,7 @@ fn epoch_days_to_date_string(days: u64) -> String {
     let z = days as i64 + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u64; // day of era [0, 146096]
-    let yoe =
-        (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
     let y = yoe as i64 + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // day of year [0, 365]
     let mp = (5 * doy + 2) / 153; // month index [0, 11]
@@ -2258,10 +2302,7 @@ fn epoch_days_to_date_string(days: u64) -> String {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Upgrade HTTP to WebSocket and stream `PanelEvent`s as JSON text frames.
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| ws_connection(socket, state))
 }
 
@@ -2400,7 +2441,10 @@ impl hebbs_storage::StorageBackend for StorageRef {
     fn delete(&self, cf: ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<()> {
         self.0.storage().delete(cf, key)
     }
-    fn write_batch(&self, operations: &[hebbs_storage::BatchOperation]) -> hebbs_storage::Result<()> {
+    fn write_batch(
+        &self,
+        operations: &[hebbs_storage::BatchOperation],
+    ) -> hebbs_storage::Result<()> {
         self.0.storage().write_batch(operations)
     }
     fn prefix_iterator(

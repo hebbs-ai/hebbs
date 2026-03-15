@@ -62,7 +62,10 @@ pub enum QueryOperation {
 ///
 /// Used by the daemon dispatch where we have `&dyn StorageBackend` from the engine.
 /// O(1) single RocksDB put.
-pub fn append_to_storage(storage: &dyn StorageBackend, entry: &QueryLogEntry) -> Result<(), String> {
+pub fn append_to_storage(
+    storage: &dyn StorageBackend,
+    entry: &QueryLogEntry,
+) -> Result<(), String> {
     let key = format!("{:016x}:{:016x}", entry.timestamp_us, entry.id);
     let value = serde_json::to_vec(entry)
         .map_err(|e| format!("failed to serialize query log entry: {}", e))?;
@@ -397,8 +400,16 @@ mod tests {
     fn test_append_and_list() {
         let store = make_test_store();
         let entry = build_recall_entry(
-            "cli", "test query", Some("similarity"), 10, None, 3,
-            vec!["a".into(), "b".into(), "c".into()], 0.95, 3200, None,
+            "cli",
+            "test query",
+            Some("similarity"),
+            10,
+            None,
+            3,
+            vec!["a".into(), "b".into(), "c".into()],
+            0.95,
+            3200,
+            None,
         );
         store.append(&entry).unwrap();
 
@@ -414,13 +425,31 @@ mod tests {
         let store = make_test_store();
 
         let mut e1 = build_recall_entry(
-            "cli", "first", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
+            "cli",
+            "first",
+            Some("similarity"),
+            10,
+            None,
+            1,
+            vec![],
+            0.5,
+            100,
+            None,
         );
         e1.timestamp_us = 1000;
         store.append(&e1).unwrap();
 
         let mut e2 = build_recall_entry(
-            "cli", "second", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
+            "cli",
+            "second",
+            Some("similarity"),
+            10,
+            None,
+            1,
+            vec![],
+            0.5,
+            100,
+            None,
         );
         e2.timestamp_us = 2000;
         store.append(&e2).unwrap();
@@ -434,12 +463,34 @@ mod tests {
     #[test]
     fn test_filter_by_caller() {
         let store = make_test_store();
-        store.append(&build_recall_entry(
-            "cli", "q1", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
-        )).unwrap();
-        store.append(&build_recall_entry(
-            "hebbs-panel", "q2", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
-        )).unwrap();
+        store
+            .append(&build_recall_entry(
+                "cli",
+                "q1",
+                Some("similarity"),
+                10,
+                None,
+                1,
+                vec![],
+                0.5,
+                100,
+                None,
+            ))
+            .unwrap();
+        store
+            .append(&build_recall_entry(
+                "hebbs-panel",
+                "q2",
+                Some("similarity"),
+                10,
+                None,
+                1,
+                vec![],
+                0.5,
+                100,
+                None,
+            ))
+            .unwrap();
 
         let params = QueryLogListParams {
             caller: Some("cli".to_string()),
@@ -453,12 +504,33 @@ mod tests {
     #[test]
     fn test_filter_by_operation() {
         let store = make_test_store();
-        store.append(&build_recall_entry(
-            "cli", "recall", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
-        )).unwrap();
-        store.append(&build_prime_entry(
-            "cli", "user_prefs", None, 20, 5, vec![], 0.5, 200, None,
-        )).unwrap();
+        store
+            .append(&build_recall_entry(
+                "cli",
+                "recall",
+                Some("similarity"),
+                10,
+                None,
+                1,
+                vec![],
+                0.5,
+                100,
+                None,
+            ))
+            .unwrap();
+        store
+            .append(&build_prime_entry(
+                "cli",
+                "user_prefs",
+                None,
+                20,
+                5,
+                vec![],
+                0.5,
+                200,
+                None,
+            ))
+            .unwrap();
 
         let params = QueryLogListParams {
             operation: Some(QueryOperation::Prime),
@@ -474,7 +546,16 @@ mod tests {
         let store = make_test_store();
         for i in 0..10 {
             let mut entry = build_recall_entry(
-                "cli", &format!("q{}", i), Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
+                "cli",
+                &format!("q{}", i),
+                Some("similarity"),
+                10,
+                None,
+                1,
+                vec![],
+                0.5,
+                100,
+                None,
             );
             entry.timestamp_us = (i + 1) * 1000;
             store.append(&entry).unwrap();
@@ -490,15 +571,48 @@ mod tests {
     #[test]
     fn test_stats() {
         let store = make_test_store();
-        store.append(&build_recall_entry(
-            "cli", "q1", Some("similarity"), 10, None, 3, vec![], 0.9, 1000, None,
-        )).unwrap();
-        store.append(&build_recall_entry(
-            "hebbs-panel", "q2", Some("similarity"), 10, None, 5, vec![], 0.8, 3000, None,
-        )).unwrap();
-        store.append(&build_recall_entry(
-            "cli", "q3", Some("similarity"), 10, None, 2, vec![], 0.7, 2000, None,
-        )).unwrap();
+        store
+            .append(&build_recall_entry(
+                "cli",
+                "q1",
+                Some("similarity"),
+                10,
+                None,
+                3,
+                vec![],
+                0.9,
+                1000,
+                None,
+            ))
+            .unwrap();
+        store
+            .append(&build_recall_entry(
+                "hebbs-panel",
+                "q2",
+                Some("similarity"),
+                10,
+                None,
+                5,
+                vec![],
+                0.8,
+                3000,
+                None,
+            ))
+            .unwrap();
+        store
+            .append(&build_recall_entry(
+                "cli",
+                "q3",
+                Some("similarity"),
+                10,
+                None,
+                2,
+                vec![],
+                0.7,
+                2000,
+                None,
+            ))
+            .unwrap();
 
         let stats = store.stats(None).unwrap();
         assert_eq!(stats.total_queries, 3);
@@ -511,7 +625,16 @@ mod tests {
     fn test_get_by_id() {
         let store = make_test_store();
         let entry = build_recall_entry(
-            "cli", "findme", Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
+            "cli",
+            "findme",
+            Some("similarity"),
+            10,
+            None,
+            1,
+            vec![],
+            0.5,
+            100,
+            None,
         );
         let id = entry.id;
         store.append(&entry).unwrap();
@@ -529,7 +652,16 @@ mod tests {
         let store = make_test_store();
         for i in 0..20 {
             let mut entry = build_recall_entry(
-                "cli", &format!("q{}", i), Some("similarity"), 10, None, 1, vec![], 0.5, 100, None,
+                "cli",
+                &format!("q{}", i),
+                Some("similarity"),
+                10,
+                None,
+                1,
+                vec![],
+                0.5,
+                100,
+                None,
             );
             entry.timestamp_us = (i + 1) * 1000;
             store.append(&entry).unwrap();

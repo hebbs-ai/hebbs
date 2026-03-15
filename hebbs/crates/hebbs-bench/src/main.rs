@@ -210,17 +210,19 @@ fn main() {
             seed,
             verbose,
         } => {
-            let results =
-                degradation::run(total, interval, measure_runs, embedder, data_dir.as_deref(), seed, verbose);
+            let results = degradation::run(
+                total,
+                interval,
+                measure_runs,
+                embedder,
+                data_dir.as_deref(),
+                seed,
+                verbose,
+            );
             report::print_degradation_report(&results);
             if let Some(output_path) = &output {
-                let report = report::build_report(
-                    "degradation",
-                    &serde_json::Value::Null,
-                    None,
-                    None,
-                    None,
-                );
+                let report =
+                    report::build_report("degradation", &serde_json::Value::Null, None, None, None);
                 let mut report = report;
                 report["results"]["degradation"] =
                     serde_json::to_value(&results).unwrap_or_default();

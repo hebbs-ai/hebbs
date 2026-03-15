@@ -479,7 +479,7 @@ mod tests {
         let boost_1 = (2.0_f32).ln() / 10.0;
         assert!((compute_insight_importance(0.5, 0.8, 1, 0.7) - (base + boost_1)).abs() < 1e-6);
         assert_eq!(compute_insight_importance(1.0, 1.0, 1, 0.7), 1.0); // clamped
-        // With 0 sources: freq_boost = ln(1)/10 = 0
+                                                                       // With 0 sources: freq_boost = ln(1)/10 = 0
         assert_eq!(compute_insight_importance(0.0, 0.0, 0, 0.7), 0.0);
     }
 
@@ -487,7 +487,10 @@ mod tests {
     fn larger_cluster_boosts_importance() {
         let small = compute_insight_importance(0.5, 0.5, 3, 0.7);
         let large = compute_insight_importance(0.5, 0.5, 20, 0.7);
-        assert!(large > small, "larger cluster should produce higher importance");
+        assert!(
+            large > small,
+            "larger cluster should produce higher importance"
+        );
     }
 
     #[test]

@@ -223,13 +223,16 @@ where
     W: AsyncWriteExt + Unpin,
     T: Serialize,
 {
-    let payload = serde_json::to_vec(msg)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let payload =
+        serde_json::to_vec(msg).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let len = payload.len() as u32;
     if len > MAX_MESSAGE_SIZE {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("message too large: {} bytes (max {})", len, MAX_MESSAGE_SIZE),
+            format!(
+                "message too large: {} bytes (max {})",
+                len, MAX_MESSAGE_SIZE
+            ),
         ));
     }
     writer.write_all(&len.to_be_bytes()).await?;
@@ -282,13 +285,16 @@ pub mod sync {
         W: Write,
         T: Serialize,
     {
-        let payload = serde_json::to_vec(msg)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let payload =
+            serde_json::to_vec(msg).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let len = payload.len() as u32;
         if len > MAX_MESSAGE_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("message too large: {} bytes (max {})", len, MAX_MESSAGE_SIZE),
+                format!(
+                    "message too large: {} bytes (max {})",
+                    len, MAX_MESSAGE_SIZE
+                ),
             ));
         }
         writer.write_all(&len.to_be_bytes())?;

@@ -12,8 +12,8 @@ use hebbs_core::memory::MemoryKind;
 use hebbs_core::recall::{PrimeInput, RecallInput, RecallStrategy, ScoringWeights};
 use hebbs_core::reflect::{InsightsFilter, ReflectConfig, ReflectScope};
 use hebbs_core::tenant::TenantContext;
-use hebbs_index::graph::EdgeType;
 use hebbs_embed::Embedder;
+use hebbs_index::graph::EdgeType;
 use hebbs_vault::config::VaultConfig;
 use hebbs_vault::daemon::client;
 use hebbs_vault::daemon::protocol::{
@@ -469,7 +469,10 @@ async fn run(cli: Cli) -> i32 {
 
     // Commands that bypass the daemon entirely
     match &cli.command {
-        Commands::Init { .. } | Commands::Version | Commands::Serve { .. } | Commands::Panel { .. } => {
+        Commands::Init { .. }
+        | Commands::Version
+        | Commands::Serve { .. }
+        | Commands::Panel { .. } => {
             return run_local(cli).await;
         }
         _ => {}
@@ -490,7 +493,11 @@ async fn run(cli: Cli) -> i32 {
 
 /// Resolve the vault path for local mode commands.
 /// Priority: --global flag > explicit positional arg > --vault flag > walk up for .hebbs/ > ~/.hebbs/
-fn resolve_vault_path(explicit: Option<&PathBuf>, cli_vault: Option<&PathBuf>, use_global: bool) -> Option<PathBuf> {
+fn resolve_vault_path(
+    explicit: Option<&PathBuf>,
+    cli_vault: Option<&PathBuf>,
+    use_global: bool,
+) -> Option<PathBuf> {
     // 0. --global flag: go straight to ~/.hebbs/
     if use_global {
         if let Some(home) = dirs::home_dir() {
@@ -619,18 +626,15 @@ fn register_vault(vault_path: &Path) {
     // Read existing registry or create empty
     let mut registry: serde_json::Value = if registry_path.exists() {
         match std::fs::read_to_string(&registry_path) {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| {
-                serde_json::json!({ "vaults": [] })
-            }),
+            Ok(content) => serde_json::from_str(&content)
+                .unwrap_or_else(|_| serde_json::json!({ "vaults": [] })),
             Err(_) => serde_json::json!({ "vaults": [] }),
         }
     } else {
         serde_json::json!({ "vaults": [] })
     };
 
-    let vaults = registry
-        .get_mut("vaults")
-        .and_then(|v| v.as_array_mut());
+    let vaults = registry.get_mut("vaults").and_then(|v| v.as_array_mut());
 
     let vaults = match vaults {
         Some(v) => v,
@@ -654,9 +658,9 @@ fn register_vault(vault_path: &Path) {
     };
 
     // Check if already registered (by path)
-    let already = vaults.iter().any(|entry| {
-        entry.get("path").and_then(|p| p.as_str()) == Some(&canonical_str)
-    });
+    let already = vaults
+        .iter()
+        .any(|entry| entry.get("path").and_then(|p| p.as_str()) == Some(&canonical_str));
 
     if !already {
         vaults.push(serde_json::json!({
@@ -688,10 +692,7 @@ async fn run_local(cli: Cli) -> i32 {
             ref vault_path,
             force,
         } => {
-            let path = match vault_path
-                .as_ref()
-                .or(cli.vault.as_ref())
-            {
+            let path = match vault_path.as_ref().or(cli.vault.as_ref()) {
                 Some(p) => p.clone(),
                 None => {
                     eprintln!("Error: vault path required. Usage: hebbs init <path>");
@@ -712,7 +713,8 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Index { ref vault_path } => {
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
+            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global)
+            {
                 Ok(p) => p,
                 Err(code) => return code,
             };
@@ -779,7 +781,8 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Watch { ref vault_path } => {
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
+            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global)
+            {
                 Ok(p) => p,
                 Err(code) => return code,
             };
@@ -823,7 +826,8 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Rebuild { ref vault_path } => {
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
+            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global)
+            {
                 Ok(p) => p,
                 Err(code) => return code,
             };
@@ -855,7 +859,8 @@ async fn run_local(cli: Cli) -> i32 {
             ref vault_path,
             sections,
         } => {
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
+            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global)
+            {
                 Ok(p) => p,
                 Err(code) => return code,
             };
@@ -879,10 +884,7 @@ async fn run_local(cli: Cli) -> i32 {
                                 matches!(s.state, hebbs_vault::manifest::SectionState::Synced)
                             })
                             .count();
-                        println!(
-                            "  {} ({} sections, {} synced)",
-                            fp, section_count, synced
-                        );
+                        println!("  {} ({} sections, {} synced)", fp, section_count, synced);
 
                         if sections {
                             for sec in &entry.sections {
@@ -917,7 +919,8 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Status { ref vault_path } => {
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
+            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global)
+            {
                 Ok(p) => p,
                 Err(code) => return code,
             };
@@ -1038,7 +1041,10 @@ async fn run_local(cli: Cli) -> i32 {
                         Ok(memory) => {
                             if is_json_format(&cli.format) {
                                 let json = memory_to_json(&memory);
-                                println!("{}", serde_json::to_string_pretty(&json).unwrap_or_default());
+                                println!(
+                                    "{}",
+                                    serde_json::to_string_pretty(&json).unwrap_or_default()
+                                );
                             } else {
                                 print_memory_detail(&memory);
                             }
@@ -1132,10 +1138,7 @@ async fn run_local(cli: Cli) -> i32 {
                                         m
                                     })
                                     .collect();
-                                println!(
-                                    "{}",
-                                    serde_json::to_string(&results).unwrap_or_default()
-                                );
+                                println!("{}", serde_json::to_string(&results).unwrap_or_default());
                             } else {
                                 if output.results.is_empty() {
                                     println!("No results found for: \"{}\"", cue_str);
@@ -1143,8 +1146,7 @@ async fn run_local(cli: Cli) -> i32 {
                                     println!("Found {} result(s):\n", output.results.len());
                                     for (i, r) in output.results.iter().enumerate() {
                                         let id = format_memory_id(&r.memory.memory_id);
-                                        let content_preview =
-                                            truncate(&r.memory.content, 200);
+                                        let content_preview = truncate(&r.memory.content, 200);
                                         println!(
                                             "--- Result {} (score: {:.4}) ---",
                                             i + 1,
@@ -1300,10 +1302,7 @@ async fn run_local(cli: Cli) -> i32 {
                                         m
                                     })
                                     .collect();
-                                println!(
-                                    "{}",
-                                    serde_json::to_string(&results).unwrap_or_default()
-                                );
+                                println!("{}", serde_json::to_string(&results).unwrap_or_default());
                             } else {
                                 println!(
                                     "Primed {} memories ({} temporal, {} similarity)",
@@ -1437,10 +1436,7 @@ async fn run_local(cli: Cli) -> i32 {
                                     })
                                 );
                             } else {
-                                println!(
-                                    "Committed: {} insights created",
-                                    result.insights_created
-                                );
+                                println!("Committed: {} insights created", result.insights_created);
                             }
                             0
                         }
@@ -1479,10 +1475,7 @@ async fn run_local(cli: Cli) -> i32 {
                             if is_json_format(&cli.format) {
                                 let results: Vec<serde_json::Value> =
                                     memories.iter().map(memory_to_json).collect();
-                                println!(
-                                    "{}",
-                                    serde_json::to_string(&results).unwrap_or_default()
-                                );
+                                println!("{}", serde_json::to_string(&results).unwrap_or_default());
                             } else if memories.is_empty() {
                                 println!("No insights found.");
                             } else {
@@ -1602,8 +1595,7 @@ async fn run_local(cli: Cli) -> i32 {
                             let mut stdout = io::stdout();
                             for r in &output.results {
                                 let json = memory_to_json(&r.memory);
-                                let line =
-                                    serde_json::to_string(&json).unwrap_or_default();
+                                let line = serde_json::to_string(&json).unwrap_or_default();
                                 writeln!(stdout, "{}", line).ok();
                             }
                             eprintln!(
@@ -1631,9 +1623,7 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Revise { ref id, .. } => {
-            eprintln!(
-                "Revise is not yet supported in local mode. Use --endpoint for remote mode."
-            );
+            eprintln!("Revise is not yet supported in local mode. Use --endpoint for remote mode.");
             let _ = id;
             1
         }
@@ -1646,7 +1636,9 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Subscribe { .. } | Commands::Feed { .. } => {
-            eprintln!("Subscribe/Feed requires remote mode. Use --endpoint to connect to a server.");
+            eprintln!(
+                "Subscribe/Feed requires remote mode. Use --endpoint to connect to a server."
+            );
             1
         }
 
@@ -1747,15 +1739,13 @@ async fn run_daemon_mode(cli: Cli) -> i32 {
                 Err(code) => return code,
             }
         }
-        _ => {
-            match resolve_vault_path(None, cli.vault.as_ref(), cli.global) {
-                Some(p) => Some(p),
-                None => {
-                    eprintln!("No brain found. Run: hebbs init <path>");
-                    return 1;
-                }
+        _ => match resolve_vault_path(None, cli.vault.as_ref(), cli.global) {
+            Some(p) => Some(p),
+            None => {
+                eprintln!("No brain found. Run: hebbs init <path>");
+                return 1;
             }
-        }
+        },
     };
 
     // Resolve additional vault paths for --all flag (multi-vault recall/prime)
@@ -1774,7 +1764,11 @@ async fn run_daemon_mode(cli: Cli) -> i32 {
                     }
                 }
             }
-            if extra.is_empty() { None } else { Some(extra) }
+            if extra.is_empty() {
+                None
+            } else {
+                Some(extra)
+            }
         }
         _ => None,
     };
@@ -1977,7 +1971,12 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
 /// Render a daemon response for CLI output.
 fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
     if response.status == ResponseStatus::Error {
-        eprintln!("Error: {}", response.error.unwrap_or_else(|| "unknown error".to_string()));
+        eprintln!(
+            "Error: {}",
+            response
+                .error
+                .unwrap_or_else(|| "unknown error".to_string())
+        );
         return 1;
     }
 
@@ -2026,7 +2025,8 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                         let id = r.get("memory_id").and_then(|v| v.as_str()).unwrap_or("?");
                         let score = r.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                        let importance = r.get("importance").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                        let importance =
+                            r.get("importance").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         println!("--- Result {} (score: {:.4}) ---", i + 1, score);
                         println!("ID:         {}", id);
                         println!("Importance: {:.2}", importance);
@@ -2037,25 +2037,48 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             }
         }
         Commands::Forget { .. } => {
-            let count = data.get("forgotten_count").and_then(|v| v.as_u64()).unwrap_or(0);
-            let cascade = data.get("cascade_count").and_then(|v| v.as_u64()).unwrap_or(0);
+            let count = data
+                .get("forgotten_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let cascade = data
+                .get("cascade_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             println!("Forgotten: {} memories ({} cascade)", count, cascade);
-            if data.get("truncated").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if data
+                .get("truncated")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 println!("(truncated; more candidates remain)");
             }
         }
         Commands::Prime { .. } => {
             if let Some(results) = data.get("results").and_then(|v| v.as_array()) {
-                let temporal = data.get("temporal_count").and_then(|v| v.as_u64()).unwrap_or(0);
-                let similarity = data.get("similarity_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                let temporal = data
+                    .get("temporal_count")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let similarity = data
+                    .get("similarity_count")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
                 println!(
                     "Primed {} memories ({} temporal, {} similarity)",
-                    results.len(), temporal, similarity
+                    results.len(),
+                    temporal,
+                    similarity
                 );
                 for (i, r) in results.iter().enumerate() {
                     let score = r.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
                     let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                    println!("  {}. [score {:.3}] {}", i + 1, score, truncate(content, 100));
+                    println!(
+                        "  {}. [score {:.3}] {}",
+                        i + 1,
+                        score,
+                        truncate(content, 100)
+                    );
                 }
             }
         }
@@ -2064,11 +2087,32 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 println!("Vault: {}", root);
             }
             println!();
-            println!("Files:    {} indexed", data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("Sections: {} total", data.get("total_sections").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("  synced:        {}", data.get("synced").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("  content-stale: {}", data.get("content_stale").and_then(|v| v.as_u64()).unwrap_or(0));
-            println!("  orphaned:      {}", data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0));
+            println!(
+                "Files:    {} indexed",
+                data.get("total_files")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "Sections: {} total",
+                data.get("total_sections")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "  synced:        {}",
+                data.get("synced").and_then(|v| v.as_u64()).unwrap_or(0)
+            );
+            println!(
+                "  content-stale: {}",
+                data.get("content_stale")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+            );
+            println!(
+                "  orphaned:      {}",
+                data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0)
+            );
         }
         Commands::Watch { .. } => {
             // Watch is merged into serve (Milestone 3). The daemon auto-starts
@@ -2079,11 +2123,21 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
         Commands::Index { .. } => {
             println!(
                 "Indexed {} files ({} embedded, {} new, {} revised, {} forgotten)",
-                data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0),
-                data.get("sections_embedded").and_then(|v| v.as_u64()).unwrap_or(0),
-                data.get("sections_remembered").and_then(|v| v.as_u64()).unwrap_or(0),
-                data.get("sections_revised").and_then(|v| v.as_u64()).unwrap_or(0),
-                data.get("sections_forgotten").and_then(|v| v.as_u64()).unwrap_or(0),
+                data.get("total_files")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                data.get("sections_embedded")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                data.get("sections_remembered")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                data.get("sections_revised")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                data.get("sections_forgotten")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
             );
         }
         Commands::List { .. } => {
@@ -2096,7 +2150,9 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 }
                 println!(
                     "\nTotal: {} files",
-                    data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0)
+                    data.get("total_files")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0)
                 );
             }
         }
@@ -2115,7 +2171,11 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             }
             if let Some(processed) = data.get("memories_processed").and_then(|v| v.as_u64()) {
                 if let Some(clusters) = data.get("clusters").and_then(|v| v.as_array()) {
-                    println!("Processed: {} memories, {} clusters", processed, clusters.len());
+                    println!(
+                        "Processed: {} memories, {} clusters",
+                        processed,
+                        clusters.len()
+                    );
                     for c in clusters {
                         let cid = c.get("cluster_id").and_then(|v| v.as_u64()).unwrap_or(0);
                         let members = c.get("member_count").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -2125,7 +2185,10 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             }
         }
         Commands::ReflectCommit { .. } => {
-            let created = data.get("insights_created").and_then(|v| v.as_u64()).unwrap_or(0);
+            let created = data
+                .get("insights_created")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             println!("Committed: {} insights created", created);
         }
         Commands::Queries { .. } => {
@@ -2150,7 +2213,12 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                         let time_str = format!("{:02}:{:02}:{:02}", h, m, s);
                         println!(
                             "  {} {:12} {:6} {:50} {} results  {:.1}ms",
-                            time_str, caller, op, truncate(query, 50), results, latency_ms
+                            time_str,
+                            caller,
+                            op,
+                            truncate(query, 50),
+                            results,
+                            latency_ms
                         );
                     }
                 }
@@ -2172,7 +2240,10 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
         }
         _ => {
             // Fallback: print raw JSON
-            println!("{}", serde_json::to_string_pretty(&data).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&data).unwrap_or_default()
+            );
         }
     }
 
@@ -2224,7 +2295,9 @@ fn print_json_memory(data: &serde_json::Value) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async fn run_remote(cli: Cli) -> i32 {
-    let endpoint = cli.endpoint.unwrap_or_else(|| "http://localhost:6380".to_string());
+    let endpoint = cli
+        .endpoint
+        .unwrap_or_else(|| "http://localhost:6380".to_string());
     let endpoint = if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
         endpoint
     } else {
@@ -2261,11 +2334,9 @@ async fn run_remote(cli: Cli) -> i32 {
     let is_tty = io::stdout().is_terminal();
     let use_color = config.should_color(is_tty);
     let renderer = hebbs_cli::format::Renderer::new(config.output_format, use_color);
-    let mut conn = hebbs_cli::connection::ConnectionManager::new(
-        config.endpoint.clone(),
-        config.timeout_ms,
-    )
-    .with_api_key(cli.api_key.clone());
+    let mut conn =
+        hebbs_cli::connection::ConnectionManager::new(config.endpoint.clone(), config.timeout_ms)
+            .with_api_key(cli.api_key.clone());
 
     let tenant_id = config.tenant.as_deref();
 
@@ -2457,11 +2528,19 @@ fn is_json_format(fmt: &Option<FormatArg>) -> bool {
 
 fn open_browser(url: &str) {
     #[cfg(target_os = "macos")]
-    { let _ = std::process::Command::new("open").arg(url).spawn(); }
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
     #[cfg(target_os = "linux")]
-    { let _ = std::process::Command::new("xdg-open").arg(url).spawn(); }
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
     #[cfg(target_os = "windows")]
-    { let _ = std::process::Command::new("cmd").args(["/c", "start", url]).spawn(); }
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "start", url])
+            .spawn();
+    }
 }
 
 fn format_memory_id(bytes: &[u8]) -> String {
@@ -2531,7 +2610,6 @@ fn parse_context(
 }
 
 fn parse_edges(edge_specs: &[String]) -> Result<Vec<RememberEdge>, String> {
-
     edge_specs
         .iter()
         .map(|spec| {
@@ -2615,19 +2693,14 @@ fn build_reflect_scope(entity_id: Option<String>, since_us: Option<u64>) -> Refl
     }
 }
 
-fn parse_produced_insights(
-    json_str: &str,
-) -> Result<Vec<hebbs_reflect::ProducedInsight>, String> {
-    let parsed: Vec<serde_json::Value> =
-        serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON for --insights: {}", e))?;
+fn parse_produced_insights(json_str: &str) -> Result<Vec<hebbs_reflect::ProducedInsight>, String> {
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(json_str)
+        .map_err(|e| format!("Invalid JSON for --insights: {}", e))?;
 
     parsed
         .iter()
         .map(|v| {
-            let content = v["content"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
+            let content = v["content"].as_str().unwrap_or_default().to_string();
             let confidence = v["confidence"].as_f64().unwrap_or(0.8) as f32;
 
             let source_memory_ids: Vec<[u8; 16]> = v["source_memory_ids"]

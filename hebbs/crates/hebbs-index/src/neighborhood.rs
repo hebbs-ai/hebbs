@@ -158,8 +158,7 @@ pub fn extract_snapshot(graph: &HnswGraph, k: usize) -> NeighborhoodSnapshot {
         // If we have fewer than k neighbors from layer-0, supplement with HNSW search
         if adj.len() < k && n > k {
             let needed = k - adj.len();
-            let existing: std::collections::HashSet<usize> =
-                adj.iter().map(|&(j, _)| j).collect();
+            let existing: std::collections::HashSet<usize> = adj.iter().map(|&(j, _)| j).collect();
 
             if let Ok(search_results) = graph.search(vec_i, k + 1, None) {
                 for (result_id, dist) in search_results {
@@ -194,7 +193,10 @@ pub fn extract_snapshot(graph: &HnswGraph, k: usize) -> NeighborhoodSnapshot {
 /// Compute 2D UMAP projection and cluster assignments from a neighborhood snapshot.
 ///
 /// Complexity: O(n_epochs * n * k * negative_sample_rate).
-pub fn compute_projection(snapshot: &NeighborhoodSnapshot, params: &ProjectionParams) -> Projection {
+pub fn compute_projection(
+    snapshot: &NeighborhoodSnapshot,
+    params: &ProjectionParams,
+) -> Projection {
     let n = snapshot.ids.len();
 
     if n == 0 {
@@ -268,10 +270,7 @@ pub fn compute_projection(snapshot: &NeighborhoodSnapshot, params: &ProjectionPa
     }
 
     // Step 3: Compute epochs_per_sample for weighted edge sampling
-    let max_weight = sym_edges
-        .iter()
-        .map(|&(_, _, w)| w)
-        .fold(0.0_f32, f32::max);
+    let max_weight = sym_edges.iter().map(|&(_, _, w)| w).fold(0.0_f32, f32::max);
 
     let n_epochs = if params.n_epochs > 0 {
         params.n_epochs
@@ -298,12 +297,7 @@ pub fn compute_projection(snapshot: &NeighborhoodSnapshot, params: &ProjectionPa
     // Step 4: Initialize positions (random, seeded)
     let mut rng = rand::rngs::StdRng::seed_from_u64(params.seed);
     let mut positions: Vec<(f32, f32)> = (0..n)
-        .map(|_| {
-            (
-                rng.gen_range(-10.0..10.0),
-                rng.gen_range(-10.0..10.0),
-            )
-        })
+        .map(|_| (rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0)))
         .collect();
 
     // Step 5: SGD optimization
@@ -333,8 +327,7 @@ pub fn compute_projection(snapshot: &NeighborhoodSnapshot, params: &ProjectionPa
             let dy = yi - yj;
             let dist_sq = (dx * dx + dy * dy).max(1e-10);
 
-            let grad_coeff = -2.0 * a * b * dist_sq.powf(b - 1.0)
-                / (1.0 + a * dist_sq.powf(b));
+            let grad_coeff = -2.0 * a * b * dist_sq.powf(b - 1.0) / (1.0 + a * dist_sq.powf(b));
             let grad_coeff = grad_coeff.clamp(-4.0, 4.0);
 
             positions[i].0 += lr * grad_coeff * dx;
@@ -353,8 +346,7 @@ pub fn compute_projection(snapshot: &NeighborhoodSnapshot, params: &ProjectionPa
                 let dy = yi - yk;
                 let dist_sq = (dx * dx + dy * dy).max(1e-10);
 
-                let grad_coeff = 2.0 * b
-                    / ((0.001 + dist_sq) * (1.0 + a * dist_sq.powf(b)));
+                let grad_coeff = 2.0 * b / ((0.001 + dist_sq) * (1.0 + a * dist_sq.powf(b)));
                 let grad_coeff = grad_coeff.clamp(-4.0, 4.0);
 
                 // Re-read position[i] as it may have changed

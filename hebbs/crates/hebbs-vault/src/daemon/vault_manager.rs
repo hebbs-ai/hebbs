@@ -38,7 +38,6 @@ pub struct VaultFsEvent {
 struct OpenVault {
     engine: Arc<Engine>,
     embedder: Arc<dyn Embedder>,
-    vault_root: PathBuf,
     last_accessed: Instant,
     /// Vault epoch from `.hebbs/epoch`. Used to detect vault re-initialization.
     epoch: String,
@@ -143,7 +142,6 @@ impl VaultManager {
         let entry = OpenVault {
             engine: engine.clone(),
             embedder: self.embedder.clone(),
-            vault_root: canonical.clone(),
             last_accessed: Instant::now(),
             epoch,
             _watcher: watcher,
@@ -158,8 +156,8 @@ impl VaultManager {
         let tx = self.watch_tx.clone();
         let vault_path_owned = vault_path.to_path_buf();
 
-        let mut watcher = match notify::recommended_watcher(move |res: std::result::Result<Event, notify::Error>| {
-            match res {
+        let mut watcher = match notify::recommended_watcher(
+            move |res: std::result::Result<Event, notify::Error>| match res {
                 Ok(event) => {
                     let _ = tx.blocking_send(VaultFsEvent {
                         vault_path: vault_path_owned.clone(),
@@ -169,11 +167,15 @@ impl VaultManager {
                 Err(e) => {
                     warn!("watcher error for {}: {}", vault_path_owned.display(), e);
                 }
-            }
-        }) {
+            },
+        ) {
             Ok(w) => w,
             Err(e) => {
-                warn!("failed to create watcher for {}: {}", vault_path.display(), e);
+                warn!(
+                    "failed to create watcher for {}: {}",
+                    vault_path.display(),
+                    e
+                );
                 return None;
             }
         };
@@ -264,10 +266,7 @@ impl VaultManager {
         for (path, _) in &self.open_vaults {
             let hebbs_dir = path.join(".hebbs");
             if !hebbs_dir.exists() {
-                warn!(
-                    "vault data directory missing: {}",
-                    hebbs_dir.display()
-                );
+                warn!("vault data directory missing: {}", hebbs_dir.display());
                 unhealthy.push(path.clone());
             }
         }

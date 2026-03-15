@@ -38,11 +38,7 @@ pub struct ContradictionWriter<'a> {
 }
 
 impl<'a> ContradictionWriter<'a> {
-    pub fn new(
-        vault_root: &'a Path,
-        manifest: &'a Manifest,
-        config: &'a VaultConfig,
-    ) -> Self {
+    pub fn new(vault_root: &'a Path, manifest: &'a Manifest, config: &'a VaultConfig) -> Self {
         Self {
             vault_root,
             manifest,
@@ -59,9 +55,7 @@ impl<'a> ContradictionWriter<'a> {
             return Ok(Vec::new());
         }
 
-        let contradiction_dir = self
-            .vault_root
-            .join(&self.config.output.contradiction_dir);
+        let contradiction_dir = self.vault_root.join(&self.config.output.contradiction_dir);
         std::fs::create_dir_all(&contradiction_dir)?;
 
         let mut created_paths = Vec::new();
@@ -101,7 +95,10 @@ impl<'a> ContradictionWriter<'a> {
         frontmatter.push_str("hebbs-sources:\n");
         frontmatter.push_str(&format!("  - {}\n", sources_a));
         frontmatter.push_str(&format!("  - {}\n", sources_b));
-        frontmatter.push_str(&format!("hebbs-confidence: {:.2}\n", contradiction.confidence));
+        frontmatter.push_str(&format!(
+            "hebbs-confidence: {:.2}\n",
+            contradiction.confidence
+        ));
         frontmatter.push_str(&format!("hebbs-classification: {}\n", classification));
         frontmatter.push_str(&format!("hebbs-created: {}\n", now));
         frontmatter.push_str("---\n\n");
@@ -135,10 +132,7 @@ impl<'a> ContradictionWriter<'a> {
 
         if let Some((file_path, _, _)) = memory_index.get(&ulid_str) {
             if let Some(file_entry) = self.manifest.files.get(file_path) {
-                if let Some(section) = file_entry
-                    .sections
-                    .iter()
-                    .find(|s| s.memory_id == ulid_str)
+                if let Some(section) = file_entry.sections.iter().find(|s| s.memory_id == ulid_str)
                 {
                     if section.heading_path.is_empty() {
                         return file_path.clone();
@@ -322,7 +316,11 @@ mod tests {
         assert_eq!(paths.len(), 3);
         for path in &paths {
             assert!(path.exists());
-            assert!(path.file_name().unwrap().to_string_lossy().starts_with("contradiction-"));
+            assert!(path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("contradiction-"));
         }
     }
 

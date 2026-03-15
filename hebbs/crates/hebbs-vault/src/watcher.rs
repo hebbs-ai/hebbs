@@ -54,7 +54,10 @@ pub async fn watch_vault(
     info!("running startup catch-up");
     let changed_files = find_changed_files(&vault_root, &manifest, &ignore_set)?;
     if !changed_files.is_empty() {
-        info!("catch-up: {} files changed since last run", changed_files.len());
+        info!(
+            "catch-up: {} files changed since last run",
+            changed_files.len()
+        );
         let p1_stats = phase1_ingest(&changed_files, &vault_root, &mut manifest, &config)?;
         manifest.save(&hebbs_dir)?;
         info!(
@@ -62,7 +65,8 @@ pub async fn watch_vault(
             p1_stats.files_processed, p1_stats.sections_new, p1_stats.sections_modified
         );
 
-        let p2_stats = phase2_ingest(&vault_root, &mut manifest, &engine, &embedder, &config).await?;
+        let p2_stats =
+            phase2_ingest(&vault_root, &mut manifest, &engine, &embedder, &config).await?;
         manifest.save(&hebbs_dir)?;
         info!(
             "catch-up phase 2: {} embedded, {} remembered, {} revised",
@@ -74,16 +78,16 @@ pub async fn watch_vault(
     let (tx, mut rx) = mpsc::channel::<WatchEvent>(1000);
 
     let watcher_tx = tx.clone();
-    let mut watcher = notify::recommended_watcher(move |res: std::result::Result<Event, notify::Error>| {
-        match res {
+    let mut watcher = notify::recommended_watcher(
+        move |res: std::result::Result<Event, notify::Error>| match res {
             Ok(event) => {
                 let _ = watcher_tx.blocking_send(WatchEvent::FsEvent(event));
             }
             Err(e) => {
                 warn!("watcher error: {}", e);
             }
-        }
-    })
+        },
+    )
     .map_err(|e| VaultError::Watcher {
         reason: format!("failed to create watcher: {e}"),
     })?;
@@ -364,10 +368,7 @@ fn walk_md_files(
 }
 
 /// Walk all .md files in the vault. Public API for index command.
-pub fn collect_md_files(
-    vault_root: &Path,
-    config: &VaultConfig,
-) -> Result<Vec<PathBuf>> {
+pub fn collect_md_files(vault_root: &Path, config: &VaultConfig) -> Result<Vec<PathBuf>> {
     let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
     let mut files = Vec::new();
     walk_md_files(vault_root, vault_root, &ignore_set, &mut |path| {

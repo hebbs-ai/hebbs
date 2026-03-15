@@ -93,18 +93,48 @@ pub struct ContradictionScanOutput {
 
 /// Negation markers that indicate a statement negates a claim.
 const NEGATION_MARKERS: &[&str] = &[
-    "not", "no longer", "never", "failed", "missed", "stopped",
-    "unable", "cannot", "can't", "didn't", "doesn't", "won't",
-    "isn't", "aren't", "wasn't", "weren't", "shouldn't",
-    "unreliable", "unsuccessful", "inadequate", "insufficient",
-    "declined", "dropped", "decreased", "reduced", "lost",
+    "not",
+    "no longer",
+    "never",
+    "failed",
+    "missed",
+    "stopped",
+    "unable",
+    "cannot",
+    "can't",
+    "didn't",
+    "doesn't",
+    "won't",
+    "isn't",
+    "aren't",
+    "wasn't",
+    "weren't",
+    "shouldn't",
+    "unreliable",
+    "unsuccessful",
+    "inadequate",
+    "insufficient",
+    "declined",
+    "dropped",
+    "decreased",
+    "reduced",
+    "lost",
 ];
 
 /// Temporal/revision markers that suggest evolution rather than contradiction.
 const REVISION_MARKERS: &[&str] = &[
-    "used to", "previously", "updated", "changed", "now",
-    "revised", "corrected", "no longer think", "reconsidered",
-    "on second thought", "after further", "in retrospect",
+    "used to",
+    "previously",
+    "updated",
+    "changed",
+    "now",
+    "revised",
+    "corrected",
+    "no longer think",
+    "reconsidered",
+    "on second thought",
+    "after further",
+    "in retrospect",
 ];
 
 /// Antonym pairs where presence of one in A and the other in B suggests contradiction.
@@ -184,7 +214,10 @@ pub fn heuristic_classify(content_a: &str, content_b: &str) -> EntailmentResult 
 
 /// Count negation markers in text.
 fn negation_count(text: &str) -> usize {
-    NEGATION_MARKERS.iter().filter(|m| text.contains(**m)).count()
+    NEGATION_MARKERS
+        .iter()
+        .filter(|m| text.contains(**m))
+        .count()
 }
 
 /// Check for revision markers in either text.
@@ -274,8 +307,12 @@ pub fn check_memory_contradictions(
     };
 
     // Find top-K similar memories
-    let candidates = index_manager
-        .search_vector_for_tenant(tenant.tenant_id(), embedding, config.candidates_k, Some(64))?;
+    let candidates = index_manager.search_vector_for_tenant(
+        tenant.tenant_id(),
+        embedding,
+        config.candidates_k,
+        Some(64),
+    )?;
 
     // Load existing edges to skip already-classified pairs
     let graph = GraphIndex::new(storage.clone());
@@ -328,14 +365,18 @@ pub fn check_memory_contradictions(
         };
 
         match result {
-            EntailmentResult::Contradiction { confidence } if confidence >= config.min_confidence => {
+            EntailmentResult::Contradiction { confidence }
+                if confidence >= config.min_confidence =>
+            {
                 // Create bidirectional CONTRADICTS edges
                 let metadata = EdgeMetadata::new(confidence, now_us);
                 let meta_bytes = metadata.to_bytes();
 
                 // Forward: A -> B
-                let fwd_key = GraphIndex::encode_forward_key(memory_id, EdgeType::Contradicts, candidate_id);
-                let rev_key = GraphIndex::encode_reverse_key(memory_id, EdgeType::Contradicts, candidate_id);
+                let fwd_key =
+                    GraphIndex::encode_forward_key(memory_id, EdgeType::Contradicts, candidate_id);
+                let rev_key =
+                    GraphIndex::encode_reverse_key(memory_id, EdgeType::Contradicts, candidate_id);
                 batch_ops.push(BatchOperation::Put {
                     cf: ColumnFamilyName::Graph,
                     key: fwd_key,
@@ -348,8 +389,10 @@ pub fn check_memory_contradictions(
                 });
 
                 // Reverse direction: B -> A
-                let fwd_key_ba = GraphIndex::encode_forward_key(candidate_id, EdgeType::Contradicts, memory_id);
-                let rev_key_ba = GraphIndex::encode_reverse_key(candidate_id, EdgeType::Contradicts, memory_id);
+                let fwd_key_ba =
+                    GraphIndex::encode_forward_key(candidate_id, EdgeType::Contradicts, memory_id);
+                let rev_key_ba =
+                    GraphIndex::encode_reverse_key(candidate_id, EdgeType::Contradicts, memory_id);
                 batch_ops.push(BatchOperation::Put {
                     cf: ColumnFamilyName::Graph,
                     key: fwd_key_ba,
@@ -394,8 +437,16 @@ fn llm_classify(
 ) -> EntailmentResult {
     // Truncate to avoid excessive token usage
     let max_chars = 2000;
-    let a = if content_a.len() > max_chars { &content_a[..max_chars] } else { content_a };
-    let b = if content_b.len() > max_chars { &content_b[..max_chars] } else { content_b };
+    let a = if content_a.len() > max_chars {
+        &content_a[..max_chars]
+    } else {
+        content_a
+    };
+    let b = if content_b.len() > max_chars {
+        &content_b[..max_chars]
+    } else {
+        content_b
+    };
 
     let request = hebbs_reflect::LlmRequest {
         system_message: "You are an entailment classifier. Analyze two statements and classify their relationship. Output valid JSON only.".to_string(),
@@ -470,7 +521,11 @@ mod tests {
         match heuristic_classify(a, b) {
             EntailmentResult::Contradiction { confidence } => {
                 assert!(confidence >= 0.35, "confidence {} too low", confidence);
-                assert!(confidence <= 0.75, "confidence {} exceeds heuristic cap", confidence);
+                assert!(
+                    confidence <= 0.75,
+                    "confidence {} exceeds heuristic cap",
+                    confidence
+                );
             }
             other => panic!("expected Contradiction, got {:?}", other),
         }
@@ -559,13 +614,19 @@ mod tests {
     fn numeric_disagreement_detected() {
         let a = "the system processed 1000 requests with 3 errors in the production environment";
         let b = "the system processed 500 requests with 15 errors in the production environment";
-        assert!(has_numeric_disagreement(&a.to_lowercase(), &b.to_lowercase()));
+        assert!(has_numeric_disagreement(
+            &a.to_lowercase(),
+            &b.to_lowercase()
+        ));
     }
 
     #[test]
     fn numeric_disagreement_same_numbers() {
         let a = "the server handles 1000 requests per second";
         let b = "we measured 1000 requests per second on the server";
-        assert!(!has_numeric_disagreement(&a.to_lowercase(), &b.to_lowercase()));
+        assert!(!has_numeric_disagreement(
+            &a.to_lowercase(),
+            &b.to_lowercase()
+        ));
     }
 }

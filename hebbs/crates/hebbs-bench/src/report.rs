@@ -100,7 +100,12 @@ pub fn print_degradation_report(results: &DegradationResults) {
     // Table 1: Degradation with deltas
     let col_w = 16;
     let strategies = ["Similarity", "Temporal", "Causal", "Analogical"];
-    let strat_headers = ["Similarity p99", "Temporal p99", "Causal p99", "Analogic p99"];
+    let strat_headers = [
+        "Similarity p99",
+        "Temporal p99",
+        "Causal p99",
+        "Analogic p99",
+    ];
 
     println!("  Degradation Curve — Latency (µs)");
 
@@ -221,11 +226,7 @@ fn print_phase_breakdown(results: &DegradationResults) {
     for cp in &results.checkpoints {
         print!("  │ {:>8} ", cp.memory_count);
         for name in &phase_names {
-            let val = cp
-                .phases
-                .get(name)
-                .map(|ps| ps.mean_us)
-                .unwrap_or(0.0);
+            let val = cp.phases.get(name).map(|ps| ps.mean_us).unwrap_or(0.0);
             print!("│ {:>10.1} ", val);
         }
         println!("│");

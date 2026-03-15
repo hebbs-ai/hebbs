@@ -534,8 +534,8 @@ impl Engine {
     /// List all memories that contradict the given memory.
     pub fn contradictions(&self, memory_id: &[u8; 16]) -> Result<Vec<([u8; 16], f32)>> {
         let graph = hebbs_index::graph::GraphIndex::new(self.storage.clone());
-        let edges = graph
-            .outgoing_edges_of_type(memory_id, hebbs_index::graph::EdgeType::Contradicts)?;
+        let edges =
+            graph.outgoing_edges_of_type(memory_id, hebbs_index::graph::EdgeType::Contradicts)?;
         Ok(edges
             .into_iter()
             .map(|(target, meta)| (target, meta.confidence))

@@ -81,10 +81,9 @@ impl Manifest {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&path)?;
-        let manifest: Self =
-            serde_json::from_str(&content).map_err(|e| VaultError::Manifest {
-                reason: format!("failed to parse manifest: {e}"),
-            })?;
+        let manifest: Self = serde_json::from_str(&content).map_err(|e| VaultError::Manifest {
+            reason: format!("failed to parse manifest: {e}"),
+        })?;
         Ok(manifest)
     }
 
@@ -137,10 +136,7 @@ impl Manifest {
 
     /// Total section count (all states).
     pub fn total_sections(&self) -> usize {
-        self.files
-            .values()
-            .map(|e| e.sections.len())
-            .sum()
+        self.files.values().map(|e| e.sections.len()).sum()
     }
 }
 

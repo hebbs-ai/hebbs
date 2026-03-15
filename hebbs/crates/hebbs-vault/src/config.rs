@@ -502,10 +502,7 @@ impl VaultConfig {
             );
         }
         if self.scoring.w_recency < 0.0 {
-            errors.insert(
-                "scoring.w_recency".to_string(),
-                "must be >= 0".to_string(),
-            );
+            errors.insert("scoring.w_recency".to_string(), "must be >= 0".to_string());
         }
         if self.scoring.w_importance < 0.0 {
             errors.insert(
@@ -588,7 +585,10 @@ mod tests {
     fn test_default_ignore_patterns_include_contradictions() {
         let config = VaultConfig::default();
         assert!(
-            config.watch.ignore_patterns.contains(&"contradictions/".to_string()),
+            config
+                .watch
+                .ignore_patterns
+                .contains(&"contradictions/".to_string()),
             "default ignore patterns should include contradictions/"
         );
     }

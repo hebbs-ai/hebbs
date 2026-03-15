@@ -75,8 +75,7 @@ pub fn default_pid_path() -> Option<PathBuf> {
 /// `panel_port` is passed to the daemon on auto-start so the panel binds to the
 /// caller's requested port. Pass `None` for the default port.
 pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonClient, String> {
-    let socket_path = default_socket_path()
-        .ok_or("cannot determine home directory")?;
+    let socket_path = default_socket_path().ok_or("cannot determine home directory")?;
 
     // Try to connect directly
     if let Ok(mut client) = DaemonClient::connect(&socket_path).await {
@@ -189,8 +188,7 @@ fn start_daemon(panel_port: Option<u16>) -> Result<(), String> {
             .map_err(|e| format!("failed to clone log handle: {}", e))?;
 
         let mut cmd = StdCommand::new(&exe);
-        cmd.arg("serve")
-            .arg("--foreground");
+        cmd.arg("serve").arg("--foreground");
         if let Some(port) = panel_port {
             cmd.arg("--panel-port").arg(port.to_string());
         }
@@ -213,8 +211,7 @@ fn start_daemon(panel_port: Option<u16>) -> Result<(), String> {
     #[cfg(not(unix))]
     {
         let mut cmd = StdCommand::new(&exe);
-        cmd.arg("serve")
-            .arg("--foreground");
+        cmd.arg("serve").arg("--foreground");
         if let Some(port) = panel_port {
             cmd.arg("--panel-port").arg(port.to_string());
         }
