@@ -273,11 +273,11 @@ SESSION_ID=$(echo "$RESULT" | jq -r '.session_id')
 
 # Step 2: read the clusters, reason about patterns, commit insights
 hebbs reflect-commit --session-id "$SESSION_ID" --insights '[
-  {"content": "...", "confidence": 0.9, "source_memory_ids": ["hex...", "hex..."], "tags": ["tag"]}
+  {"content": "...", "confidence": 0.9, "source_memory_ids": ["01JABC...", "01JDEF..."], "tags": ["tag"]}
 ]' --global --format json
 ```
 
-**Important:** `source_memory_ids` must be hex-encoded IDs from the cluster's `memory_ids` array, NOT the ULID from `memories[].memory_id`.
+**Important:** `source_memory_ids` must be IDs from the cluster's `memory_ids` array. Pass them through exactly as returned by reflect-prepare (ULID format). Both ULID and hex formats are accepted.
 
 Requires 5+ memories. Sessions expire after 10 minutes.
 

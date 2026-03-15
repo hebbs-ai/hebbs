@@ -369,6 +369,22 @@ enum Commands {
         limit: u32,
     },
 
+    /// View the query audit log
+    Queries {
+        /// Maximum entries to return
+        #[arg(short, long, default_value = "20")]
+        limit: u32,
+        /// Offset for pagination
+        #[arg(long, default_value = "0")]
+        offset: u32,
+        /// Filter by caller name (e.g. "cli", "hebbs-panel", "mcp:cursor")
+        #[arg(short, long)]
+        caller: Option<String>,
+        /// Filter by operation type (recall, prime)
+        #[arg(short = 'o', long)]
+        operation: Option<String>,
+    },
+
     /// Display server metrics (remote mode)
     Metrics,
 
@@ -1640,46 +1656,23 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Panel {
-            ref vault_path,
+            vault_path: _,
             port,
         } => {
-            // Try to connect to the daemon first. If the daemon is running,
-            // the panel is already being served -- just open the browser.
-            if std::env::var("HEBBS_NO_DAEMON").unwrap_or_default() != "1" {
-                if let Ok(_daemon) = client::ensure_daemon_with_opts(Some(port)).await {
+            // Panel always runs through the daemon. The daemon serves the panel
+            // HTTP server, so we just need to ensure the daemon is running and
+            // open the browser.
+            match client::ensure_daemon_with_opts(Some(port)).await {
+                Ok(_daemon) => {
                     let url = format!("http://127.0.0.1:{}", port);
-                    println!("Memory Palace running at {} (via daemon)", url);
+                    println!("Memory Palace running at {}", url);
                     open_browser(&url);
                     println!("Press Ctrl+C to stop.");
                     tokio::signal::ctrl_c().await.ok();
-                    return 0;
-                }
-            }
-
-            // Fallback: standalone panel server (no daemon)
-            let path = match require_vault_path(vault_path.as_ref(), cli.vault.as_ref(), cli.global) {
-                Ok(p) => p,
-                Err(code) => return code,
-            };
-            match setup_engine(&path).await {
-                Ok((engine, embedder)) => {
-                    match hebbs_vault::panel::start_panel_server(engine, embedder, path, port).await {
-                        Ok(addr) => {
-                            let url = format!("http://{}", addr);
-                            println!("Memory Palace running at {}", url);
-                            open_browser(&url);
-                            println!("Press Ctrl+C to stop.");
-                            tokio::signal::ctrl_c().await.ok();
-                            0
-                        }
-                        Err(e) => {
-                            eprintln!("Error starting panel: {}", e);
-                            1
-                        }
-                    }
+                    0
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error starting daemon for panel: {}", e);
                     1
                 }
             }
@@ -1709,6 +1702,11 @@ async fn run_local(cli: Cli) -> i32 {
                     1
                 }
             }
+        }
+
+        Commands::Queries { .. } => {
+            eprintln!("Query log requires the daemon. Do not set HEBBS_NO_DAEMON=1.");
+            1
         }
 
         Commands::Version => {
@@ -1952,6 +1950,17 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
             min_confidence: *min_confidence,
             max_results: *max_results,
         }),
+        Commands::Queries {
+            limit,
+            offset,
+            caller,
+            operation,
+        } => Some(DaemonCommand::Queries {
+            limit: Some(*limit),
+            offset: Some(*offset),
+            caller_filter: caller.clone(),
+            operation_filter: operation.clone(),
+        }),
         // These are handled before reaching daemon mode or not supported via daemon
         Commands::Init { .. }
         | Commands::Version
@@ -2118,6 +2127,34 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
         Commands::ReflectCommit { .. } => {
             let created = data.get("insights_created").and_then(|v| v.as_u64()).unwrap_or(0);
             println!("Committed: {} insights created", created);
+        }
+        Commands::Queries { .. } => {
+            if let Some(entries) = data.get("entries").and_then(|v| v.as_array()) {
+                if entries.is_empty() {
+                    println!("No query log entries.");
+                } else {
+                    println!("Query log ({} entries):\n", entries.len());
+                    for e in entries {
+                        let ts = e.get("timestamp_us").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let caller = e.get("caller").and_then(|v| v.as_str()).unwrap_or("?");
+                        let op = e.get("operation").and_then(|v| v.as_str()).unwrap_or("?");
+                        let query = e.get("query").and_then(|v| v.as_str()).unwrap_or("");
+                        let results = e.get("result_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let latency = e.get("latency_us").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let latency_ms = latency as f64 / 1000.0;
+                        // Convert microsecond timestamp to HH:MM:SS
+                        let secs = ts / 1_000_000;
+                        let h = (secs / 3600) % 24;
+                        let m = (secs / 60) % 60;
+                        let s = secs % 60;
+                        let time_str = format!("{:02}:{:02}:{:02}", h, m, s);
+                        println!(
+                            "  {} {:12} {:6} {:50} {} results  {:.1}ms",
+                            time_str, caller, op, truncate(query, 50), results, latency_ms
+                        );
+                    }
+                }
+            }
         }
         Commands::Insights { .. } => {
             if let Some(insights) = data.get("insights").and_then(|v| v.as_array()) {
@@ -2405,7 +2442,8 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
         | Commands::Rebuild { .. }
         | Commands::List { .. }
         | Commands::Serve { .. }
-        | Commands::Panel { .. } => None,
+        | Commands::Panel { .. }
+        | Commands::Queries { .. } => None,
     }
 }
 
