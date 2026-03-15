@@ -32,3 +32,4 @@ demo/dist/
 
 # HEBBS data (RocksDB)
 hebbs-data/
+.hebbs/

@@ -32,6 +32,7 @@ coverage.xml
 
 # HEBBS data (RocksDB)
 hebbs-data/
+.hebbs/
 
 # Environment / secrets
 .env

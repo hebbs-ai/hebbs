@@ -27,5 +27,6 @@ Thumbs.db
 
 # HEBBS specific
 hebbs-data/
+.hebbs/
 hebbs.toml
 *.log

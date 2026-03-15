@@ -25,6 +25,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# HEBBS vault runtime data
+.hebbs/
+
 # local dev
 .netlify/
 .vercel/

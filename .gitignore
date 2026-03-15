@@ -33,6 +33,10 @@ __pycache__/
 **/__pycache__/
 *.egg-info/
 
+# HEBBS vault runtime data
+.hebbs/
+**/.hebbs/
+
 # Runtime data and local databases
 hebbs-data/
 **/hebbs-data/

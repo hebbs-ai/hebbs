@@ -5,6 +5,7 @@
 
 # Runtime data
 hebbs-data/
+.hebbs/
 
 # Python
 __pycache__/
