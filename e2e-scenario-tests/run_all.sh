@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: ./run_all.sh [--scenario NUM] [--vault-size SIZE] [--verbose] [--binary PATH] [--mode local|daemon|all]"
+            echo "Usage: ./run_all.sh [--scenario NUM] [--vault-size SIZE] [--verbose] [--binary PATH] [--mode vault|daemon|openclaw|all]"
             exit 1
             ;;
     esac
@@ -117,26 +117,31 @@ SCENARIOS_FAILED=0
 SCENARIOS_SKIPPED=0
 SCENARIO_RESULTS=()
 
-for scenario_script in "$SCENARIOS_DIR"/*.sh; do
+# Scenarios live in subdirectories: vault/, daemon/, openclaw/
+# Build the list based on mode filter
+SCENARIO_SCRIPTS=()
+if [ "$TEST_MODE" = "all" ] || [ "$TEST_MODE" = "local" ] || [ "$TEST_MODE" = "vault" ]; then
+    for f in "$SCENARIOS_DIR"/vault/*.sh; do [ -f "$f" ] && SCENARIO_SCRIPTS+=("$f"); done
+fi
+if [ "$TEST_MODE" = "all" ] || [ "$TEST_MODE" = "daemon" ]; then
+    for f in "$SCENARIOS_DIR"/daemon/*.sh; do [ -f "$f" ] && SCENARIO_SCRIPTS+=("$f"); done
+fi
+if [ "$TEST_MODE" = "all" ] || [ "$TEST_MODE" = "openclaw" ]; then
+    for f in "$SCENARIOS_DIR"/openclaw/*.sh; do [ -f "$f" ] && SCENARIO_SCRIPTS+=("$f"); done
+fi
+
+for scenario_script in "${SCENARIO_SCRIPTS[@]}"; do
     scenario_name=$(basename "$scenario_script" .sh)
     scenario_num="${scenario_name%%_*}"
+    scenario_group=$(basename "$(dirname "$scenario_script")")
 
     # Apply filter
     if [ -n "$SCENARIO_FILTER" ] && [ "$scenario_num" != "$SCENARIO_FILTER" ]; then
         continue
     fi
 
-    # Apply mode filter: scenarios 17-20 are daemon tests, 01-16 are local tests
-    scenario_num_int=$((10#$scenario_num))
-    if [ "$TEST_MODE" = "local" ] && [ "$scenario_num_int" -ge 17 ]; then
-        continue
-    fi
-    if [ "$TEST_MODE" = "daemon" ] && [ "$scenario_num_int" -lt 17 ]; then
-        continue
-    fi
-
-    # Local tests (01-16) run without daemon; daemon tests (17-20) use daemon
-    if [ "$scenario_num_int" -lt 17 ]; then
+    # Vault tests run without daemon; daemon/openclaw tests use daemon
+    if [ "$scenario_group" = "vault" ]; then
         export HEBBS_NO_DAEMON=1
     else
         unset HEBBS_NO_DAEMON
