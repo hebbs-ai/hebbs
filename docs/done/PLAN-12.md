@@ -10,8 +10,8 @@ Detailed spec: [TASK-13](../done/TASK-13-file-first-markdown-sync.md) (Feature 1
 | Feature | Status | Notes |
 |---------|--------|-------|
 | 1. File-First Markdown Sync | **DONE** | TASK-13 complete. All 9 steps shipped. Crate at `hebbs-vault/`. E2e tests passing (scenarios 1-13). |
-| 2. Full-Corpus Contradiction Detection | **PLANNED** | Implementation plan at [PLAN-contradiction](./PLAN-contradiction.md). 7-step pipeline: edge type, candidate extraction, entailment classification, background worker, file output, engine API, panel visualization. Steps 1-2 unblocked (HNSW + neighborhood infrastructure ready). Steps 3-6 need LLM integration. Step 7 returns to [TASK-20](../TASK-20-panel-polish.md) Item 10. |
-| 3. Token-Budgeted prime() | **PENDING** | No implementation started. Depends on Features 1 and 2. |
+| 2. Full-Corpus Contradiction Detection | **DONE** | All 7 steps complete. See [PLAN-contradiction](./PLAN-contradiction.md). Heuristic + LLM classifiers, pipeline, file output, engine API, panel viz. 44 tests. |
+| 3. Token-Budgeted prime() | **DEPRIORITIZED** | Agents handle truncation themselves. Revisit when tight context windows or Obsidian sidebar ships. |
 
 ---
 
@@ -20,8 +20,8 @@ Detailed spec: [TASK-13](../done/TASK-13-file-first-markdown-sync.md) (Feature 1
 Three features, implemented in order:
 
 1. **File-First Markdown Sync** (TASK-13) -- DONE. Files are truth, `.hebbs/` is rebuildable index.
-2. **Full-Corpus Contradiction Detection** -- PENDING. CONTRADICTS edges, entailment pipeline.
-3. **Token-Budgeted prime()** -- PENDING. `max_tokens` parameter, greedy packing.
+2. **Full-Corpus Contradiction Detection** -- DONE. CONTRADICTS edges, entailment pipeline, file output.
+3. **Token-Budgeted prime()** -- DEPRIORITIZED. `max_tokens` parameter, greedy packing.
 
 ---
 
@@ -390,7 +390,7 @@ All commands validate that vault-path exists and (except `init`) that `.hebbs/` 
 
 ---
 
-## Feature 2: Full-Corpus Contradiction Detection -- PENDING
+## Feature 2: Full-Corpus Contradiction Detection -- DONE
 
 Depends on: Feature 1 (file-backed memories, RELATED_TO edges, insight output) -- DONE
 
@@ -451,7 +451,7 @@ project; the August observation covers three quarters of data.
 
 ---
 
-## Feature 3: Token-Budgeted prime() -- PENDING
+## Feature 3: Token-Budgeted prime() -- DEPRIORITIZED
 
 Depends on: Feature 1 (file-backed content reads) -- DONE, Feature 2 (contradiction edges for filtering) -- PENDING
 
@@ -562,9 +562,9 @@ Step 13 (token counting) ──> Step 14 (budgeted packing) ──> Step 15 ─�
 | 7. Insight writer | Medium | DONE | Reflect hook, source path resolution, filename slugification, loop prevention |
 | 8. Rebuild | Small | DONE | Orchestration of init + index, equivalence testing |
 | 9. CLI | Small | DONE | Command routing, argument parsing |
-| 10. CONTRADICTS edge | Small | PENDING | One enum variant + proto update + SDK propagation |
-| 11. Detection pipeline | Large | PENDING | LLM entailment classification, background worker, heuristics |
-| 12. Contradiction surfacing | Medium | PENDING | Query changes, filtering, resolution flow |
-| 13. Token counting | Small | PENDING | Estimation function, optional tiktoken integration |
-| 14. Budgeted packing | Medium | PENDING | Greedy algorithm, insight preference, proto changes |
-| 15. SDK propagation | Small | PENDING | Mechanical proto -> SDK updates |
+| 10. CONTRADICTS edge | Small | DEPRIORITIZED | One enum variant + proto update + SDK propagation |
+| 11. Detection pipeline | Large | DEPRIORITIZED | LLM entailment classification, background worker, heuristics |
+| 12. Contradiction surfacing | Medium | DEPRIORITIZED | Query changes, filtering, resolution flow |
+| 13. Token counting | Small | DEPRIORITIZED | Estimation function, optional tiktoken integration |
+| 14. Budgeted packing | Medium | DEPRIORITIZED | Greedy algorithm, insight preference, proto changes |
+| 15. SDK propagation | Small | DEPRIORITIZED | Mechanical proto -> SDK updates |
