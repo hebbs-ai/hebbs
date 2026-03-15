@@ -1,7 +1,17 @@
 # PLAN-12: Markdown/Obsidian Cognitive Layer
 
 Parent: [TASK-12](../TASK-12-markdown-obsidian-cognitive-layer.md)
-Detailed spec: [TASK-13](../TASK-13-file-first-markdown-sync.md) (Feature 1)
+Detailed spec: [TASK-13](../done/TASK-13-file-first-markdown-sync.md) (Feature 1)
+
+---
+
+## Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| 1. File-First Markdown Sync | **DONE** | TASK-13 complete. All 9 steps shipped. Crate at `hebbs-vault/`. E2e tests passing (scenarios 1-13). |
+| 2. Full-Corpus Contradiction Detection | **PLANNED** | Implementation plan at [PLAN-contradiction](./PLAN-contradiction.md). 7-step pipeline: edge type, candidate extraction, entailment classification, background worker, file output, engine API, panel visualization. Steps 1-2 unblocked (HNSW + neighborhood infrastructure ready). Steps 3-6 need LLM integration. Step 7 returns to [TASK-20](../TASK-20-panel-polish.md) Item 10. |
+| 3. Token-Budgeted prime() | **PENDING** | No implementation started. Depends on Features 1 and 2. |
 
 ---
 
@@ -9,17 +19,15 @@ Detailed spec: [TASK-13](../TASK-13-file-first-markdown-sync.md) (Feature 1)
 
 Three features, implemented in order:
 
-1. **File-First Markdown Sync** (TASK-13) : files are truth, `.hebbs/` is rebuildable index
-2. **Full-Corpus Contradiction Detection** : CONTRADICTS edges, entailment pipeline
-3. **Token-Budgeted prime()** : `max_tokens` parameter, greedy packing
-
-This plan covers the full implementation of all three. Feature 1 is broken into granular steps. Features 2 and 3 are outlined at milestone level (detailed plans created when Feature 1 ships).
+1. **File-First Markdown Sync** (TASK-13) -- DONE. Files are truth, `.hebbs/` is rebuildable index.
+2. **Full-Corpus Contradiction Detection** -- PENDING. CONTRADICTS edges, entailment pipeline.
+3. **Token-Budgeted prime()** -- PENDING. `max_tokens` parameter, greedy packing.
 
 ---
 
-## Feature 1: File-First Markdown Sync
+## Feature 1: File-First Markdown Sync -- DONE
 
-### New Crate: `hebbs-vault`
+### New Crate: `hebbs-vault` -- DONE
 
 Lives at `hebbs/crates/hebbs-vault/`. Depends on `hebbs-core`, `hebbs-embed`, `hebbs-index`, `hebbs-storage`. Does NOT depend on `hebbs-server` or `hebbs-client` (embedded-first).
 
@@ -41,7 +49,7 @@ hebbs-vault/
 
 ---
 
-### Step 1: Markdown Parser (`parser.rs`)
+### Step 1: Markdown Parser (`parser.rs`) -- DONE
 
 **Goal**: Parse a single `.md` file into structured sections.
 
@@ -92,7 +100,7 @@ pub struct WikiLink {
 
 ---
 
-### Step 2: Manifest and Cognition Plane Layout (`manifest.rs`, `config.rs`)
+### Step 2: Manifest and Cognition Plane Layout (`manifest.rs`, `config.rs`) -- DONE
 
 **Goal**: `.hebbs/` directory structure, manifest schema, init/read/write.
 
@@ -168,7 +176,7 @@ insight_dir = "insights/"
 
 ---
 
-### Step 3: Ingest Pipeline, Phase 1 (`ingest.rs`)
+### Step 3: Ingest Pipeline, Phase 1 (`ingest.rs`) -- DONE
 
 **Goal**: Parse changed files, update manifest. Cheap, runs on every file change.
 
@@ -195,7 +203,7 @@ insight_dir = "insights/"
 
 ---
 
-### Step 4: Ingest Pipeline, Phase 2 (`ingest.rs`)
+### Step 4: Ingest Pipeline, Phase 2 (`ingest.rs`) -- DONE
 
 **Goal**: Embed content-stale sections, update indexes via `hebbs-core` engine.
 
@@ -227,7 +235,7 @@ insight_dir = "insights/"
 
 ---
 
-### Step 5: File Watcher Daemon (`watcher.rs`)
+### Step 5: File Watcher Daemon (`watcher.rs`) -- DONE
 
 **Goal**: Real-time bridge between content plane and cognition plane.
 
@@ -280,7 +288,7 @@ insight_dir = "insights/"
 
 ---
 
-### Step 6: Query from Files (`query.rs`)
+### Step 6: Query from Files (`query.rs`) -- DONE
 
 **Goal**: Recall and prime return content read from files, not from stored memory records.
 
@@ -302,7 +310,7 @@ insight_dir = "insights/"
 
 ---
 
-### Step 7: Insight Output as Files (`insight_writer.rs`)
+### Step 7: Insight Output as Files (`insight_writer.rs`) -- DONE
 
 **Goal**: When `reflect()` produces insights, write them as `.md` files into the vault.
 
@@ -344,7 +352,7 @@ Example: `01JABC-vendor-assessment-pattern.md`
 
 ---
 
-### Step 8: Rebuild Guarantee
+### Step 8: Rebuild Guarantee -- DONE
 
 **Goal**: `hebbs rebuild <vault-path>` deletes `.hebbs/` and recreates from scratch.
 
@@ -366,7 +374,7 @@ Example: `01JABC-vendor-assessment-pattern.md`
 
 ---
 
-### Step 9: CLI Integration
+### Step 9: CLI Integration -- DONE
 
 Add commands to `hebbs-cli`:
 
@@ -382,11 +390,11 @@ All commands validate that vault-path exists and (except `init`) that `.hebbs/` 
 
 ---
 
-## Feature 2: Full-Corpus Contradiction Detection
+## Feature 2: Full-Corpus Contradiction Detection -- PENDING
 
-Depends on: Feature 1 (file-backed memories, RELATED_TO edges, insight output)
+Depends on: Feature 1 (file-backed memories, RELATED_TO edges, insight output) -- DONE
 
-### Step 10: CONTRADICTS Edge Type
+### Step 10: CONTRADICTS Edge Type -- PENDING
 
 Add `Contradicts = 0x06` to `EdgeType` enum in `hebbs-index/src/graph.rs`. The graph layer is edge-type-agnostic internally, so this is a one-line addition plus proto update.
 
@@ -394,7 +402,7 @@ Add `Contradicts = 0x06` to `EdgeType` enum in `hebbs-index/src/graph.rs`. The g
 
 **Cross-component propagation**: proto -> server -> CLI -> Rust client -> Python SDK -> TypeScript SDK -> FFI.
 
-### Step 11: Contradiction Detection Pipeline
+### Step 11: Contradiction Detection Pipeline -- PENDING
 
 **New module** in `hebbs-reflect` (or new crate `hebbs-contradict` if complexity warrants separation).
 
@@ -435,7 +443,7 @@ project; the August observation covers three quarters of data.
 - Temporal markers ("now", "updated", "changed my mind", "no longer") = likely evolution/revision
 - Existing `REVISED_FROM` edge = explicit revision, skip
 
-### Step 12: Contradiction Surfacing in Queries
+### Step 12: Contradiction Surfacing in Queries -- PENDING
 
 - `recall()` and `prime()` results include a `contradictions` field: for each returned memory, list any memories connected by `CONTRADICTS` edges
 - Optional filter: `exclude_contradicted: bool` to remove memories that have unresolved contradictions
@@ -443,18 +451,18 @@ project; the August observation covers three quarters of data.
 
 ---
 
-## Feature 3: Token-Budgeted prime()
+## Feature 3: Token-Budgeted prime() -- PENDING
 
-Depends on: Feature 1 (file-backed content reads), Feature 2 (contradiction edges for filtering)
+Depends on: Feature 1 (file-backed content reads) -- DONE, Feature 2 (contradiction edges for filtering) -- PENDING
 
-### Step 13: Token Counting
+### Step 13: Token Counting -- PENDING
 
 Add token estimation to `hebbs-core` or `hebbs-vault`:
 - Default: `content.len() / 4` (bytes-per-token approximation)
 - Optional: exact tokenizer via `tiktoken-rs` crate (configurable per model)
 - Token count cached per section in manifest (invalidated on content change)
 
-### Step 14: Token-Budgeted Packing in prime()
+### Step 14: Token-Budgeted Packing in prime() -- PENDING
 
 **New parameter**: `max_tokens: Option<u64>` on `PrimeRequest` (proto + all SDKs).
 
@@ -477,7 +485,7 @@ Add token estimation to `hebbs-core` or `hebbs-vault`:
 
 **Interaction with contradictions**: if `exclude_contradicted` is set, contradicted memories are removed from candidates before packing.
 
-### Step 15: Proto and SDK Propagation
+### Step 15: Proto and SDK Propagation -- PENDING
 
 - Add `max_tokens`, `prefer_insights`, `total_tokens_used` to proto
 - Propagate to REST API, Rust client, Python SDK, TypeScript SDK, CLI
@@ -487,23 +495,26 @@ Add token estimation to `hebbs-core` or `hebbs-vault`:
 ## Dependency Graph
 
 ```
-Step 1 (parser) ─────────────┐
-Step 2 (manifest + config) ──┼──> Step 3 (phase 1) ──> Step 4 (phase 2) ──┐
-                             │                                              │
-                             └──> Step 5 (watcher, needs 3+4) ─────────────┤
+Step 1  (parser)              ─┐
+Step 2  (manifest + config)   ─┼─> Step 3 (phase 1) ──> Step 4 (phase 2) ─┐
+                               │                                            │
+                               └─> Step 5 (watcher, needs 3+4) ───────────┤
                                                                            │
-Step 6 (query from files, needs 2+4) ─────────────────────────────────────┤
-Step 7 (insight output, needs 4+5) ───────────────────────────────────────┤
+Step 6  (query from files, needs 2+4) ────────────────────────────────────┤
+Step 7  (insight output, needs 4+5) ──────────────────────────────────────┤
                                                                            │
-Step 8 (rebuild, needs 2+3+4) ────────────────────────────────────────────┤
-Step 9 (CLI, needs all above) ────────────────────────────────────────────┘
-                                                                           │
-Step 10 (CONTRADICTS edge) ──> Step 11 (detection pipeline) ──> Step 12 ──┤
+Step 8  (rebuild, needs 2+3+4) ───────────────────────────────────────────┤
+Step 9  (CLI, needs all above) ───────────────────────────────────────────┘
+                                   ^^^ ALL DONE (Feature 1) ^^^
+
+Step 10 (CONTRADICTS edge) ──> Step 11 (detection pipeline) ──> Step 12 ──┐
+                                   ^^^ PENDING (Feature 2) ^^^             │
                                                                            │
 Step 13 (token counting) ──> Step 14 (budgeted packing) ──> Step 15 ──────┘
+                                   ^^^ PENDING (Feature 3) ^^^
 ```
 
-**Parallelizable**: Steps 1 and 2 can be built in parallel. Steps 6 and 7 can be built in parallel once Step 4 is done. Steps 10-12 and 13-15 are independent of each other.
+**Features 2 and 3 are independent of each other.** Feature 3 can optionally use contradiction edges for filtering (`exclude_contradicted`), but the core token-budgeted packing works without it. Both can be built in parallel if desired.
 
 ---
 
@@ -540,20 +551,20 @@ Step 13 (token counting) ──> Step 14 (budgeted packing) ──> Step 15 ─�
 
 ## Estimated Effort (relative sizing, not time estimates)
 
-| Step | Size | Notes |
-|------|------|-------|
-| 1. Parser | Medium | Regex-based, no AST library, thorough edge-case testing needed |
-| 2. Manifest + config | Small | Data structures + serde, `hebbs init` CLI |
-| 3. Phase 1 ingest | Medium | Section diffing logic, incremental manifest writes |
-| 4. Phase 2 ingest | Large | Engine integration (remember/revise/forget), batch embedding, wiki-link edge resolution |
-| 5. Watcher | Large | Debounce logic, adaptive burst detection, cancellable phase 2, integration testing |
-| 6. Query from files | Small | Wrapper around engine recall/prime, byte-offset reads |
-| 7. Insight writer | Medium | Reflect hook, source path resolution, filename slugification, loop prevention |
-| 8. Rebuild | Small | Orchestration of init + index, equivalence testing |
-| 9. CLI | Small | Command routing, argument parsing |
-| 10. CONTRADICTS edge | Small | One enum variant + proto update + SDK propagation |
-| 11. Detection pipeline | Large | LLM entailment classification, background worker, heuristics |
-| 12. Contradiction surfacing | Medium | Query changes, filtering, resolution flow |
-| 13. Token counting | Small | Estimation function, optional tiktoken integration |
-| 14. Budgeted packing | Medium | Greedy algorithm, insight preference, proto changes |
-| 15. SDK propagation | Small | Mechanical proto -> SDK updates |
+| Step | Size | Status | Notes |
+|------|------|--------|-------|
+| 1. Parser | Medium | DONE | Regex-based, no AST library, thorough edge-case testing needed |
+| 2. Manifest + config | Small | DONE | Data structures + serde, `hebbs init` CLI |
+| 3. Phase 1 ingest | Medium | DONE | Section diffing logic, incremental manifest writes |
+| 4. Phase 2 ingest | Large | DONE | Engine integration (remember/revise/forget), batch embedding, wiki-link edge resolution |
+| 5. Watcher | Large | DONE | Debounce logic, adaptive burst detection, cancellable phase 2, integration testing |
+| 6. Query from files | Small | DONE | Wrapper around engine recall/prime, byte-offset reads |
+| 7. Insight writer | Medium | DONE | Reflect hook, source path resolution, filename slugification, loop prevention |
+| 8. Rebuild | Small | DONE | Orchestration of init + index, equivalence testing |
+| 9. CLI | Small | DONE | Command routing, argument parsing |
+| 10. CONTRADICTS edge | Small | PENDING | One enum variant + proto update + SDK propagation |
+| 11. Detection pipeline | Large | PENDING | LLM entailment classification, background worker, heuristics |
+| 12. Contradiction surfacing | Medium | PENDING | Query changes, filtering, resolution flow |
+| 13. Token counting | Small | PENDING | Estimation function, optional tiktoken integration |
+| 14. Budgeted packing | Medium | PENDING | Greedy algorithm, insight preference, proto changes |
+| 15. SDK propagation | Small | PENDING | Mechanical proto -> SDK updates |

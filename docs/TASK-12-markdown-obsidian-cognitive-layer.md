@@ -163,11 +163,11 @@ The Obsidian crowd is thinking about it from the human side (my files, my format
 
 ## Implementation Order
 
-1. Bidirectional Markdown sync -- **[TASK-13](./TASK-13-file-first-markdown-sync.md)** (7 milestones: parser, manifest, ingest, watcher, query-from-files, insight output, rebuild guarantee)
-2. Contradiction detection pipeline (the moat; no Obsidian plugin or note-taking tool does this today) -- future task
-3. Token-budgeted prime() (glue that makes 1 and 2 useful for both humans and agents) -- future task
+1. ~~Bidirectional Markdown sync~~ **DONE** ([TASK-13](./done/TASK-13-file-first-markdown-sync.md), 7 milestones complete)
+2. ~~Contradiction detection pipeline~~ **DONE** ([PLAN-contradiction](./plans/PLAN-contradiction.md), all 7 steps)
+3. Token-budgeted prime() -- deprioritized (agents handle truncation themselves for now)
 
-## Codebase Analysis (current state as of 2026-03-13)
+## Codebase Analysis (snapshot from 2026-03-13, pre-implementation)
 
 ### What exists today
 
@@ -204,10 +204,14 @@ The Obsidian crowd is thinking about it from the human side (my files, my format
 
 ## Implementation Order
 
-1. Bidirectional Markdown sync (unlocks the entire Obsidian/personal-knowledge use case)
-2. Contradiction detection pipeline (the moat; no Obsidian plugin or note-taking tool does this today)
-3. Token-budgeted prime() (glue that makes 1 and 2 useful for both humans and agents)
+1. ~~Bidirectional Markdown sync~~ **DONE** ([TASK-13](./done/TASK-13-file-first-markdown-sync.md))
+2. ~~Contradiction detection pipeline~~ **DONE** ([PLAN-contradiction](./plans/PLAN-contradiction.md))
+3. Token-budgeted prime() (glue that makes 1 and 2 useful for both humans and agents) -- next
 
 ## Status
 
-Not started. Requires design review before implementation.
+**Feature 1: COMPLETE** (2026-03-14). Implemented as [TASK-13](./done/TASK-13-file-first-markdown-sync.md). See [PLAN-13](./done/PLAN-13.md) for implementation details and [TEST-PLAN-13](./done/TEST-PLAN-13-manual.md) for quality analysis.
+
+**Feature 2: COMPLETE** (2026-03-15). See [PLAN-contradiction](./plans/PLAN-contradiction.md). All 7 steps done. Heuristic mode works out of the box; LLM mode auto-activates when reflect config has API key. Pipeline hooks into ingest after `engine.remember()`. Panel shows CONTRADICTS edges as red dashed lines. Contradiction files written to `contradictions/` directory with frontmatter (`hebbs-kind: contradiction`, sources, confidence, classification). 44 tests (12 unit + 25 integration + 7 contradiction_writer).
+
+**Feature 3 (Token-budgeted retrieval):** Deprioritized. Right now agents calling `prime()` handle truncation themselves -- they receive ranked results and cut at their own budget. The optimization of letting HEBBS do the packing is a quality-of-life improvement, not a blocker. Revisit when agent integrations are in production with tight context windows or when the Obsidian sidebar ships with a fixed display budget.
