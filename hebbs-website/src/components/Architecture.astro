@@ -5,46 +5,48 @@
   <div class="mx-auto max-w-5xl px-6">
     <div class="text-center mb-16">
       <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-        One process. Zero dependencies.
+        One binary. Two modes. Same engine.
       </h2>
       <p class="text-muted text-lg">
-        Everything runs inside a single binary. No external databases. No API calls on the hot path.
+        Local vault or remote server. No external databases. No API calls on the hot path.
       </p>
     </div>
 
     <div class="rounded-xl border border-border bg-surface/40 p-6 md:p-10 font-mono text-xs md:text-sm overflow-x-auto flex justify-center">
       <pre class="text-muted leading-relaxed"><span class="text-text">──────────────────────────────────────────────────────────</span>
-                    <span class="text-accent">Client SDKs</span>
-             <span class="text-cyan">Python</span>  │  <span class="text-cyan">TypeScript</span>  │  <span class="text-cyan">Rust</span>
+                    <span class="text-accent">Access Layer</span>
+     <span class="text-cyan">hebbs</span> CLI  │  <span class="text-cyan">Agent Skills</span>  │  <span class="text-cyan">Python</span>  │  <span class="text-cyan">TypeScript</span>
 <span class="text-text">──────────────────────────────────────────────────────────</span>
-                <span class="text-accent">gRPC</span>  │  <span class="text-accent">HTTP/REST</span>
+   <span class="text-accent">Vault (local)</span>                  <span class="text-accent">Server (remote)</span>
+   Unix socket / daemon           gRPC │ HTTP/REST
 <span class="text-text">──────────────────────────────────────────────────────────</span>
 
-                  <span class="text-accent font-bold">Core Engine</span> <span class="text-muted">(Rust)</span>
-
-   <span class="text-cyan">Remember</span>        <span class="text-cyan">Recall</span>         <span class="text-cyan">Reflect Pipeline</span>
-   <span class="text-muted">• encode</span>        <span class="text-muted">• prime</span>        <span class="text-muted">• cluster (Rust)</span>
-   <span class="text-muted">• score</span>         <span class="text-muted">• query</span>        <span class="text-muted">• propose (LLM)</span>
-   <span class="text-muted">• index</span>         <span class="text-muted">• subscribe</span>    <span class="text-muted">• validate (LLM)</span>
-   <span class="text-muted">• decay</span>         <span class="text-muted">• merge</span>        <span class="text-muted">• store insights</span>
+   <span class="text-cyan">Vault Ingest</span>                  <span class="text-accent font-bold">Core Engine</span> <span class="text-muted">(Rust)</span>
+   <span class="text-muted">• scan markdown</span>
+   <span class="text-muted">• split by heading</span>     <span class="text-cyan">Remember</span>     <span class="text-cyan">Recall</span>      <span class="text-cyan">Reflect</span>
+   <span class="text-muted">• embed sections</span>      <span class="text-muted">• encode</span>      <span class="text-muted">• prime</span>     <span class="text-muted">• cluster</span>
+   <span class="text-muted">• detect conflicts</span>    <span class="text-muted">• score</span>       <span class="text-muted">• query</span>     <span class="text-muted">• propose</span>
+   <span class="text-muted">• watch changes</span>       <span class="text-muted">• index</span>       <span class="text-muted">• subscribe</span> <span class="text-muted">• validate</span>
+                         <span class="text-muted">• decay</span>       <span class="text-muted">• merge</span>     <span class="text-muted">• store</span>
 
    <span class="text-text">─────────────────────────────────────────────</span>
    <span class="text-accent">Index Layer</span>
    <span class="text-muted">Temporal (B-tree)</span> │ <span class="text-muted">Vector (HNSW)</span> │ <span class="text-muted">Graph</span>
    <span class="text-text">─────────────────────────────────────────────</span>
-   <span class="text-accent">Storage Engine</span> <span class="text-muted">(RocksDB - embedded)</span>
+   <span class="text-accent">Storage Engine</span> <span class="text-muted">(RocksDB, embedded)</span>
 
    <span class="text-cyan">Embedding Engine</span>       <span class="text-cyan">LLM Provider</span>
    <span class="text-muted">(ONNX Runtime, local)</span>  <span class="text-muted">(reflect only, pluggable)</span>
 <span class="text-text">──────────────────────────────────────────────────────────</span></pre>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-8">
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mt-8">
       {[
         { label: "Rust", desc: "No GC pauses" },
         { label: "RocksDB", desc: "Embedded LSM" },
         { label: "HNSW", desc: "Custom impl" },
         { label: "ONNX", desc: "Local embeddings" },
+        { label: "Daemon", desc: "Shared model" },
         { label: "gRPC", desc: "Streaming" },
       ].map((item) => (
         <div class="text-center py-3">

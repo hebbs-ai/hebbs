@@ -4,21 +4,29 @@ const tabs = [
     id: "cli",
     label: "CLI",
     install: "brew install hebbs-ai/tap/hebbs",
-    installNote: "Same binary as the server - includes the CLI client.",
+    installNote: "One binary: vault, daemon, panel, and all memory commands.",
     filename: "terminal",
     lang: "bash",
-    code: `<span class="text-muted"># Store a memory</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli remember</span> <span class="text-green">"Customer prefers annual billing"</span> <span class="text-muted">\\</span>
+    code: `<span class="text-muted"># Initialize a vault and index your files</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs init</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs index</span>
+
+<span class="text-muted"># Store a memory directly</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs remember</span> <span class="text-green">"Customer prefers annual billing"</span> <span class="text-muted">\\</span>
     <span class="text-cyan">--importance</span> <span class="text-accent">0.8</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
 
 <span class="text-muted"># Recall with different strategies</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli recall</span> <span class="text-green">"billing preferences"</span> <span class="text-cyan">--strategy</span> <span class="text-green">similarity</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli recall</span> <span class="text-green">"what happened with acme"</span> <span class="text-cyan">--strategy</span> <span class="text-green">temporal</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli recall</span> <span class="text-green">"why did the deal fail"</span> <span class="text-cyan">--strategy</span> <span class="text-green">causal</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs recall</span> <span class="text-green">"billing preferences"</span> <span class="text-cyan">--strategy</span> <span class="text-green">similarity</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs recall</span> <span class="text-green">"what happened with acme"</span> <span class="text-cyan">--strategy</span> <span class="text-green">temporal</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs recall</span> <span class="text-green">"why did the deal fail"</span> <span class="text-cyan">--strategy</span> <span class="text-green">causal</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs recall</span> <span class="text-cyan">--all</span> <span class="text-green">"auth patterns"</span>  <span class="text-muted"># search project + global</span>
 
 <span class="text-muted"># Consolidate into insights</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli reflect-prepare</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
-<span class="text-accent">$</span> <span class="text-text">hebbs-cli insights</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>`,
+<span class="text-accent">$</span> <span class="text-text">hebbs reflect</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs insights</span> <span class="text-cyan">--entity-id</span> <span class="text-green">"acme"</span>
+
+<span class="text-muted"># Open the Memory Palace</span>
+<span class="text-accent">$</span> <span class="text-text">hebbs panel</span>`,
   },
   {
     id: "python",
