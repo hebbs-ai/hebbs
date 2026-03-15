@@ -299,24 +299,31 @@ Over time, the query log reveals patterns: which agents are most active, what to
 
 ## Phased Delivery
 
-### Phase 1: Engine storage + server endpoints
+### Phase 1: Engine storage + vault endpoints -- DONE
 
-- Add `QueryLog` column family to storage
-- `QueryLogEntry` struct with bitcode serialization
-- Async log write in recall/prime/subscribe handlers
-- `/v1/queries` and `/v1/queries/:id` endpoints
-- Retention policy (max_entries, max_age_days) with periodic compaction
-- Auth: `PERM_ADMIN` required
-- Target: alongside TASK-16 Phase 2
+- [x] Add `QueryLog` column family to storage (hebbs-storage)
+- [x] `QueryLogEntry` struct with serde_json serialization (hebbs-vault/src/query_log.rs)
+- [x] Fire-and-forget log write in daemon recall/prime handlers
+- [x] Fire-and-forget log write in panel recall_search handler
+- [x] Panel API: `GET /api/panel/queries`, `GET /api/panel/queries/:id`, `GET /api/panel/queries/stats`
+- [x] Daemon command: `Queries` for CLI access to query log
+- [x] `QueryLogConfig` in config.toml (enabled, max_entries, max_age_days, privacy toggles)
+- [x] `caller` field on DaemonRequest for audit trail (cli, hebbs-panel, mcp:*)
+- [x] `QueryLogStore` with append, list, get, stats, compact_old methods
+- [x] 8 unit tests passing
+- [x] Retention policy: compact_old(max_entries, max_age_us)
 
-### Phase 2: Panel query log view
+### Phase 2: Panel query log view -- DONE
 
-- Clock icon in header, slide-out query log panel
-- Caller filter chips with counts
-- Expandable entries with result details
-- Click result memory ID to highlight on graph
-- Graph overlay: highlight a query's result nodes in amber
-- Target: alongside TASK-16 Phase 2 or Phase 3
+- [x] "Queries" tab in the tab bar (between Recall and Timeline)
+- [x] Caller filter chips with counts (click to filter by caller)
+- [x] Stats bar: total queries, avg/p99/max latency
+- [x] Expandable entries with full result details
+- [x] Each entry shows: time, caller badge, operation type, query text, result count, top score, latency
+- [x] Expanded view shows all returned memory IDs (clickable, navigates to graph)
+- [x] "Show on graph" button highlights a query's result nodes in amber overlay
+- [x] Filters: operation type (recall/prime), time range (1h/24h/7d), query text search
+- [x] Dark theme styling consistent with existing tabs
 
 ### Phase 3: Stats + heatmap + export
 
@@ -362,6 +369,8 @@ The `log_query_text = false` option stores everything except the actual query st
 
 ## Status
 
-Not started. Depends on:
+Phase 1 and Phase 2 complete. Phase 3 (heatmap + export) not started.
+
+Depends on:
 - TASK-16 Phase 1 (panel infrastructure)
 - TASK-17 (unified engine with server endpoints)
