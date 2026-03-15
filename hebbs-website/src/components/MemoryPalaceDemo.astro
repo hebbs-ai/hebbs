@@ -1,0 +1,829 @@
+---
+// Interactive Memory Palace demo: force-directed graph with pre-baked nodes
+// Ports visual core from hebbs-vault panel graph.js (same physics, same rendering)
+---
+
+<section id="memory-palace" class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-10">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">Memory Palace</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        See how your memories connect.
+      </h2>
+      <p class="text-muted text-lg max-w-3xl mx-auto">
+        Episodes cluster by topic. Insights emerge from patterns. Contradictions surface automatically. This is a live simulation of a real HEBBS memory graph.
+      </p>
+    </div>
+
+    <div class="relative rounded-xl border border-border bg-surface/40 overflow-hidden">
+      <canvas id="palace-canvas" class="w-full block" style="height: 600px; cursor: grab;"></canvas>
+
+      <!-- Legend -->
+      <div id="palace-legend" class="absolute top-4 right-4 bg-bg/80 backdrop-blur-sm border border-border/60 rounded-lg px-4 py-3 text-xs pointer-events-none">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(200, 130, 20, 0.8);"></span>
+          <span class="text-muted">Episode</span>
+        </div>
+        <div class="flex items-center gap-2 mb-1.5">
+          <svg class="w-3 h-3" viewBox="0 0 12 12"><polygon points="6,1 10.5,3.5 10.5,8.5 6,11 1.5,8.5 1.5,3.5" fill="rgba(16, 185, 129, 0.8)" /></svg>
+          <span class="text-muted">Insight</span>
+        </div>
+        <div class="border-t border-border/40 my-1.5 pt-1.5">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-4 border-t-2" style="border-color: rgba(120, 53, 15, 0.7);"></span>
+            <span class="text-muted">Causal</span>
+          </div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-4 border-t-2 border-dashed" style="border-color: rgba(107, 114, 128, 0.5);"></span>
+            <span class="text-muted">Similarity</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-4 border-t-2 border-dashed" style="border-color: rgba(239, 68, 68, 0.7);"></span>
+            <span class="text-muted">Contradiction</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interaction hint -->
+      <div id="palace-hint" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg/70 backdrop-blur-sm border border-border/40 rounded-full px-4 py-2 text-xs text-muted pointer-events-none transition-opacity duration-700">
+        Hover to inspect &middot; Scroll to zoom &middot; Drag to pan
+      </div>
+
+      <!-- Tooltip -->
+      <div id="palace-tooltip" class="absolute hidden bg-bg/90 backdrop-blur-sm border border-border/60 rounded-lg px-3 py-2 text-xs pointer-events-none z-10 max-w-xs"></div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="mt-4 flex flex-wrap justify-center gap-6 text-sm text-muted font-mono">
+      <span><span class="text-accent font-semibold">42</span> memories</span>
+      <span><span class="text-green font-semibold">8</span> insights</span>
+      <span><span class="text-accent font-semibold">3</span> clusters</span>
+      <span><span class="text-red font-semibold">2</span> contradictions</span>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+(function() {
+  // ── Demo data ──────────────────────────────────────────────────────
+  const DEMO_NODES = [
+    // Cluster 0: Sales Interactions (15 episodes, upper-left)
+    { id: 's1',  label: 'Initial call with Acme Corp', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.9, reinforcement: 0.8 },
+    { id: 's2',  label: 'Pricing objection handling', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.7, reinforcement: 0.6 },
+    { id: 's3',  label: 'Follow-up demo scheduled', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.8, reinforcement: 0.5 },
+    { id: 's4',  label: 'Champion identified: VP Eng', kind: 'episode', cluster: 0, importance: 0.8, recency: 0.6, reinforcement: 0.9 },
+    { id: 's5',  label: 'Security review requested', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.5, reinforcement: 0.4 },
+    { id: 's6',  label: 'Competitor mentioned in call', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.4, reinforcement: 0.3 },
+    { id: 's7',  label: 'Budget approval timeline', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
+    { id: 's8',  label: 'Technical deep dive meeting', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.8, reinforcement: 0.6 },
+    { id: 's9',  label: 'Stakeholder alignment call', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.3, reinforcement: 0.4 },
+    { id: 's10', label: 'Contract terms discussion', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.5, reinforcement: 0.8 },
+    { id: 's11', label: 'POC success criteria defined', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.7, reinforcement: 0.5 },
+    { id: 's12', label: 'Executive sponsor meeting', kind: 'episode', cluster: 0, importance: 0.8, recency: 0.4, reinforcement: 0.7 },
+    { id: 's13', label: 'Integration requirements doc', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.6, reinforcement: 0.4 },
+    { id: 's14', label: 'Legal review initiated', kind: 'episode', cluster: 0, importance: 0.4, recency: 0.3, reinforcement: 0.3 },
+    { id: 's15', label: 'Renewal conversation Q3', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.9, reinforcement: 0.6 },
+
+    // Cluster 1: Product Knowledge (12 episodes, lower-left)
+    { id: 'p1',  label: 'API rate limits documentation', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.4, reinforcement: 0.5 },
+    { id: 'p2',  label: 'Embedding model comparison', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.5, reinforcement: 0.6 },
+    { id: 'p3',  label: 'On-prem deployment guide', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
+    { id: 'p4',  label: 'RBAC permissions matrix', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.3, reinforcement: 0.4 },
+    { id: 'p5',  label: 'Latency benchmarks v2.1', kind: 'episode', cluster: 1, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
+    { id: 'p6',  label: 'SSO integration steps', kind: 'episode', cluster: 1, importance: 0.4, recency: 0.4, reinforcement: 0.3 },
+    { id: 'p7',  label: 'Data residency options', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.5, reinforcement: 0.5 },
+    { id: 'p8',  label: 'Changelog: breaking changes', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.8, reinforcement: 0.4 },
+    { id: 'p9',  label: 'Competitive battlecard', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
+    { id: 'p10', label: 'SDK quickstart tutorial', kind: 'episode', cluster: 1, importance: 0.4, recency: 0.5, reinforcement: 0.3 },
+    { id: 'p11', label: 'Pricing tier breakdown', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.4, reinforcement: 0.6 },
+    { id: 'p12', label: 'SOC2 compliance docs', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.3, reinforcement: 0.5 },
+
+    // Cluster 2: Deal Insights (8 insights + 7 episodes, right side)
+    { id: 'i1', label: 'Multi-threading accelerates close rate', kind: 'insight', cluster: 2, importance: 0.9, recency: 0.8, reinforcement: 0.9 },
+    { id: 'i2', label: 'Security review is the #1 blocker', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
+    { id: 'i3', label: 'POC converts at 73% when champion engaged', kind: 'insight', cluster: 2, importance: 0.9, recency: 0.6, reinforcement: 0.9 },
+    { id: 'i4', label: 'Pricing objections drop after demo', kind: 'insight', cluster: 2, importance: 0.7, recency: 0.5, reinforcement: 0.7 },
+    { id: 'i5', label: 'Q4 deals need 6-week lead time', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.9, reinforcement: 0.8 },
+    { id: 'i6', label: 'Competitor wins on price, not features', kind: 'insight', cluster: 2, importance: 0.7, recency: 0.4, reinforcement: 0.6 },
+    { id: 'i7', label: 'Executive alignment predicts renewal', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
+    { id: 'i8', label: 'Integration complexity underestimated', kind: 'insight', cluster: 2, importance: 0.6, recency: 0.5, reinforcement: 0.5 },
+    { id: 'd1', label: 'Acme Q3 pipeline review', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.8, reinforcement: 0.6 },
+    { id: 'd2', label: 'Win/loss analysis: Globex', kind: 'episode', cluster: 2, importance: 0.7, recency: 0.5, reinforcement: 0.7 },
+    { id: 'd3', label: 'Deal velocity metrics', kind: 'episode', cluster: 2, importance: 0.5, recency: 0.6, reinforcement: 0.5 },
+    { id: 'd4', label: 'Forecast accuracy report', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.7, reinforcement: 0.4 },
+    { id: 'd5', label: 'Churn risk signals identified', kind: 'episode', cluster: 2, importance: 0.7, recency: 0.4, reinforcement: 0.6 },
+    { id: 'd6', label: 'Expansion revenue from upsell', kind: 'episode', cluster: 2, importance: 0.5, recency: 0.6, reinforcement: 0.5 },
+    { id: 'd7', label: 'Customer health scoring model', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.5, reinforcement: 0.6 },
+  ];
+
+  // ~55 edges: causal (solid amber), similarity (dashed gray), contradicts (dashed red)
+  const DEMO_EDGES = [
+    // Causal chains within sales
+    { source: 's1',  target: 's3',  type: 'causal', weight: 0.8 },
+    { source: 's3',  target: 's8',  type: 'causal', weight: 0.7 },
+    { source: 's8',  target: 's11', type: 'causal', weight: 0.6 },
+    { source: 's4',  target: 's12', type: 'causal', weight: 0.9 },
+    { source: 's5',  target: 's14', type: 'causal', weight: 0.5 },
+    { source: 's7',  target: 's10', type: 'causal', weight: 0.7 },
+    { source: 's10', target: 's14', type: 'causal', weight: 0.4 },
+    { source: 's1',  target: 's2',  type: 'causal', weight: 0.6 },
+    { source: 's12', target: 's15', type: 'causal', weight: 0.7 },
+    { source: 's9',  target: 's12', type: 'causal', weight: 0.5 },
+    // Causal within product
+    { source: 'p5',  target: 'p8',  type: 'causal', weight: 0.6 },
+    { source: 'p3',  target: 'p7',  type: 'causal', weight: 0.5 },
+    { source: 'p2',  target: 'p5',  type: 'causal', weight: 0.7 },
+    { source: 'p9',  target: 'p11', type: 'causal', weight: 0.4 },
+    // Causal into insights
+    { source: 's4',  target: 'i1',  type: 'causal', weight: 0.8 },
+    { source: 's5',  target: 'i2',  type: 'causal', weight: 0.9 },
+    { source: 's11', target: 'i3',  type: 'causal', weight: 0.8 },
+    { source: 's2',  target: 'i4',  type: 'causal', weight: 0.7 },
+    { source: 's7',  target: 'i5',  type: 'causal', weight: 0.6 },
+    { source: 's6',  target: 'i6',  type: 'causal', weight: 0.7 },
+    { source: 's12', target: 'i7',  type: 'causal', weight: 0.8 },
+    { source: 's13', target: 'i8',  type: 'causal', weight: 0.6 },
+    { source: 'd2',  target: 'i6',  type: 'causal', weight: 0.5 },
+    { source: 'd5',  target: 'i7',  type: 'causal', weight: 0.6 },
+    // Deal cluster causal
+    { source: 'd1',  target: 'd3',  type: 'causal', weight: 0.5 },
+    { source: 'd3',  target: 'd4',  type: 'causal', weight: 0.6 },
+    { source: 'd5',  target: 'd7',  type: 'causal', weight: 0.7 },
+    { source: 'd6',  target: 'd1',  type: 'causal', weight: 0.4 },
+
+    // Similarity edges (cross-cluster connections)
+    { source: 's2',  target: 'p11', type: 'similarity', weight: 0.6 },
+    { source: 's5',  target: 'p12', type: 'similarity', weight: 0.7 },
+    { source: 's6',  target: 'p9',  type: 'similarity', weight: 0.8 },
+    { source: 's8',  target: 'p1',  type: 'similarity', weight: 0.5 },
+    { source: 's13', target: 'p3',  type: 'similarity', weight: 0.6 },
+    { source: 's13', target: 'p6',  type: 'similarity', weight: 0.4 },
+    { source: 'p5',  target: 'd3',  type: 'similarity', weight: 0.5 },
+    { source: 'p9',  target: 'i6',  type: 'similarity', weight: 0.7 },
+    { source: 'p11', target: 'i4',  type: 'similarity', weight: 0.6 },
+    { source: 'p12', target: 'i2',  type: 'similarity', weight: 0.5 },
+    { source: 's15', target: 'd1',  type: 'similarity', weight: 0.5 },
+    { source: 's4',  target: 'i3',  type: 'similarity', weight: 0.6 },
+    { source: 'p7',  target: 'p4',  type: 'similarity', weight: 0.4 },
+    { source: 'p1',  target: 'p10', type: 'similarity', weight: 0.5 },
+    { source: 'd4',  target: 'd6',  type: 'similarity', weight: 0.4 },
+    { source: 'i1',  target: 'i3',  type: 'similarity', weight: 0.7 },
+    { source: 'i5',  target: 'i7',  type: 'similarity', weight: 0.5 },
+    { source: 'i2',  target: 'i8',  type: 'similarity', weight: 0.6 },
+    { source: 's14', target: 'p12', type: 'similarity', weight: 0.5 },
+
+    // Contradictions
+    { source: 's6',  target: 'i4',  type: 'contradicts', weight: 0.8 },
+    { source: 'p5',  target: 'p8',  type: 'contradicts', weight: 0.7 },
+  ];
+
+  const CLUSTER_LABELS = {
+    0: 'Sales Interactions',
+    1: 'Product Knowledge',
+    2: 'Deal Insights',
+  };
+
+  const CLUSTER_COLORS = [
+    'rgba(245, 158, 11, 0.06)',
+    'rgba(59, 130, 246, 0.06)',
+    'rgba(16, 185, 129, 0.06)',
+  ];
+
+  // ── Graph renderer ─────────────────────────────────────────────────
+
+  const canvas = document.getElementById('palace-canvas');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('palace-tooltip');
+  const hint = document.getElementById('palace-hint');
+
+  // State
+  let nodes = [];
+  let edges = [];
+  let nodeMap = new Map();
+  let clusterHulls = [];
+  let offsetX = 0, offsetY = 0, scale = 1;
+  let hoveredNode = null;
+  let isPanning = false;
+  let lastMouse = { x: 0, y: 0 };
+  let alpha = 1.0;
+  const alphaDecay = 0.005;
+  const alphaMin = 0.001;
+  let running = true;
+  let animatedIn = false;
+  let entryStart = 0;
+  let isVisible = false;
+  let hintDismissed = false;
+  let rafId = null;
+
+  // Touch state
+  let lastTouchDist = 0;
+  let lastTouchCenter = null;
+  let touchPanning = false;
+
+  function initData() {
+    nodeMap.clear();
+    const phi = (1 + Math.sqrt(5)) / 2;
+
+    // Place nodes with cluster-based offsets for initial positions
+    const clusterOffsets = [
+      { x: -200, y: -120 }, // sales: upper-left
+      { x: -180, y: 140 },  // product: lower-left
+      { x: 200, y: 0 },     // deals: right
+    ];
+
+    DEMO_NODES.forEach(function(def, i) {
+      var co = clusterOffsets[def.cluster] || { x: 0, y: 0 };
+      var theta = 2 * Math.PI * i / phi;
+      var r = Math.sqrt(i + 1) * 22;
+      var node = {
+        id: def.id,
+        label: def.label,
+        kind: def.kind,
+        cluster: def.cluster,
+        importance: def.importance,
+        recency: def.recency,
+        reinforcement: def.reinforcement,
+        x: co.x + Math.cos(theta) * r,
+        y: co.y + Math.sin(theta) * r,
+        vx: 0, vy: 0,
+        fx: null, fy: null,
+        fadeIn: 0,
+      };
+      nodes.push(node);
+      nodeMap.set(node.id, node);
+    });
+
+    edges = DEMO_EDGES.map(function(e) {
+      return {
+        source: e.source,
+        target: e.target,
+        type: e.type,
+        weight: e.weight,
+        sourceNode: nodeMap.get(e.source),
+        targetNode: nodeMap.get(e.target),
+      };
+    }).filter(function(e) { return e.sourceNode && e.targetNode; });
+
+    buildClusters();
+    resize();
+    centerView();
+  }
+
+  function buildClusters() {
+    clusterHulls = [];
+    var groups = new Map();
+    for (var n of nodes) {
+      if (n.cluster == null || n.cluster < 0) continue;
+      if (!groups.has(n.cluster)) groups.set(n.cluster, []);
+      groups.get(n.cluster).push(n);
+    }
+    for (var entry of groups) {
+      var clusterId = entry[0];
+      var clusterNodes = entry[1];
+      if (clusterNodes.length < 3) continue;
+      clusterHulls.push({
+        clusterId: clusterId,
+        nodes: clusterNodes,
+        color: CLUSTER_COLORS[clusterId % CLUSTER_COLORS.length],
+        label: CLUSTER_LABELS[clusterId] || null,
+      });
+    }
+  }
+
+  // ── Physics (ported from graph.js _simulate) ─────────────────────
+
+  function simulate() {
+    var repulsion = 800;
+    var springLen = 120;
+    var springK = 0.03;
+    var gravity = 0.01;
+    var damping = 0.85;
+
+    // Repulsion O(n^2), fine for 42 nodes
+    for (var i = 0; i < nodes.length; i++) {
+      for (var j = i + 1; j < nodes.length; j++) {
+        var a = nodes[i], b = nodes[j];
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        var force = repulsion / (dist * dist);
+        var fx = (dx / dist) * force * alpha;
+        var fy = (dy / dist) * force * alpha;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+
+    // Spring attraction along edges
+    for (var e of edges) {
+      var a = e.sourceNode, b = e.targetNode;
+      var dx = b.x - a.x;
+      var dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      var displacement = dist - springLen;
+      var force = springK * displacement * alpha;
+      var fx = (dx / dist) * force;
+      var fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+
+    // Gravity toward center
+    for (var n of nodes) {
+      n.vx -= n.x * gravity * alpha;
+      n.vy -= n.y * gravity * alpha;
+    }
+
+    // Apply velocity with damping
+    for (var n of nodes) {
+      if (n.fx !== null) {
+        n.x = n.fx; n.y = n.fy;
+        n.vx = 0; n.vy = 0;
+        continue;
+      }
+      n.vx *= damping; n.vy *= damping;
+      n.x += n.vx; n.y += n.vy;
+    }
+  }
+
+  // ── Convex hull (Graham scan, verbatim from graph.js) ────────────
+
+  function convexHull(hullNodes) {
+    if (hullNodes.length < 3) return hullNodes.map(function(n) { return { x: n.x, y: n.y }; });
+    var points = hullNodes.map(function(n) { return { x: n.x, y: n.y }; });
+
+    var pivot = 0;
+    for (var i = 1; i < points.length; i++) {
+      if (points[i].y < points[pivot].y ||
+          (points[i].y === points[pivot].y && points[i].x < points[pivot].x)) {
+        pivot = i;
+      }
+    }
+    var tmp = points[0]; points[0] = points[pivot]; points[pivot] = tmp;
+
+    var p0 = points[0];
+    points.slice(1).sort(function(a, b) {
+      var cross = (a.x - p0.x) * (b.y - p0.y) - (b.x - p0.x) * (a.y - p0.y);
+      if (Math.abs(cross) < 1e-10) {
+        var da = (a.x - p0.x) * (a.x - p0.x) + (a.y - p0.y) * (a.y - p0.y);
+        var db = (b.x - p0.x) * (b.x - p0.x) + (b.y - p0.y) * (b.y - p0.y);
+        return da - db;
+      }
+      return -cross;
+    });
+
+    var stack = [points[0], points[1]];
+    for (var i = 2; i < points.length; i++) {
+      while (stack.length > 1) {
+        var sa = stack[stack.length - 2];
+        var sb = stack[stack.length - 1];
+        var c = points[i];
+        var cross = (sb.x - sa.x) * (c.y - sa.y) - (sb.y - sa.y) * (c.x - sa.x);
+        if (cross <= 0) stack.pop();
+        else break;
+      }
+      stack.push(points[i]);
+    }
+    return stack;
+  }
+
+  // ── Hexagon (verbatim from graph.js) ─────────────────────────────
+
+  function drawHexagon(cx2, x, y, r) {
+    cx2.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var angle = (Math.PI / 3) * i - Math.PI / 6;
+      var px = x + r * Math.cos(angle);
+      var py = y + r * Math.sin(angle);
+      if (i === 0) cx2.moveTo(px, py);
+      else cx2.lineTo(px, py);
+    }
+    cx2.closePath();
+  }
+
+  // ── Coordinate transforms (from graph.js) ────────────────────────
+
+  function screenToWorld(sx, sy) {
+    var dpr = window.devicePixelRatio || 1;
+    var cx2 = canvas.width / (2 * dpr);
+    var cy2 = canvas.height / (2 * dpr);
+    return {
+      x: (sx - cx2) / scale - offsetX,
+      y: (sy - cy2) / scale - offsetY,
+    };
+  }
+
+  function worldToScreen(wx, wy) {
+    var dpr = window.devicePixelRatio || 1;
+    var cx2 = canvas.width / (2 * dpr);
+    var cy2 = canvas.height / (2 * dpr);
+    return {
+      x: (wx + offsetX) * scale + cx2,
+      y: (wy + offsetY) * scale + cy2,
+    };
+  }
+
+  function findNodeAt(sx, sy) {
+    var world = screenToWorld(sx, sy);
+    var closest = null;
+    var minDist = Infinity;
+    for (var n of nodes) {
+      if (n.fadeIn < 0.3) continue;
+      var radius = 4 + n.importance * 12 + 4;
+      var dx = world.x - n.x;
+      var dy = world.y - n.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < radius && dist < minDist) {
+        closest = n;
+        minDist = dist;
+      }
+    }
+    return closest;
+  }
+
+  function centerView() {
+    if (nodes.length === 0) return;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var n of nodes) {
+      if (n.x < minX) minX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y > maxY) maxY = n.y;
+    }
+    offsetX = -(minX + maxX) / 2;
+    offsetY = -(minY + maxY) / 2;
+
+    var dpr = window.devicePixelRatio || 1;
+    var canvasW = canvas.width / dpr;
+    var canvasH = canvas.height / dpr;
+    var graphW = maxX - minX + 100;
+    var graphH = maxY - minY + 100;
+    scale = Math.min(canvasW / graphW, canvasH / graphH, 2);
+  }
+
+  function resize() {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+  }
+
+  // ── Entry animation ──────────────────────────────────────────────
+
+  function updateFadeIn(now) {
+    if (animatedIn) return;
+    if (entryStart === 0) entryStart = now;
+    var elapsed = now - entryStart;
+    var allDone = true;
+    for (var n of nodes) {
+      // Stagger by cluster: 0ms, 600ms, 1200ms
+      var delay = n.cluster * 600;
+      var t = Math.max(0, Math.min(1, (elapsed - delay) / 800));
+      n.fadeIn = t;
+      if (t < 1) allDone = false;
+    }
+    if (allDone) animatedIn = true;
+  }
+
+  // ── Rendering (ported from graph.js _render) ─────────────────────
+
+  function render() {
+    var w = canvas.width;
+    var h = canvas.height;
+    var dpr = window.devicePixelRatio || 1;
+    var now = performance.now();
+
+    if (!animatedIn) updateFadeIn(now);
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+
+    var cx2 = w / (2 * dpr);
+    var cy2 = h / (2 * dpr);
+    ctx.translate(cx2, cy2);
+    ctx.scale(scale, scale);
+    ctx.translate(offsetX, offsetY);
+
+    // Cluster hulls
+    for (var cluster of clusterHulls) {
+      var hull = convexHull(cluster.nodes);
+      if (hull.length < 3) continue;
+
+      var hcx = 0, hcy = 0;
+      for (var p of hull) { hcx += p.x; hcy += p.y; }
+      hcx /= hull.length; hcy /= hull.length;
+      var pad = 25;
+
+      // Fade hull with cluster animation
+      var clusterFade = cluster.nodes[0] ? cluster.nodes[0].fadeIn : 1;
+
+      ctx.beginPath();
+      for (var i = 0; i < hull.length; i++) {
+        var p = hull[i];
+        var dx = p.x - hcx, dy = p.y - hcy;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        var px = p.x + (dx / dist) * pad;
+        var py = p.y + (dy / dist) * pad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.globalAlpha = clusterFade;
+      ctx.fillStyle = cluster.color;
+      ctx.fill();
+      ctx.strokeStyle = cluster.color.replace('0.06', '0.15');
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Cluster label
+      if (cluster.label) {
+        var topY = Infinity, topX = hcx;
+        for (var p of hull) {
+          var dx = p.x - hcx, dy = p.y - hcy;
+          var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          var py2 = p.y + (dy / dist) * pad;
+          if (py2 < topY) { topY = py2; topX = p.x + (dx / dist) * pad; }
+        }
+        ctx.save();
+        ctx.font = (11 / scale) + 'px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = cluster.color.replace('0.06', '0.5');
+        ctx.fillText(cluster.label, hcx, topY - 8 / scale);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Edges
+    for (var e of edges) {
+      var a = e.sourceNode, b = e.targetNode;
+      var edgeAlpha = Math.min(a.fadeIn, b.fadeIn);
+      if (edgeAlpha < 0.05) continue;
+
+      ctx.globalAlpha = edgeAlpha;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+
+      if (e.type === 'contradicts') {
+        ctx.setLineDash([6, 3]);
+        ctx.strokeStyle = 'rgba(239, 68, 68, ' + (0.4 + e.weight * 0.4) + ')';
+        ctx.lineWidth = 1.5;
+      } else if (e.type === 'similarity') {
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(107, 114, 128, ' + (0.15 + e.weight * 0.2) + ')';
+        ctx.lineWidth = 0.5;
+      } else {
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(120, 53, 15, ' + (0.3 + e.weight * 0.4) + ')';
+        ctx.lineWidth = 1;
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+
+    // Nodes
+    for (var n of nodes) {
+      if (n.fadeIn < 0.02) continue;
+
+      var radius = 4 + n.importance * 12;
+      var isHov = (hoveredNode === n);
+
+      var r = Math.round(120 + n.recency * 125);
+      var g = Math.round(53 + n.recency * 105);
+      var bv = Math.round(15 + n.recency * -4);
+      var baseAlpha = 0.5 + n.reinforcement * 0.5;
+
+      ctx.globalAlpha = n.fadeIn;
+
+      if (n.kind === 'insight') {
+        drawHexagon(ctx, n.x, n.y, radius + 1);
+        ctx.fillStyle = 'rgba(16, 185, 129, ' + baseAlpha + ')';
+        ctx.fill();
+        ctx.strokeStyle = '#F59E0B';
+        ctx.lineWidth = isHov ? 2.5 : 1.5;
+        ctx.shadowColor = '#F59E0B';
+        ctx.shadowBlur = isHov ? 12 : 6;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+        if (isHov) {
+          ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + Math.min(baseAlpha + 0.2, 1) + ')';
+          ctx.shadowColor = 'rgba(' + r + ', ' + g + ', ' + bv + ', 0.5)';
+          ctx.shadowBlur = 12;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + baseAlpha + ')';
+          ctx.fill();
+        }
+      }
+
+      // Label for hovered node
+      if (isHov && n.label) {
+        ctx.font = '11px -apple-system, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#E5E5E5';
+        ctx.fillText(n.label, n.x, n.y - radius - 6);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // Tooltip
+    renderTooltip();
+  }
+
+  function renderTooltip() {
+    if (!hoveredNode) {
+      tooltip.classList.add('hidden');
+      return;
+    }
+    var n = hoveredNode;
+    var kindBadge = n.kind === 'insight'
+      ? '<span style="display:inline-block;background:rgba(16,185,129,0.2);color:#34D399;border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">INSIGHT</span>'
+      : '<span style="display:inline-block;background:rgba(245,158,11,0.2);color:#F59E0B;border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">EPISODE</span>';
+    tooltip.innerHTML = kindBadge + '<span style="color:#E8EAED;">' + n.label + '</span>';
+    tooltip.classList.remove('hidden');
+
+    var screenPos = worldToScreen(n.x, n.y);
+    var rect = canvas.getBoundingClientRect();
+    var tx = screenPos.x + 15;
+    var ty = screenPos.y - 10;
+
+    // Keep tooltip within the container
+    var containerRect = canvas.parentElement.getBoundingClientRect();
+    var tooltipW = tooltip.offsetWidth;
+    if (tx + tooltipW > containerRect.width - 8) {
+      tx = screenPos.x - tooltipW - 10;
+    }
+    if (ty < 8) ty = 8;
+
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+  }
+
+  // ── RAF loop with IntersectionObserver ────────────────────────────
+
+  function tick() {
+    if (!isVisible) { rafId = null; return; }
+    if (running && alpha > alphaMin) {
+      simulate();
+      alpha = Math.max(alpha - alphaDecay, 0);
+    }
+    render();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startLoop() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  var observer = new IntersectionObserver(function(entries) {
+    for (var entry of entries) {
+      isVisible = entry.isIntersecting;
+      if (isVisible) startLoop();
+    }
+  }, { threshold: 0.1 });
+
+  // ── Event handlers (from graph.js, stripped of pin/persist) ───────
+
+  canvas.addEventListener('mousemove', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+
+    if (isPanning) {
+      var dx = (mx - lastMouse.x) / scale;
+      var dy = (my - lastMouse.y) / scale;
+      offsetX += dx;
+      offsetY += dy;
+      lastMouse = { x: mx, y: my };
+      return;
+    }
+
+    var node = findNodeAt(mx, my);
+    if (node !== hoveredNode) {
+      hoveredNode = node;
+      canvas.style.cursor = node ? 'pointer' : 'grab';
+    }
+  });
+
+  canvas.addEventListener('mousedown', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+
+    isPanning = true;
+    lastMouse = { x: mx, y: my };
+    canvas.style.cursor = 'grabbing';
+    dismissHint();
+  });
+
+  canvas.addEventListener('mouseup', function() {
+    isPanning = false;
+    canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    hoveredNode = null;
+    isPanning = false;
+    tooltip.classList.add('hidden');
+  });
+
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+
+    var zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    var newScale = Math.max(0.1, Math.min(10, scale * zoomFactor));
+
+    var world = screenToWorld(mx, my);
+    scale = newScale;
+    var newWorld = screenToWorld(mx, my);
+    offsetX += newWorld.x - world.x;
+    offsetY += newWorld.y - world.y;
+    dismissHint();
+  }, { passive: false });
+
+  // Touch support: single-finger pan, two-finger pinch-zoom
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    dismissHint();
+    if (e.touches.length === 1) {
+      touchPanning = true;
+      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else if (e.touches.length === 2) {
+      touchPanning = false;
+      var t0 = e.touches[0], t1 = e.touches[1];
+      lastTouchDist = Math.sqrt((t1.clientX - t0.clientX) ** 2 + (t1.clientY - t0.clientY) ** 2);
+      lastTouchCenter = { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (e.touches.length === 1 && touchPanning) {
+      var dx = (e.touches[0].clientX - lastMouse.x) / scale;
+      var dy = (e.touches[0].clientY - lastMouse.y) / scale;
+      offsetX += dx;
+      offsetY += dy;
+      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else if (e.touches.length === 2) {
+      var t0 = e.touches[0], t1 = e.touches[1];
+      var dist = Math.sqrt((t1.clientX - t0.clientX) ** 2 + (t1.clientY - t0.clientY) ** 2);
+      if (lastTouchDist > 0) {
+        var zoomFactor = dist / lastTouchDist;
+        var newScale = Math.max(0.1, Math.min(10, scale * zoomFactor));
+        var rect = canvas.getBoundingClientRect();
+        var cx2 = (t0.clientX + t1.clientX) / 2 - rect.left;
+        var cy2 = (t0.clientY + t1.clientY) / 2 - rect.top;
+        var world = screenToWorld(cx2, cy2);
+        scale = newScale;
+        var newWorld = screenToWorld(cx2, cy2);
+        offsetX += newWorld.x - world.x;
+        offsetY += newWorld.y - world.y;
+      }
+      lastTouchDist = dist;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', function(e) {
+    if (e.touches.length === 0) {
+      touchPanning = false;
+      lastTouchDist = 0;
+    } else if (e.touches.length === 1) {
+      touchPanning = true;
+      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTouchDist = 0;
+    }
+  });
+
+  function dismissHint() {
+    if (hintDismissed) return;
+    hintDismissed = true;
+    hint.style.opacity = '0';
+    setTimeout(function() { hint.style.display = 'none'; }, 700);
+  }
+
+  // Resize handler
+  window.addEventListener('resize', function() {
+    resize();
+    centerView();
+  });
+
+  // ── Initialize ───────────────────────────────────────────────────
+  initData();
+  observer.observe(canvas.parentElement);
+})();
+</script>
