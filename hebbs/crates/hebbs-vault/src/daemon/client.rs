@@ -85,6 +85,7 @@ pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonCl
             command: Command::Ping,
             vault_path: None,
             vault_paths: None,
+            caller: "cli".to_string(),
         };
         match client.send(&ping).await {
             Ok(resp) if resp.status == ResponseStatus::Ok => {
@@ -236,6 +237,7 @@ pub async fn is_daemon_running() -> bool {
             command: Command::Ping,
             vault_path: None,
             vault_paths: None,
+            caller: "cli".to_string(),
         };
         if let Ok(resp) = client.send(&ping).await {
             return resp.status == ResponseStatus::Ok;

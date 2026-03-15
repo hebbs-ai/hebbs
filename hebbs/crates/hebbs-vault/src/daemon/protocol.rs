@@ -28,6 +28,14 @@ pub struct DaemonRequest {
     /// merges results by score, and returns top-k.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vault_paths: Option<Vec<PathBuf>>,
+    /// Caller identity for query audit log (e.g. "cli", "hebbs-panel", "mcp:cursor").
+    /// Defaults to "cli" if not specified.
+    #[serde(default = "default_caller")]
+    pub caller: String,
+}
+
+fn default_caller() -> String {
+    "cli".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -132,6 +140,16 @@ pub enum Command {
         min_confidence: Option<f32>,
         #[serde(default)]
         max_results: Option<u32>,
+    },
+    Queries {
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
+        #[serde(default)]
+        caller_filter: Option<String>,
+        #[serde(default)]
+        operation_filter: Option<String>,
     },
 }
 
@@ -321,6 +339,7 @@ mod tests {
             command: Command::Ping,
             vault_path: None,
             vault_paths: None,
+            caller: "test".to_string(),
         };
 
         let mut buf = Vec::new();
@@ -357,6 +376,7 @@ mod tests {
             command: Command::Ping,
             vault_path: None,
             vault_paths: None,
+            caller: "test".to_string(),
         };
 
         let mut buf = Vec::new();

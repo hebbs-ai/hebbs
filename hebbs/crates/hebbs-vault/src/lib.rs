@@ -16,6 +16,7 @@ pub mod manifest;
 pub mod panel;
 pub mod parser;
 pub mod query;
+pub mod query_log;
 pub mod watcher;
 
 use std::path::{Path, PathBuf};

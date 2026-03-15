@@ -87,6 +87,9 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/panel/positions/:id", put(pin_position))
         .route("/api/panel/positions/:id/unpin", post(unpin_position))
         .route("/api/panel/ws", get(ws_handler))
+        .route("/api/panel/queries", get(list_queries))
+        .route("/api/panel/queries/stats", get(query_stats))
+        .route("/api/panel/queries/:id", get(get_query))
 }
 
 // ── Vault listing ──────────────────────────────────────────────────────
@@ -1084,6 +1087,10 @@ async fn recall_search(
 ) -> Result<Json<RecallResponse>, StatusCode> {
     let start = std::time::Instant::now();
 
+    // Save for query log before fields are moved
+    let query_text = req.query.clone();
+    let strategy_strs = req.strategies.clone();
+
     // Map strategy strings to RecallStrategy enum values.
     let strategies: Vec<RecallStrategy> = req
         .strategies
@@ -1212,6 +1219,31 @@ async fn recall_search(
 
     let total_results = results.len();
     let latency_us = start.elapsed().as_micros() as u64;
+
+    // Query audit log: fire-and-forget, never degrades panel recall latency
+    {
+        let result_ids: Vec<String> = results.iter().map(|r| r.memory_id.clone()).collect();
+        let top_score = results.first().map(|r| r.score).unwrap_or(0.0);
+        let strategy_str = strategy_strs.as_ref()
+            .and_then(|s| s.first())
+            .map(|s| s.as_str())
+            .unwrap_or("similarity");
+        let entry = crate::query_log::build_recall_entry(
+            "hebbs-panel",
+            &query_text,
+            Some(strategy_str),
+            req.top_k.unwrap_or(10) as u32,
+            None,
+            total_results as u32,
+            result_ids,
+            top_score,
+            latency_us,
+            Some(&state.vault_root.to_string_lossy()),
+        );
+        if let Err(e) = crate::query_log::append_to_storage(state.engine.storage(), &entry) {
+            debug!("failed to write query log: {}", e);
+        }
+    }
 
     Ok(Json(RecallResponse {
         results,
@@ -2259,5 +2291,134 @@ async fn ws_connection(mut socket: WebSocket, state: AppState) {
                 break;
             }
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Query audit log
+// ═══════════════════════════════════════════════════════════════════════
+
+#[derive(Deserialize)]
+struct QueryLogParams {
+    #[serde(default)]
+    limit: Option<u32>,
+    #[serde(default)]
+    offset: Option<u32>,
+    #[serde(default)]
+    caller: Option<String>,
+    #[serde(default)]
+    operation: Option<String>,
+    #[serde(default)]
+    since_us: Option<u64>,
+    #[serde(default)]
+    until_us: Option<u64>,
+    #[serde(default)]
+    query_contains: Option<String>,
+    #[serde(default)]
+    min_latency_us: Option<u64>,
+}
+
+async fn list_queries(
+    State(state): State<AppState>,
+    Query(params): Query<QueryLogParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use crate::query_log::{QueryLogListParams, QueryLogStore, QueryOperation};
+
+    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+
+    let operation = params.operation.as_deref().and_then(|op| match op {
+        "recall" => Some(QueryOperation::Recall),
+        "prime" => Some(QueryOperation::Prime),
+        _ => None,
+    });
+
+    let list_params = QueryLogListParams {
+        limit: params.limit,
+        offset: params.offset,
+        caller: params.caller,
+        operation,
+        since_us: params.since_us,
+        until_us: params.until_us,
+        query_contains: params.query_contains,
+        min_latency_us: params.min_latency_us,
+    };
+
+    let entries = store
+        .list(&list_params)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({
+        "entries": entries,
+        "count": entries.len(),
+    })))
+}
+
+async fn get_query(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use crate::query_log::QueryLogStore;
+
+    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+
+    match store.get(id) {
+        Ok(Some(entry)) => Ok(Json(serde_json::to_value(entry).unwrap_or_default())),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn query_stats(
+    State(state): State<AppState>,
+    Query(params): Query<QueryLogParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use crate::query_log::QueryLogStore;
+
+    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+
+    let stats = store
+        .stats(params.since_us)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::to_value(stats).unwrap_or_default()))
+}
+
+/// Adapter that delegates StorageBackend calls to the Engine's storage.
+///
+/// Needed because QueryLogStore requires `Arc<dyn StorageBackend>` but
+/// the Engine only exposes `&dyn StorageBackend`. This wrapper holds an
+/// `Arc<Engine>` and delegates through `engine.storage()`.
+struct StorageRef(Arc<hebbs_core::engine::Engine>);
+
+impl hebbs_storage::StorageBackend for StorageRef {
+    fn put(&self, cf: ColumnFamilyName, key: &[u8], value: &[u8]) -> hebbs_storage::Result<()> {
+        self.0.storage().put(cf, key, value)
+    }
+    fn get(&self, cf: ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<Option<Vec<u8>>> {
+        self.0.storage().get(cf, key)
+    }
+    fn delete(&self, cf: ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<()> {
+        self.0.storage().delete(cf, key)
+    }
+    fn write_batch(&self, operations: &[hebbs_storage::BatchOperation]) -> hebbs_storage::Result<()> {
+        self.0.storage().write_batch(operations)
+    }
+    fn prefix_iterator(
+        &self,
+        cf: ColumnFamilyName,
+        prefix: &[u8],
+    ) -> hebbs_storage::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        self.0.storage().prefix_iterator(cf, prefix)
+    }
+    fn range_iterator(
+        &self,
+        cf: ColumnFamilyName,
+        start: &[u8],
+        end: &[u8],
+    ) -> hebbs_storage::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        self.0.storage().range_iterator(cf, start, end)
+    }
+    fn compact(&self, cf: ColumnFamilyName) -> hebbs_storage::Result<()> {
+        self.0.storage().compact(cf)
     }
 }

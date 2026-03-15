@@ -61,6 +61,14 @@ const state = {
   recallTopK: 10,
   recallResults: null,
   recallLatency: null,
+
+  // Queries tab (query audit log)
+  queriesData: null,
+  queriesStats: null,
+  queriesFilterCaller: '',
+  queriesFilterOp: '',
+  queriesFilterTime: '',
+  queriesSearch: '',
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -164,6 +172,7 @@ function switchTab(tabName) {
       case 'dashboard': loadDashboard(); break;
       case 'explorer': loadExplorer(); break;
       case 'recall': setupRecallTab(); break;
+      case 'queries': loadQueriesTab(); break;
       case 'timeline': loadTimelineTab(); break;
       case 'settings': loadSettingsTab(); break;
       case 'graph':
@@ -552,6 +561,163 @@ function renderRecallResults() {
 
   el.innerHTML = html;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Queries Tab (Query Audit Log)
+// ═══════════════════════════════════════════════════════════════════════
+
+async function loadQueriesTab() {
+  setupQueriesControls();
+  await fetchQueriesData();
+}
+
+function setupQueriesControls() {
+  const searchInput = document.getElementById('queries-search');
+  const debouncedSearch = debounce(() => {
+    state.queriesSearch = searchInput.value;
+    fetchQueriesData();
+  }, 300);
+  searchInput.addEventListener('input', debouncedSearch);
+
+  document.getElementById('queries-filter-op').addEventListener('change', (e) => {
+    state.queriesFilterOp = e.target.value;
+    fetchQueriesData();
+  });
+
+  document.getElementById('queries-filter-time').addEventListener('change', (e) => {
+    state.queriesFilterTime = e.target.value;
+    fetchQueriesData();
+  });
+}
+
+async function fetchQueriesData() {
+  try {
+    const params = new URLSearchParams({ limit: '200' });
+    if (state.queriesFilterOp) params.set('operation', state.queriesFilterOp);
+    if (state.queriesFilterCaller) params.set('caller', state.queriesFilterCaller);
+    if (state.queriesSearch) params.set('query_contains', state.queriesSearch);
+
+    // Time range filter
+    if (state.queriesFilterTime) {
+      const now = Date.now() * 1000; // microseconds
+      const ranges = { '1h': 3600, '24h': 86400, '7d': 604800 };
+      const secs = ranges[state.queriesFilterTime];
+      if (secs) params.set('since_us', String(now - secs * 1_000_000));
+    }
+
+    const [data, stats] = await Promise.all([
+      api(`/api/panel/queries?${params}`),
+      api('/api/panel/queries/stats'),
+    ]);
+    state.queriesData = data;
+    state.queriesStats = stats;
+    renderQueriesTab();
+  } catch (err) {
+    console.error('Queries load failed:', err);
+    document.getElementById('queries-list').innerHTML =
+      '<div class="recall-empty">Failed to load query log</div>';
+  }
+}
+
+function renderQueriesTab() {
+  renderCallerChips();
+  renderQueriesStats();
+  renderQueriesList();
+}
+
+function renderCallerChips() {
+  const el = document.getElementById('queries-caller-chips');
+  const stats = state.queriesStats;
+  if (!stats || !stats.by_caller || stats.by_caller.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  let html = `<span class="queries-chip ${!state.queriesFilterCaller ? 'active' : ''}" onclick="window._queriesFilterCaller('')">All</span>`;
+  for (const c of stats.by_caller.sort((a, b) => b.count - a.count)) {
+    const active = state.queriesFilterCaller === c.caller ? 'active' : '';
+    html += `<span class="queries-chip ${active}" onclick="window._queriesFilterCaller('${escapeHtml(c.caller)}')">
+      ${escapeHtml(c.caller)} <span class="queries-chip-count">${c.count}</span>
+    </span>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderQueriesStats() {
+  const el = document.getElementById('queries-stats');
+  const s = state.queriesStats;
+  if (!s) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `
+    <span><span class="queries-stat-val">${s.total_queries}</span> queries</span>
+    <span>avg <span class="queries-stat-val">${(s.avg_latency_us / 1000).toFixed(1)}ms</span></span>
+    <span>p99 <span class="queries-stat-val">${(s.p99_latency_us / 1000).toFixed(1)}ms</span></span>
+    <span>max <span class="queries-stat-val">${(s.max_latency_us / 1000).toFixed(1)}ms</span></span>
+  `;
+}
+
+function renderQueriesList() {
+  const el = document.getElementById('queries-list');
+  const data = state.queriesData;
+
+  if (!data || !data.entries || data.entries.length === 0) {
+    el.innerHTML = '<div class="recall-empty">No queries recorded yet. Queries appear here after recall or prime operations.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const e of data.entries) {
+    const time = formatTimestamp(e.timestamp_us);
+    const timeStr = new Date(e.timestamp_us / 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const latencyMs = (e.latency_us / 1000).toFixed(1);
+    const queryPreview = e.query || (e.entity_id ? `entity: ${e.entity_id}` : '(no query)');
+
+    const resultIds = (e.result_memory_ids || []).map(id =>
+      `<span class="queries-result-id" onclick="event.stopPropagation(); window._selectNodeTab('${id}')" title="${id}">${id.slice(0, 12)}</span>`
+    ).join('');
+
+    html += `
+      <div class="queries-entry" onclick="this.classList.toggle('expanded')">
+        <div class="queries-entry-header">
+          <span class="queries-entry-time" title="${time}">${timeStr}</span>
+          <span class="queries-entry-caller">${escapeHtml(e.caller)}</span>
+          <span class="queries-entry-op ${e.operation}">${e.operation}</span>
+          <span class="queries-entry-query">${escapeHtml(queryPreview)}</span>
+        </div>
+        <div class="queries-entry-meta">
+          <span><span class="amber">${e.result_count}</span> results</span>
+          <span>top: <span class="amber">${e.top_score.toFixed(2)}</span></span>
+          <span>${latencyMs}ms</span>
+          ${e.strategy ? `<span>${e.strategy}</span>` : ''}
+          ${e.entity_id ? `<span>entity: ${e.entity_id}</span>` : ''}
+        </div>
+        <div class="queries-entry-detail">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Returned memories:</div>
+          <div class="queries-result-ids">${resultIds || '<span style="color:var(--text-muted);font-size:11px">none</span>'}</div>
+          ${e.result_memory_ids && e.result_memory_ids.length > 0 ? `
+            <span class="queries-show-on-graph" onclick="event.stopPropagation(); window._showQueryOnGraph(${JSON.stringify(e.result_memory_ids)})">Show on graph</span>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  el.innerHTML = html;
+}
+
+window._queriesFilterCaller = (caller) => {
+  state.queriesFilterCaller = caller || '';
+  fetchQueriesData();
+};
+
+window._showQueryOnGraph = (memoryIds) => {
+  // Switch to graph tab and highlight these memories
+  switchTab('graph');
+  if (state.graph) {
+    const results = memoryIds.map(id => ({ memory_id: id, score: 1.0 }));
+    state.graph.setSearchResults(results);
+  }
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Timeline Tab

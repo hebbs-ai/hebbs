@@ -30,6 +30,7 @@
       <button class="tab-btn" data-tab="explorer">Explorer</button>
       <button class="tab-btn" data-tab="recall">Recall</button>
       <button class="tab-btn active" data-tab="graph">Graph</button>
+      <button class="tab-btn" data-tab="queries">Queries</button>
       <button class="tab-btn" data-tab="timeline">Timeline</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
     </nav>
@@ -226,6 +227,33 @@
           </div>
         </div>
       </main>
+    </div>
+
+    <!-- ── Queries Tab (Query Audit Log) ─────────────────────────── -->
+    <div id="tab-queries" class="tab-pane" style="display:none">
+      <div class="queries-layout">
+        <div class="queries-toolbar">
+          <div class="queries-caller-chips" id="queries-caller-chips"></div>
+          <div class="queries-filters">
+            <select id="queries-filter-op" class="filter-select">
+              <option value="">All operations</option>
+              <option value="recall">Recall</option>
+              <option value="prime">Prime</option>
+            </select>
+            <select id="queries-filter-time" class="filter-select">
+              <option value="">All time</option>
+              <option value="1h">Last hour</option>
+              <option value="24h">Last 24h</option>
+              <option value="7d">Last 7 days</option>
+            </select>
+            <input id="queries-search" type="text" placeholder="Search query text..." class="search-input queries-search-input">
+          </div>
+        </div>
+        <div class="queries-stats" id="queries-stats"></div>
+        <div id="queries-list" class="queries-list">
+          <div class="recall-empty">Loading query log...</div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Timeline Tab ───────────────────────────────────────────── -->

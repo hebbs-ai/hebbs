@@ -527,6 +527,8 @@ async fn dispatch_command(
             ef_search,
             ..
         } => {
+            let recall_start = Instant::now();
+            let caller = request.caller.clone();
             let vault_path = match require_vault_path(&request.vault_path) {
                 Ok(p) => p,
                 Err(resp) => return resp,
@@ -538,6 +540,8 @@ async fn dispatch_command(
                 Some("analogical") => RecallStrategy::Analogical,
                 _ => RecallStrategy::Similarity,
             };
+
+            let strat_str = strategy.as_deref().unwrap_or("similarity");
 
             let scoring_weights = weights
                 .as_deref()
@@ -574,7 +578,7 @@ async fn dispatch_command(
             };
 
             // Collect all vault paths to query
-            let mut all_vault_paths = vec![vault_path];
+            let mut all_vault_paths = vec![vault_path.clone()];
             if let Some(extras) = extra_vault_paths {
                 all_vault_paths.extend(extras);
             }
@@ -613,6 +617,33 @@ async fn dispatch_command(
 
             let results: Vec<serde_json::Value> = all_results.into_iter().map(|(m, _)| m).collect();
             let count = results.len();
+
+            // Query audit log: fire-and-forget, never degrades recall latency
+            let latency_us = recall_start.elapsed().as_micros() as u64;
+            if let Some(engine) = engines.first() {
+                let result_ids: Vec<String> = results.iter()
+                    .filter_map(|r| r.get("memory_id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                    .collect();
+                let top_score = results.first()
+                    .and_then(|r| r.get("score").and_then(|v| v.as_f64()))
+                    .unwrap_or(0.0) as f32;
+                let entry = crate::query_log::build_recall_entry(
+                    &caller,
+                    cue.as_deref().unwrap_or(""),
+                    Some(strat_str),
+                    top_k,
+                    entity_id.as_deref(),
+                    count as u32,
+                    result_ids,
+                    top_score,
+                    latency_us,
+                    Some(&vault_path.to_string_lossy()),
+                );
+                if let Err(e) = crate::query_log::append_to_storage(engine.storage(), &entry) {
+                    warn!("failed to write query log: {}", e);
+                }
+            }
+
             DaemonResponse::ok(serde_json::json!({
                 "results": results,
                 "count": count,
@@ -676,6 +707,8 @@ async fn dispatch_command(
             recency_us,
             similarity_cue,
         } => {
+            let prime_start = Instant::now();
+            let caller = request.caller.clone();
             let vault_path = match require_vault_path(&request.vault_path) {
                 Ok(p) => p,
                 Err(resp) => return resp,
@@ -687,7 +720,7 @@ async fn dispatch_command(
             };
 
             // Collect all vault paths to query
-            let mut all_vault_paths = vec![vault_path];
+            let mut all_vault_paths = vec![vault_path.clone()];
             if let Some(extras) = extra_vault_paths {
                 all_vault_paths.extend(extras);
             }
@@ -741,6 +774,32 @@ async fn dispatch_command(
             }
 
             let results: Vec<serde_json::Value> = all_results.into_iter().map(|(m, _)| m).collect();
+
+            // Query audit log: fire-and-forget
+            let latency_us = prime_start.elapsed().as_micros() as u64;
+            if let Some(engine) = engines.first() {
+                let result_ids: Vec<String> = results.iter()
+                    .filter_map(|r| r.get("memory_id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+                    .collect();
+                let top_score = results.first()
+                    .and_then(|r| r.get("score").and_then(|v| v.as_f64()))
+                    .unwrap_or(0.0) as f32;
+                let entry = crate::query_log::build_prime_entry(
+                    &caller,
+                    &entity_id,
+                    similarity_cue.as_deref(),
+                    max_memories.unwrap_or(20),
+                    results.len() as u32,
+                    result_ids,
+                    top_score,
+                    latency_us,
+                    Some(&vault_path.to_string_lossy()),
+                );
+                if let Err(e) = crate::query_log::append_to_storage(engine.storage(), &entry) {
+                    warn!("failed to write query log: {}", e);
+                }
+            }
+
             DaemonResponse::ok(serde_json::json!({
                 "results": results,
                 "temporal_count": total_temporal,
@@ -1048,6 +1107,86 @@ async fn dispatch_command(
                 Err(e) => DaemonResponse::err(format!("{}", e)),
             }
         }
+
+        Command::Queries {
+            limit,
+            offset,
+            caller_filter,
+            operation_filter,
+        } => {
+            let vault_path = match require_vault_path(&request.vault_path) {
+                Ok(p) => p,
+                Err(resp) => return resp,
+            };
+            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(pair) => pair,
+                Err(e) => return DaemonResponse::err(e),
+            };
+
+            let operation = operation_filter.as_deref().and_then(|op| match op {
+                "recall" => Some(crate::query_log::QueryOperation::Recall),
+                "prime" => Some(crate::query_log::QueryOperation::Prime),
+                _ => None,
+            });
+
+            let params = crate::query_log::QueryLogListParams {
+                limit,
+                offset,
+                caller: caller_filter,
+                operation,
+                ..Default::default()
+            };
+
+            let store = crate::query_log::QueryLogStore::new(
+                std::sync::Arc::new(StorageRef(engine)),
+            );
+            match store.list(&params) {
+                Ok(entries) => {
+                    let count = entries.len();
+                    DaemonResponse::ok(serde_json::json!({
+                        "entries": entries,
+                        "count": count,
+                    }))
+                }
+                Err(e) => DaemonResponse::err(e),
+            }
+        }
+    }
+}
+
+/// Adapter that delegates StorageBackend calls to the Engine's storage.
+struct StorageRef(Arc<hebbs_core::engine::Engine>);
+
+impl hebbs_storage::StorageBackend for StorageRef {
+    fn put(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8], value: &[u8]) -> hebbs_storage::Result<()> {
+        self.0.storage().put(cf, key, value)
+    }
+    fn get(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<Option<Vec<u8>>> {
+        self.0.storage().get(cf, key)
+    }
+    fn delete(&self, cf: hebbs_storage::ColumnFamilyName, key: &[u8]) -> hebbs_storage::Result<()> {
+        self.0.storage().delete(cf, key)
+    }
+    fn write_batch(&self, operations: &[hebbs_storage::BatchOperation]) -> hebbs_storage::Result<()> {
+        self.0.storage().write_batch(operations)
+    }
+    fn prefix_iterator(
+        &self,
+        cf: hebbs_storage::ColumnFamilyName,
+        prefix: &[u8],
+    ) -> hebbs_storage::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        self.0.storage().prefix_iterator(cf, prefix)
+    }
+    fn range_iterator(
+        &self,
+        cf: hebbs_storage::ColumnFamilyName,
+        start: &[u8],
+        end: &[u8],
+    ) -> hebbs_storage::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        self.0.storage().range_iterator(cf, start, end)
+    }
+    fn compact(&self, cf: hebbs_storage::ColumnFamilyName) -> hebbs_storage::Result<()> {
+        self.0.storage().compact(cf)
     }
 }
 

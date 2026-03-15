@@ -1793,6 +1793,7 @@ async fn run_daemon_mode(cli: Cli) -> i32 {
         command,
         vault_path,
         vault_paths,
+        caller: "cli".to_string(),
     };
 
     let response = match daemon.send(&request).await {

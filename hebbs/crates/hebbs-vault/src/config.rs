@@ -23,6 +23,8 @@ pub struct VaultConfig {
     pub contradiction: ContradictionConfig,
     #[serde(default)]
     pub reflect_llm: ReflectLlmConfig,
+    #[serde(default)]
+    pub query_log: QueryLogConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -184,6 +186,46 @@ impl ReflectLlmConfig {
     }
 }
 
+/// Query audit log configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QueryLogConfig {
+    /// Enable query logging.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Maximum number of log entries to retain.
+    #[serde(default = "default_query_log_max_entries")]
+    pub max_entries: u64,
+    /// Maximum age of log entries in days.
+    #[serde(default = "default_query_log_max_age_days")]
+    pub max_age_days: u32,
+    /// Store the query text in log entries. Set to false for privacy.
+    #[serde(default = "default_true")]
+    pub log_query_text: bool,
+    /// Store which memory IDs were returned. Set to false for privacy.
+    #[serde(default = "default_true")]
+    pub log_result_ids: bool,
+}
+
+impl Default for QueryLogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_entries: default_query_log_max_entries(),
+            max_age_days: default_query_log_max_age_days(),
+            log_query_text: true,
+            log_result_ids: true,
+        }
+    }
+}
+
+fn default_query_log_max_entries() -> u64 {
+    10_000
+}
+
+fn default_query_log_max_age_days() -> u32 {
+    30
+}
+
 impl Default for ContradictionConfig {
     fn default() -> Self {
         Self {
@@ -298,6 +340,7 @@ impl Default for VaultConfig {
             decay: DecayConfig::default(),
             contradiction: ContradictionConfig::default(),
             reflect_llm: ReflectLlmConfig::default(),
+            query_log: QueryLogConfig::default(),
         }
     }
 }

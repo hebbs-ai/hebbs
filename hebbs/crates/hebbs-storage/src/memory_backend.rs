@@ -21,6 +21,7 @@ pub struct InMemoryBackend {
     graph: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>,
     meta: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>,
     vectors_associative: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>,
+    query_log: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>,
 }
 
 impl InMemoryBackend {
@@ -32,6 +33,7 @@ impl InMemoryBackend {
             graph: RwLock::new(BTreeMap::new()),
             meta: RwLock::new(BTreeMap::new()),
             vectors_associative: RwLock::new(BTreeMap::new()),
+            query_log: RwLock::new(BTreeMap::new()),
         }
     }
 
@@ -43,6 +45,7 @@ impl InMemoryBackend {
             ColumnFamilyName::Graph => &self.graph,
             ColumnFamilyName::Meta => &self.meta,
             ColumnFamilyName::VectorsAssociative => &self.vectors_associative,
+            ColumnFamilyName::QueryLog => &self.query_log,
         }
     }
 }
