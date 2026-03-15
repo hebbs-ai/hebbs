@@ -203,7 +203,7 @@ async function runScenarios(configPath: string | undefined, verbosity: Verbosity
 }
 
 const program = new Command();
-program.name('hebbs-demo').version('0.1.0').description('HEBBS Demo: AI Sales Intelligence Agent (TypeScript, gRPC)');
+program.name('hebbs-demo').version('0.3.0').description('HEBBS Demo: AI Sales Intelligence Agent (TypeScript, gRPC)');
 
 program
   .command('interactive')

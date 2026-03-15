@@ -8,9 +8,9 @@ How to cut a release for the unified CLI, TypeScript SDK, and Python SDK.
 
 | Component | Version | Repo |
 |-----------|---------|------|
-| Unified CLI (`hebbs`) | `0.2.0` | `hebbs-ai/hebbs` |
-| TypeScript SDK (`@hebbs/sdk`) | `0.1.1` | `hebbs-ai/hebbs-typescript` |
-| Python SDK (`hebbs`) | `0.1.0` | `hebbs-ai/hebbs-python` |
+| Unified CLI (`hebbs`) | `0.3.0` | `hebbs-ai/hebbs` |
+| TypeScript SDK (`@hebbs/sdk`) | `0.3.0` | `hebbs-ai/hebbs-typescript` |
+| Python SDK (`hebbs`) | `0.3.0` | `hebbs-ai/hebbs-python` |
 
 ---
 
@@ -18,7 +18,7 @@ How to cut a release for the unified CLI, TypeScript SDK, and Python SDK.
 
 All three repos are **tag-triggered**. Push a `v*` tag and CI builds, tests, and publishes automatically.
 
-- **Unified CLI** (`release.yml`): builds the single `hebbs` binary for linux-x86_64, linux-aarch64, macos-arm64 + Docker image. Creates GitHub Release with assets + checksums. Updates Homebrew tap. The `hebbs` binary replaces the old `hebbs-server`, `hebbs-cli`, and `hebbs-vault` binaries (see TASK-17).
+- **Unified CLI** (`release.yml`): builds the single `hebbs` binary for linux-x86_64, linux-aarch64, macos-arm64 + Docker image. Creates GitHub Release with assets + checksums. Updates Homebrew tap.
 - **TypeScript SDK** (`ci.yml` publish job): runs build + tests then `npm publish --provenance` to npmjs.
 - **Python SDK** (`publish.yml`): builds sdist + wheel then publishes to PyPI via trusted publishing (no API key needed, uses OIDC).
 
@@ -88,7 +88,7 @@ Supported platforms in the formula:
 ```sh
 brew update
 brew install hebbs-ai/tap/hebbs
-hebbs version  # should show the new version
+hebbs version  # should show 0.3.0
 ```
 
 ---
@@ -97,23 +97,15 @@ hebbs version  # should show the new version
 
 ### 1. Sync versions across all three repos
 
-All three should have the same version number for a coordinated release. Decide on the version (e.g., `0.2.0`) and update:
+All three should have the same version number for a coordinated release.
 
-**Server** — `hebbs/Cargo.toml` (workspace root, one line):
-```toml
-version = "0.2.0"
-```
-This propagates to all 13 crates via `[workspace.package]`.
-
-**TypeScript SDK** — `hebbs-typescript/package.json`:
-```json
-"version": "0.2.0"
-```
-
-**Python SDK** — `hebbs-python/pyproject.toml`:
-```toml
-version = "0.2.0"
-```
+**Engine** (6 places to update):
+- `hebbs/Cargo.toml` (workspace root): `version = "X.Y.Z"` (propagates to all crates)
+- `hebbs-typescript/package.json`: `"version": "X.Y.Z"`
+- `hebbs-typescript/src/index.ts`: `export const VERSION = 'X.Y.Z'`
+- `hebbs-python/pyproject.toml`: `version = "X.Y.Z"`
+- `hebbs-python/src/hebbs/__init__.py`: `__version__ = "X.Y.Z"`
+- `hebbs-python/demo/cli.py`: `version="X.Y.Z"` in click version_option
 
 ### 2. Verify E2E passes on all three
 
@@ -129,8 +121,6 @@ HEBBS_API_KEY="hb_..." OPENAI_API_KEY="sk-..." npm run test:e2e
 cd hebbs-python
 HEBBS_API_KEY="hb_..." OPENAI_API_KEY="sk-..." uv run python -m pytest tests/test_e2e_python_sdk.py -v
 ```
-
-Expected: TypeScript 27/27, Python 28/28.
 
 ### 3. Check cargo audit
 
@@ -153,42 +143,57 @@ Check the Python SDK repo has a PyPI "trusted publisher" configured at `pypi.org
 
 ---
 
-## Tagging (What to Do Now)
+## Tagging
 
-Tag order matters: **server first**, then SDKs. The SDKs depend on the server's proto/API, not the other way around.
+Tag order matters: **engine first**, then SDKs. The SDKs depend on the engine's proto/API, not the other way around.
 
-### Step 1 -- Tag the unified CLI
+### Step 1: Push subtrees
+
+Before tagging, all subtrees must be pushed to their upstream repos:
 
 ```sh
-cd hebbs
-
-# Confirm you're on main and clean
-git status
-git log --oneline -5
-
-# Tag and push
-git tag v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
+# Check which subtrees have changes
+for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap; do
+  t="last-push/$p"
+  if git rev-parse "$t" >/dev/null 2>&1; then
+    s=$(git diff --shortstat "$t" -- "$p/")
+    if [ -n "$s" ]; then
+      echo "CHANGED  $p  $s"
+    else
+      echo "clean    $p"
+    fi
+  else
+    echo "NO TAG   $p"
+  fi
+done
 ```
 
-Watch `Actions / Release` on GitHub. Wait for all three matrix builds (linux-x86_64, linux-aarch64, macos-arm64) + Docker + **Homebrew tap update** to go green before proceeding. The release now produces a single `hebbs` binary that handles both local (embedded engine) and remote (gRPC/REST client) modes.
+Push each changed subtree and update tags.
 
-### Step 2 — Tag the TypeScript SDK
+### Step 2: Tag the unified CLI
 
 ```sh
-cd hebbs-typescript
-git tag v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
+# In the hebbs-ai/hebbs upstream repo (or via subtree)
+git tag v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
+```
+
+Watch `Actions / Release` on GitHub. Wait for all three matrix builds (linux-x86_64, linux-aarch64, macos-arm64) + Docker + Homebrew tap update to go green before proceeding.
+
+### Step 3: Tag the TypeScript SDK
+
+```sh
+git tag v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
 ```
 
 Watch `Actions / CI & Publish` publish job. Verify on npmjs: `https://www.npmjs.com/package/@hebbs/sdk`.
 
-### Step 3 — Tag the Python SDK
+### Step 4: Tag the Python SDK
 
 ```sh
-cd hebbs-python
-git tag v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
+git tag v0.3.0 -m "Release v0.3.0"
+git push origin v0.3.0
 ```
 
 Watch `Actions / Publish to PyPI`. Verify on PyPI: `https://pypi.org/project/hebbs/`.
@@ -204,53 +209,49 @@ https://api.github.com/repos/hebbs-ai/hebbs/releases/latest
 
 GitHub's "latest" release is the **most recent non-prerelease, non-draft** release. As long as you don't mark the release as a prerelease, it will automatically become "latest" and the install script will pick it up.
 
-**To mark as stable:** When creating the release (done automatically by `release.yml` via `softprops/action-gh-release`), do NOT pass `prerelease: true`. The current workflow doesn't, so releases are stable by default.
-
 **To pin a specific version on the install script** (optional, for testing):
 ```sh
-HEBBS_VERSION=v0.2.0 curl -sSf https://hebbs.ai/install | sh
+HEBBS_VERSION=v0.3.0 curl -sSf https://hebbs.ai/install | sh
 ```
 
 ---
 
-## Commit Messages for This Release
+## What Changed Since Last Release (0.2.0 to 0.3.0)
 
-Per AGENTS.md conventions:
+**Vault system (new):**
+- `feat(vault): file-first markdown sync with daemon mode`
+- `feat(vault): multi-vault daemon with auto-start, proactive vault opening, file watchers`
+- `feat(vault): contradiction detection (heuristic + LLM classification)`
+- `feat(vault): Memory Palace control panel (force-directed graph, search, sliders, timeline, config editor)`
+- `feat(vault): query audit log and stats API`
+- `feat(vault): vault lifecycle (init, index, watch, rebuild, status)`
 
-```
-chore(release): bump server to v0.2.0
-chore(release): bump typescript sdk to v0.2.0
-chore(release): bump python sdk to v0.2.0
-```
-
----
-
-## What Changed Since Last Release (0.1.x to 0.2.0)
-
-Changes made in this session that should go into the release notes:
-
-**Unified CLI (TASK-17: One Brain, Unified Engine):**
+**Unified CLI:**
 - `feat(cli): unified hebbs binary replaces hebbs-server, hebbs-cli, and hebbs-vault`
-- `feat(cli): dual-mode engine -- local (embedded RocksDB) or remote (gRPC/REST client)`
-- `feat(cli): brain discovery -- --vault flag, HEBBS_VAULT env, walk-up .hebbs/, ~/.hebbs/ fallback`
-- `feat(cli): all commands in one binary -- init, index, watch, rebuild, remember, recall, forget, prime, reflect, insights, inspect, export, and more`
-- `feat(cli): remote mode delegates to hebbs-cli library for identical output formatting`
+- `feat(cli): dual-mode engine (local embedded RocksDB or remote gRPC/REST client)`
+- `feat(cli): brain discovery (--vault flag, HEBBS_VAULT env, walk-up .hebbs/, ~/.hebbs/ fallback)`
+- `feat(cli): queries subcommand for query audit log`
 
 **Server fixes:**
-- `fix(subscribe): empty kind_filter now defaults to [Episode, Insight, Revision] instead of rejecting all memories`
-- `fix(reflect): global reflect now infers entity_id on insights when all source memories agree`
-- `fix(prime): replaced global HNSW + entity post-filter with entity-scoped temporal index scan + cosine ranking`
-- `feat(lineage): added source_memory_ids field to Memory proto (field 15) for Insight-kind memories`
+- `fix(subscribe): empty kind_filter defaults to [Episode, Insight, Revision] instead of rejecting all`
+- `fix(reflect): global reflect infers entity_id on insights when all source memories agree`
+- `fix(prime): entity-scoped temporal index scan + cosine ranking replaces global HNSW + post-filter`
+- `feat(lineage): source_memory_ids field (proto field 15) for Insight-kind memories`
 
 **TypeScript SDK:**
-- `feat(subscribe): add Subscription.listen(timeoutMs, maxPushes) convenience method`
-- `feat(memory): expose sourceMemoryIds: Buffer[] on Memory type`
-- `fix(test): replace hand-rolled Symbol.asyncIterator race with sub.listen()`
+- `feat(subscribe): Subscription.listen(timeoutMs, maxPushes) convenience method`
+- `feat(memory): sourceMemoryIds: Buffer[] on Memory type`
+- `feat(sdk): CONTRADICTS edge type and two-step reflect (ReflectPrepare + ReflectCommit)`
 
 **Python SDK:**
-- `feat(subscribe): add Subscription.listen(timeout, max_pushes) convenience method`
-- `feat(memory): expose source_memory_ids: list[bytes] on Memory dataclass`
-- `fix(proto): regenerated stubs with source_memory_ids field 15`
+- `feat(subscribe): Subscription.listen(timeout, max_pushes) convenience method`
+- `feat(memory): source_memory_ids: list[bytes] on Memory dataclass`
+- `feat(sdk): CONTRADICTS edge type and two-step reflect`
+
+**Infrastructure:**
+- `fix(docker): Dockerfile CMD corrected to serve --foreground`
+- `fix(install): install.sh updated for unified hebbs binary`
+- `fix(install): systemd unit updated for hebbs serve --foreground`
 
 ---
 
@@ -262,16 +263,14 @@ After all three tags are live:
 # Verify Homebrew tap picks up new version
 brew update
 brew install hebbs-ai/tap/hebbs
-hebbs version  # should show 0.2.0
+hebbs version  # should show 0.3.0
 
 # Verify install script picks up new version
-curl -sSf https://hebbs.ai/install | sh --dry-run  # if dry-run is supported
-# or just:
-HEBBS_VERSION=v0.2.0 curl -sSf https://hebbs.ai/install | sh
+HEBBS_VERSION=v0.3.0 curl -sSf https://hebbs.ai/install | sh
 
 # Verify npm
-npm info @hebbs/sdk version  # should show 0.2.0
+npm info @hebbs/sdk version  # should show 0.3.0
 
 # Verify PyPI
-pip index versions hebbs     # should list 0.2.0
+pip index versions hebbs     # should list 0.3.0
 ```

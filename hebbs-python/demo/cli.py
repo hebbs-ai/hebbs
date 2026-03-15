@@ -97,7 +97,7 @@ _HELP_TEXT = """\
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="hebbs-demo")
+@click.version_option(version="0.3.0", prog_name="hebbs-demo")
 def main():
     """HEBBS Demo: AI Sales Intelligence Agent (gRPC client)."""
     pass

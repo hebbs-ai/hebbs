@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hebbs-demo"
-version = "0.1.0"
+version = "0.3.0"
 description = "AI Sales Intelligence Agent — HEBBS reference application"
 requires-python = ">=3.9"
 license = {text = "BSL-1.1"}

@@ -73,10 +73,12 @@ ENV HEBBS_STORAGE_DATA_DIR=/data \
 # Graceful shutdown: server handles SIGTERM (Phase 8)
 STOPSIGNAL SIGTERM
 
-# Health check: verify the engine responds.
-# Note: distroless has no shell, so HEALTHCHECK CMD must use exec form.
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["/usr/local/bin/hebbs", "status", "--timeout", "3"]
+# Health check: distroless has no curl/wget, so orchestrators (k8s, Compose)
+# should use HTTP probes against the readiness endpoint:
+#   http://localhost:6381/v1/health/ready
+#
+# For Docker standalone, override with:
+#   docker run --health-cmd "wget -qO- http://localhost:6381/v1/health/ready || exit 1" ...
 
 ENTRYPOINT ["/usr/local/bin/hebbs"]
-CMD ["start"]
+CMD ["serve", "--foreground"]

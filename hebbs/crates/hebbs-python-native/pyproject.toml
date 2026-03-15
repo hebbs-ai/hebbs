@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "hebbs-python-native"
-version = "0.1.0"
+version = "0.3.0"
 description = "PyO3 native extension for embedded HEBBS engine (not the public SDK -- use 'hebbs' instead)"
 requires-python = ">=3.9"
 license = {text = "BSL-1.1"}

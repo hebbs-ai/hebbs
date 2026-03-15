@@ -196,7 +196,7 @@ download() {
     tar xzf "$TARBALL" -C "$INSTALL_DIR"
 
     # Ensure binaries are executable
-    for bin in hebbs-server hebbs-cli hebbs-bench; do
+    for bin in hebbs hebbs-bench; do
         if [ -f "${INSTALL_DIR}/${bin}" ]; then
             chmod +x "${INSTALL_DIR}/${bin}"
         fi
@@ -210,7 +210,7 @@ post_install() {
     printf "${bold}${green}  ✓ HEBBS ${VERSION} installed successfully${reset}\n"
     echo ""
 
-    for bin in hebbs-server hebbs-cli hebbs-bench; do
+    for bin in hebbs hebbs-bench; do
         if [ -f "${INSTALL_DIR}/${bin}" ]; then
             printf "    ${green}✓${reset} %s\n" "${INSTALL_DIR}/${bin}"
         fi
@@ -235,9 +235,10 @@ post_install() {
 
     echo "  Get started:"
     echo ""
-    echo "    hebbs-server                            # start the server"
-    echo "    hebbs-cli remember \"hello world\"        # store a memory"
-    echo "    hebbs-cli recall \"hello\"                 # recall it"
+    echo "    hebbs init .                            # initialize a vault"
+    echo "    hebbs remember \"hello world\"             # store a memory"
+    echo "    hebbs recall \"hello\"                     # recall it"
+    echo "    hebbs panel                              # open the Memory Palace"
     echo ""
 }
 
@@ -307,16 +308,16 @@ ENV
     fi
 
     # Install systemd unit
-    UNIT_SRC="${INSTALL_DIR}/../share/hebbs/hebbs-server.service"
-    UNIT_FALLBACK="$(cd "$(dirname "$0")" && pwd)/../systemd/hebbs-server.service"
+    UNIT_SRC="${INSTALL_DIR}/../share/hebbs/hebbs.service"
+    UNIT_FALLBACK="$(cd "$(dirname "$0")" && pwd)/../systemd/hebbs.service"
 
     if [ -f "$UNIT_SRC" ]; then
-        cp "$UNIT_SRC" /etc/systemd/system/hebbs-server.service
+        cp "$UNIT_SRC" /etc/systemd/system/hebbs.service
     elif [ -f "$UNIT_FALLBACK" ]; then
-        cp "$UNIT_FALLBACK" /etc/systemd/system/hebbs-server.service
+        cp "$UNIT_FALLBACK" /etc/systemd/system/hebbs.service
     else
         # Generate inline as fallback if no file is available
-        cat > /etc/systemd/system/hebbs-server.service <<UNIT
+        cat > /etc/systemd/system/hebbs.service <<UNIT
 [Unit]
 Description=HEBBS Cognitive Memory Engine
 Documentation=https://hebbs.ai/docs
@@ -327,13 +328,13 @@ Wants=network-online.target
 Type=simple
 User=hebbs
 Group=hebbs
-ExecStart=${INSTALL_DIR}/hebbs-server --config /etc/hebbs/hebbs.toml
+ExecStart=${INSTALL_DIR}/hebbs serve --foreground
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=20
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=hebbs-server
+SyslogIdentifier=hebbs
 EnvironmentFile=-/etc/hebbs/hebbs.env
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -357,17 +358,17 @@ UNIT
     fi
 
     systemctl daemon-reload
-    info "Installed systemd unit: hebbs-server.service"
+    info "Installed systemd unit: hebbs.service"
 
     echo ""
     echo "  Enable and start HEBBS:"
     echo ""
-    echo "    sudo systemctl enable --now hebbs-server"
+    echo "    sudo systemctl enable --now hebbs"
     echo ""
     echo "  Check status:"
     echo ""
-    echo "    sudo systemctl status hebbs-server"
-    echo "    journalctl -u hebbs-server -f"
+    echo "    sudo systemctl status hebbs"
+    echo "    journalctl -u hebbs -f"
     echo ""
 }
 
