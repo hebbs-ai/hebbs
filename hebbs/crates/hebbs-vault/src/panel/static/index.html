@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HEBBS Memory Palace</title>
+  <link rel="stylesheet" href="/static/panel.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <div class="header-left">
+        <div class="logo">
+          <svg width="24" height="24" viewBox="0 0 100 100">
+            <circle cx="35" cy="50" r="18" fill="#F59E0B" opacity="0.9"/>
+            <circle cx="65" cy="50" r="18" fill="#F59E0B" opacity="0.6"/>
+          </svg>
+          <span class="logo-text">HEBBS Memory</span>
+        </div>
+        <select id="vault-select" class="vault-dropdown"></select>
+      </div>
+      <div class="header-right">
+        <button id="export-png" class="header-btn" title="Export graph as PNG">Export PNG</button>
+        <button id="export-svg" class="header-btn" title="Export graph as SVG">Export SVG</button>
+      </div>
+    </header>
+
+    <nav id="tab-bar" class="tab-bar">
+      <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="explorer">Explorer</button>
+      <button class="tab-btn" data-tab="recall">Recall</button>
+      <button class="tab-btn active" data-tab="graph">Graph</button>
+      <button class="tab-btn" data-tab="timeline">Timeline</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- ── Dashboard Tab ──────────────────────────────────────────── -->
+    <div id="tab-dashboard" class="tab-pane" style="display:none">
+      <div id="dashboard-content" class="dashboard-layout">
+        <div class="dash-loading">Loading dashboard...</div>
+      </div>
+    </div>
+
+    <!-- ── Explorer Tab ───────────────────────────────────────────── -->
+    <div id="tab-explorer" class="tab-pane" style="display:none">
+      <div class="explorer-toolbar">
+        <input id="explorer-search" type="text" placeholder="Search memories..." class="search-input explorer-search-input">
+        <select id="explorer-filter-state" class="filter-select">
+          <option value="">All states</option>
+          <option value="synced">Synced</option>
+          <option value="stale">Stale</option>
+          <option value="orphaned">Orphaned</option>
+        </select>
+        <select id="explorer-filter-file" class="filter-select">
+          <option value="">All files</option>
+        </select>
+        <select id="explorer-sort" class="filter-select">
+          <option value="created_at">Newest</option>
+          <option value="importance">Importance</option>
+          <option value="recency">Recency</option>
+          <option value="decay_score">Decay</option>
+          <option value="access_count">Most accessed</option>
+          <option value="label">Name</option>
+        </select>
+        <span id="explorer-count" class="explorer-count"></span>
+      </div>
+      <div id="explorer-list" class="explorer-list"></div>
+      <div id="explorer-pagination" class="explorer-pagination"></div>
+      <div id="explorer-detail" class="explorer-detail hidden"></div>
+    </div>
+
+    <!-- ── Recall Tab ─────────────────────────────────────────────── -->
+    <div id="tab-recall" class="tab-pane" style="display:none">
+      <div class="recall-layout">
+        <div class="recall-controls">
+          <div class="recall-query-row">
+            <input id="recall-query" type="text" placeholder="Enter a query to recall memories..." class="search-input recall-query-input">
+            <button id="recall-run" class="config-save-btn">Run Recall</button>
+          </div>
+          <div class="recall-params">
+            <div class="recall-strategies">
+              <label class="recall-strat"><input type="checkbox" id="recall-strat-similarity" checked> Similarity</label>
+              <label class="recall-strat"><input type="checkbox" id="recall-strat-temporal" checked> Temporal</label>
+              <label class="recall-strat"><input type="checkbox" id="recall-strat-causal"> Causal</label>
+              <label class="recall-strat"><input type="checkbox" id="recall-strat-analogical"> Analogical</label>
+              <select id="recall-topk" class="top-k-select">
+                <option value="5">Top 5</option>
+                <option value="10" selected>Top 10</option>
+                <option value="20">Top 20</option>
+                <option value="50">Top 50</option>
+              </select>
+            </div>
+            <div class="recall-weights">
+              <div class="slider-row">
+                <label>Relevance</label>
+                <input type="range" id="recall-w-relevance" min="0" max="100" value="50" class="weight-slider">
+                <span class="slider-val" id="recall-w-relevance-val">0.50</span>
+              </div>
+              <div class="slider-row">
+                <label>Recency</label>
+                <input type="range" id="recall-w-recency" min="0" max="100" value="20" class="weight-slider">
+                <span class="slider-val" id="recall-w-recency-val">0.20</span>
+              </div>
+              <div class="slider-row">
+                <label>Importance</label>
+                <input type="range" id="recall-w-importance" min="0" max="100" value="20" class="weight-slider">
+                <span class="slider-val" id="recall-w-importance-val">0.20</span>
+              </div>
+              <div class="slider-row">
+                <label>Reinforcement</label>
+                <input type="range" id="recall-w-reinforcement" min="0" max="100" value="10" class="weight-slider">
+                <span class="slider-val" id="recall-w-reinforcement-val">0.10</span>
+              </div>
+            </div>
+            <div class="recall-presets">
+              <button class="preset-btn" data-preset="relevance">Pure relevance</button>
+              <button class="preset-btn" data-preset="recency">Recency boost</button>
+              <button class="preset-btn" data-preset="importance">High importance</button>
+            </div>
+          </div>
+        </div>
+        <div id="recall-results" class="recall-results">
+          <div class="recall-empty">Enter a query and click Run Recall to search your memories.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Graph Tab (existing) ───────────────────────────────────── -->
+    <div id="tab-graph" class="tab-pane" style="display:flex">
+      <div id="controls" class="controls collapsed">
+        <button id="controls-toggle" class="controls-toggle">Controls</button>
+        <div class="controls-content">
+          <div class="slider-group">
+            <div class="slider-row">
+              <label>Relevance</label>
+              <input type="range" id="w-relevance" min="0" max="100" value="50" class="weight-slider">
+              <span class="slider-val" id="w-relevance-val">0.50</span>
+            </div>
+            <div class="slider-row">
+              <label>Recency</label>
+              <input type="range" id="w-recency" min="0" max="100" value="20" class="weight-slider">
+              <span class="slider-val" id="w-recency-val">0.20</span>
+            </div>
+            <div class="slider-row">
+              <label>Importance</label>
+              <input type="range" id="w-importance" min="0" max="100" value="20" class="weight-slider">
+              <span class="slider-val" id="w-importance-val">0.20</span>
+            </div>
+            <div class="slider-row">
+              <label>Reinforcement</label>
+              <input type="range" id="w-reinforcement" min="0" max="100" value="10" class="weight-slider">
+              <span class="slider-val" id="w-reinforcement-val">0.10</span>
+            </div>
+          </div>
+          <div class="preset-row">
+            <button class="preset-btn" data-preset="relevance">Pure relevance</button>
+            <button class="preset-btn" data-preset="recency">Recency boost</button>
+            <button class="preset-btn" data-preset="importance">High importance</button>
+          </div>
+          <div class="strategy-row">
+            <label><input type="checkbox" id="strat-similarity" checked> Similarity</label>
+            <label><input type="checkbox" id="strat-temporal" checked> Temporal</label>
+            <label><input type="checkbox" id="strat-causal"> Causal</label>
+            <label><input type="checkbox" id="strat-analogical"> Analogical</label>
+            <select id="top-k-select" class="top-k-select">
+              <option value="5">Top 5</option>
+              <option value="10" selected>Top 10</option>
+              <option value="20">Top 20</option>
+              <option value="50">Top 50</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select id="filter-state" class="filter-select">
+              <option value="">All states</option>
+              <option value="synced">Synced</option>
+              <option value="stale">Stale</option>
+              <option value="orphaned">Orphaned</option>
+            </select>
+            <select id="filter-file" class="filter-select">
+              <option value="">All files</option>
+            </select>
+            <div class="importance-range">
+              <label>Imp:</label>
+              <input type="range" id="filter-imp-min" min="0" max="100" value="0" class="range-slider">
+              <input type="range" id="filter-imp-max" min="0" max="100" value="100" class="range-slider">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <main id="main">
+        <input id="search-input" type="text" placeholder="Search memories..." class="search-input graph-search-input">
+        <span id="latency-badge" class="latency-badge"></span>
+        <canvas id="graph-canvas"></canvas>
+
+        <div id="side-panel" class="side-panel hidden">
+          <button id="side-panel-close" class="panel-close">&times;</button>
+          <div id="side-panel-content"></div>
+        </div>
+
+        <div id="health-badge" class="health-badge">
+          <span id="health-text">Loading...</span>
+        </div>
+
+        <button id="decay-toggle" class="decay-toggle">Show decay</button>
+
+        <div id="legend" class="legend">
+          <div class="legend-title">Legend</div>
+          <div class="legend-item">
+            <span class="legend-dot episode"></span> Memory
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot insight"></span> Insight
+          </div>
+          <div class="legend-item">
+            <span class="legend-line solid"></span> Wiki-link
+          </div>
+          <div class="legend-item">
+            <span class="legend-line dashed"></span> Similarity
+          </div>
+          <div class="legend-item">
+            <span class="legend-scale">
+              <span class="scale-dim"></span>
+              <span class="scale-bright"></span>
+            </span> Recency
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- ── Timeline Tab ───────────────────────────────────────────── -->
+    <div id="tab-timeline" class="tab-pane" style="display:none">
+      <div id="timeline-content" class="timeline-layout">
+        <div class="dash-loading">Loading timeline...</div>
+      </div>
+    </div>
+
+    <!-- ── Settings Tab ───────────────────────────────────────────── -->
+    <div id="tab-settings" class="tab-pane" style="display:none">
+      <div id="settings-content" class="settings-layout">
+        <div class="dash-loading">Loading settings...</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/graph.js"></script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

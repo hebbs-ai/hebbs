@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -9,6 +9,7 @@ use hebbs_core::engine::Engine;
 use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
+use crate::contradiction_writer::{ContradictionOutput, ContradictionWriter};
 use crate::error::{Result, VaultError};
 use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
 use crate::parser::parse_markdown_file;
@@ -33,6 +34,8 @@ pub struct Phase2Stats {
     pub sections_forgotten: usize,
     pub embed_batches: usize,
     pub edges_created: usize,
+    pub contradictions_found: usize,
+    pub contradiction_files_written: usize,
     pub errors: usize,
 }
 
@@ -308,6 +311,13 @@ pub async fn phase2_ingest(
         stats.sections_embedded = all_embeddings.iter().filter(|e| !e.is_empty()).count();
     }
 
+    // Track successfully processed sections by their ORIGINAL memory_id
+    // (before engine.remember() assigns a new one).
+    let mut processed_ids: HashSet<(String, String)> = HashSet::new();
+
+    // Collect contradiction outputs for file writing (done after manifest updates)
+    let mut contradiction_outputs: Vec<ContradictionOutput> = Vec::new();
+
     // Process new items (remember)
     let mut embed_idx = 0;
     for (rel_path, memory_id, content, work) in &new_items {
@@ -344,20 +354,61 @@ pub async fn phase2_ingest(
             Ok(memory) => {
                 // Update manifest's memory_id to match the engine's assigned ID
                 let engine_id_bytes = &memory.memory_id;
-                if engine_id_bytes.len() == 16 {
+                let assigned_id = if engine_id_bytes.len() == 16 {
                     let mut arr = [0u8; 16];
                     arr.copy_from_slice(engine_id_bytes);
+
+                    // Run contradiction detection on the new memory
+                    if config.contradiction.enabled {
+                        let core_config = config.contradiction.to_core_config();
+                        match engine.check_contradictions(&arr, &core_config, None) {
+                            Ok(contradictions) => {
+                                if !contradictions.is_empty() {
+                                    debug!(
+                                        "found {} contradiction(s) for memory {}",
+                                        contradictions.len(),
+                                        hex::encode(arr),
+                                    );
+                                    stats.contradictions_found += contradictions.len();
+
+                                    // Collect for file output
+                                    for c in &contradictions {
+                                        if let Ok(other_mem) = engine.get(&c.memory_id_b) {
+                                            contradiction_outputs.push(ContradictionOutput {
+                                                content_a: content.clone(),
+                                                content_b: other_mem.content.clone(),
+                                                memory_id_a: c.memory_id_a,
+                                                memory_id_b: c.memory_id_b,
+                                                confidence: c.confidence,
+                                                method: c.method,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                debug!("contradiction check failed for {}: {}", hex::encode(arr), e);
+                            }
+                        }
+                    }
+
                     let engine_ulid = ulid::Ulid::from_bytes(arr).to_string();
                     // Find and update the section in manifest
                     if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
                         for sec in &mut file_entry.sections {
                             if sec.memory_id == *memory_id {
-                                sec.memory_id = engine_ulid;
+                                sec.memory_id = engine_ulid.clone();
                                 break;
                             }
                         }
                     }
-                }
+                    engine_ulid
+                } else {
+                    memory_id.clone()
+                };
+                // Track the NEW (engine-assigned) memory_id since that's what
+                // the manifest section now holds after the update above.
+                processed_ids.insert((rel_path.clone(), assigned_id));
                 stats.sections_remembered += 1;
             }
             Err(e) => {
@@ -409,6 +460,7 @@ pub async fn phase2_ingest(
 
         match engine.revise(input) {
             Ok(_) => {
+                processed_ids.insert((rel_path.clone(), memory_id.clone()));
                 stats.sections_revised += 1;
             }
             Err(e) => {
@@ -448,10 +500,8 @@ pub async fn phase2_ingest(
             match section.state {
                 SectionState::ContentStale => {
                     // Check if we successfully processed it
-                    let was_processed = new_items
-                        .iter()
-                        .chain(modified_items.iter())
-                        .any(|(rp, mid, _, _)| rp == rel_path && *mid == section.memory_id);
+                    let was_processed = processed_ids
+                        .contains(&(rel_path.clone(), section.memory_id.clone()));
                     if was_processed {
                         section.state = SectionState::Synced;
                         any_embedded = true;
@@ -482,6 +532,19 @@ pub async fn phase2_ingest(
     manifest
         .files
         .retain(|_, entry| !entry.sections.is_empty());
+
+    // Write contradiction files (after all manifest mutations are done)
+    if !contradiction_outputs.is_empty() {
+        let writer = ContradictionWriter::new(vault_root, manifest, config);
+        match writer.write_contradictions(&contradiction_outputs) {
+            Ok(paths) => {
+                stats.contradiction_files_written = paths.len();
+            }
+            Err(e) => {
+                warn!("failed to write contradiction files: {}", e);
+            }
+        }
+    }
 
     Ok(stats)
 }

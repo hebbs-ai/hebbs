@@ -233,6 +233,7 @@ fn proto_to_edge_type(v: i32) -> Result<EdgeType, String> {
         Ok(pb::EdgeType::FollowedBy) => Ok(EdgeType::FollowedBy),
         Ok(pb::EdgeType::RevisedFrom) => Ok(EdgeType::RevisedFrom),
         Ok(pb::EdgeType::InsightFrom) => Ok(EdgeType::InsightFrom),
+        Ok(pb::EdgeType::Contradicts) => Ok(EdgeType::Contradicts),
         _ => Err(format!("invalid edge type: {}", v)),
     }
 }
@@ -244,6 +245,7 @@ fn edge_type_to_proto(e: EdgeType) -> pb::EdgeType {
         EdgeType::FollowedBy => pb::EdgeType::FollowedBy,
         EdgeType::RevisedFrom => pb::EdgeType::RevisedFrom,
         EdgeType::InsightFrom => pb::EdgeType::InsightFrom,
+        EdgeType::Contradicts => pb::EdgeType::Contradicts,
     }
 }
 
@@ -653,6 +655,7 @@ mod tests {
             EdgeType::FollowedBy,
             EdgeType::RevisedFrom,
             EdgeType::InsightFrom,
+            EdgeType::Contradicts,
         ];
         for et in types {
             let proto = edge_type_to_proto(et) as i32;

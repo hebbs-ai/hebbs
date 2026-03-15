@@ -51,13 +51,13 @@ The skill is published at [hebbs-ai/hebbs-skill](https://github.com/hebbs-ai/heb
 
 ## Why HEBBS Exists
 
-Every agent framework gives you similarity search and calls it memory. HEBBS gives your agent temporal reasoning, causal chains, analogical transfer, consolidation, and decay -- the cognitive operations that turn retrieval into understanding.
+Every agent framework gives you similarity search and calls it memory. HEBBS gives your agent temporal reasoning, causal chains, analogical transfer, consolidation, and decay: the cognitive operations that turn retrieval into understanding.
 
 | What your agent's memory does today | What HEBBS does |
 |---|---|
-| Embed a question, find 5 nearest vectors | **"What happened before this?"** -- Temporal recall |
-| Return them and hope for the best | **"What caused this outcome?"** -- Causal graph walk |
-| Precision on temporal queries: ~23% | **"What pattern transfers here?"** -- Analogical matching |
+| Embed a question, find 5 nearest vectors | **"What happened before this?"** Temporal recall |
+| Return them and hope for the best | **"What caused this outcome?"** Causal graph walk |
+| Precision on temporal queries: ~23% | **"What pattern transfers here?"** Analogical matching |
 | No decay, no consolidation, no revision | Memories decay. Important ones strengthen. Episodes consolidate into insights. |
 
 The delta isn't milliseconds. It's **+68 percentage points on temporal queries** and **+63 on causal**.
@@ -89,9 +89,9 @@ Every result is ranked by a composite score blending four signals:
 | **Reinforcement** | How often the memory has been recalled | 0.10 |
 
 One parameter changes everything:
-- `1:0:0:0` -- pure semantic (RAG mode)
-- `0.2:0.8:0:0` -- favor recent (live context mode)
-- `0.3:0.1:0.5:0.1` -- favor important (critical decisions mode)
+- `1:0:0:0` pure semantic (RAG mode)
+- `0.2:0.8:0:0` favor recent (live context mode)
+- `0.3:0.1:0.5:0.1` favor important (critical decisions mode)
 
 ---
 
@@ -118,12 +118,20 @@ Insight (with lineage):
 
 ## Quick Start
 
-### Start the Server
+### Quick Start (Local)
 
 ```bash
-hebbs-server start                    # gRPC :6380, HTTP :6381, data ./hebbs-data
-hebbs-cli remember "hello world"      # store a memory
-hebbs-cli recall "hello"              # recall it
+hebbs init .                          # create .hebbs/ in your project
+hebbs remember "hello world"          # store a memory
+hebbs recall "hello"                  # recall it
+```
+
+### Start a Server (Optional, for teams)
+
+```bash
+hebbs start                           # gRPC :6380, HTTP :6381
+hebbs remember "hello world"          # store a memory (uses server via --endpoint)
+hebbs recall "hello"                  # recall it
 ```
 
 ### Connect from Python
@@ -218,7 +226,7 @@ Nine operations. Three groups. Each one is a cognitive primitive that didn't exi
 
 | Operation | What it does | Why it matters |
 |---|---|---|
-| `recall()` | 4 strategies, composite scoring | Not just "find similar" -- find relevant, recent, causal, analogical. |
+| `recall()` | 4 strategies, composite scoring | Not just "find similar": find relevant, recent, causal, analogical. |
 | `prime()` | Pre-load context | Start of conversation = agent already knows what matters. |
 | `subscribe()` | Real-time push | Memories surface automatically when they become relevant. |
 
@@ -251,7 +259,7 @@ HEBBS has two scoping dimensions.
 **`tenant_id`** -- who owns the data (an org, workspace). Structural isolation -- storage keys are prefixed, index traversal is partitioned, cross-tenant queries are impossible.
 
 ```bash
-hebbs-cli --tenant acme-corp remember "Q2 forecast looks strong" --entity-id project-alpha
+hebbs --tenant acme-corp remember "Q2 forecast looks strong" --entity-id project-alpha
 ```
 
 ```python
@@ -352,11 +360,11 @@ And it does all of this in under 10ms. Benchmarked on a single `c6g.large` insta
 ```
 
 **Built with:**
-- **Rust** -- no GC pauses, single static binary, C-level performance
-- **RocksDB** -- embedded LSM storage, proven by TiKV and CockroachDB
-- **HNSW** -- logarithmic-scaling vector index for similarity and analogical recall
-- **ONNX Runtime** -- built-in CPU embeddings (<5ms), zero external API dependencies
-- **gRPC** -- bidirectional streaming for real-time `subscribe` channels
+- **Rust**: no GC pauses, single static binary, C-level performance
+- **RocksDB**: embedded LSM storage, proven by TiKV and CockroachDB
+- **HNSW**: logarithmic-scaling vector index for similarity and analogical recall
+- **ONNX Runtime**: built-in CPU embeddings (<5ms), zero external API dependencies
+- **gRPC**: bidirectional streaming for real-time `subscribe` channels
 
 ---
 
@@ -365,8 +373,8 @@ And it does all of this in under 10ms. Benchmarked on a single `c6g.large` insta
 **Standalone Server** (the Redis model)
 
 ```bash
-hebbs-server start                                # gRPC :6380, HTTP :6381
-HEBBS_AUTH_ENABLED=true hebbs-server start         # with API key authentication
+hebbs start                                       # gRPC :6380, HTTP :6381
+HEBBS_AUTH_ENABLED=true hebbs start                # with API key authentication
 ```
 
 **Embedded Library** (the SQLite model)
@@ -378,7 +386,7 @@ e = HEBBS.open("./agent-memory")  # No separate process
 e.remember(...)
 ```
 
-**Edge Mode** (robots, laptops, workstations) -- same API, different configuration. Runs the complete engine including local reflection with on-device LLMs.
+**Edge Mode** (robots, laptops, workstations): same API, different configuration. Runs the complete engine including local reflection with on-device LLMs.
 
 ---
 
@@ -408,7 +416,7 @@ All contributors must sign our [Contributor License Agreement](CLA.md) before th
 
 HEBBS uses a dual-license model.
 
-**The engine** (hebbs-core, hebbs-storage, hebbs-index, hebbs-embed, hebbs-reflect, hebbs-server, hebbs-cli) is licensed under [BSL 1.1](LICENSE-BSL). Same license as CockroachDB, Sentry, and Terraform. Use it freely in production. The only restriction: you can't offer HEBBS as a hosted service to third parties. Every version converts to Apache 2.0 after four years.
+**The engine** (hebbs-core, hebbs-storage, hebbs-index, hebbs-embed, hebbs-reflect, hebbs-server, hebbs-vault) is licensed under [BSL 1.1](LICENSE-BSL). Same license as CockroachDB, Sentry, and Terraform. Use it freely in production. The only restriction: you cannot offer HEBBS as a hosted service to third parties. Every version converts to Apache 2.0 after four years.
 
 **Client libraries and protocol definitions** (hebbs-client, hebbs-proto, hebbs-ffi) are licensed under [Apache 2.0](LICENSE-APACHE). Fully open source with no restrictions.
 

@@ -167,6 +167,7 @@ fn all_edge_types_display() {
         EdgeType::FollowedBy,
         EdgeType::RevisedFrom,
         EdgeType::InsightFrom,
+        EdgeType::Contradicts,
     ];
     for t in types {
         let s = t.to_string();

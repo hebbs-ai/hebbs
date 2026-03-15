@@ -7,10 +7,13 @@
 //! The foundational loop: **files -> index -> queries -> new files (insights) -> index**.
 
 pub mod config;
+pub mod contradiction_writer;
+pub mod daemon;
 pub mod error;
 pub mod ingest;
 pub mod insight_writer;
 pub mod manifest;
+pub mod panel;
 pub mod parser;
 pub mod query;
 pub mod watcher;
@@ -63,6 +66,11 @@ pub fn init(vault_root: &Path, force: bool) -> Result<()> {
     // Write empty manifest
     let manifest = Manifest::new();
     manifest.save(&hebbs_dir)?;
+
+    // Write a vault epoch ID. The daemon uses this to detect vault
+    // re-initialization and reopen the engine with fresh state.
+    let epoch_id = ulid::Ulid::new().to_string();
+    std::fs::write(hebbs_dir.join("epoch"), &epoch_id)?;
 
     // Add .hebbs/ to .gitignore if this is a git repo
     add_to_gitignore(vault_root)?;
@@ -133,6 +141,41 @@ pub async fn index(
             sections_forgotten: p2_stats.sections_forgotten,
         });
     }
+
+    Ok(IndexResult {
+        phase1: p1_stats,
+        phase2: p2_stats,
+        total_files,
+    })
+}
+
+/// Full re-index without progress callback.
+///
+/// This variant avoids the non-`Send` `&dyn Fn` callback, making it
+/// safe to call from within `tokio::spawn` (e.g., the daemon).
+pub async fn index_no_progress(
+    vault_root: &Path,
+    engine: &Engine,
+    embedder: &Arc<dyn Embedder>,
+) -> Result<IndexResult> {
+    let hebbs_dir = vault_root.join(".hebbs");
+    if !hebbs_dir.exists() {
+        return Err(VaultError::NotInitialized {
+            path: vault_root.to_path_buf(),
+        });
+    }
+
+    let config = VaultConfig::load(&hebbs_dir)?;
+    let mut manifest = Manifest::load(&hebbs_dir)?;
+
+    let all_files = collect_md_files(vault_root, &config)?;
+    let total_files = all_files.len();
+
+    let p1_stats = phase1_ingest(&all_files, vault_root, &mut manifest, &config)?;
+    manifest.save(&hebbs_dir)?;
+
+    let p2_stats = phase2_ingest(vault_root, &mut manifest, engine, embedder, &config).await?;
+    manifest.save(&hebbs_dir)?;
 
     Ok(IndexResult {
         phase1: p1_stats,

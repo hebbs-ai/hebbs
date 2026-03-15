@@ -15,6 +15,14 @@ pub struct VaultConfig {
     pub watch: WatchConfig,
     #[serde(default)]
     pub output: OutputConfig,
+    #[serde(default)]
+    pub scoring: ScoringConfig,
+    #[serde(default)]
+    pub decay: DecayConfig,
+    #[serde(default)]
+    pub contradiction: ContradictionConfig,
+    #[serde(default)]
+    pub reflect_llm: ReflectLlmConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,12 +71,175 @@ pub struct OutputConfig {
     /// Directory for insight output files (relative to vault root).
     #[serde(default = "default_insight_dir")]
     pub insight_dir: String,
+    /// Directory for contradiction output files (relative to vault root).
+    #[serde(default = "default_contradiction_dir")]
+    pub contradiction_dir: String,
     /// Exclude insight directory from reflect input to prevent loops.
     #[serde(default = "default_true")]
     pub exclude_insight_dir_from_reflect: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScoringConfig {
+    /// Weight for strategy-specific relevance signal.
+    #[serde(default = "default_w_relevance")]
+    pub w_relevance: f32,
+    /// Weight for temporal recency.
+    #[serde(default = "default_w_recency")]
+    pub w_recency: f32,
+    /// Weight for stored importance.
+    #[serde(default = "default_w_importance")]
+    pub w_importance: f32,
+    /// Weight for access-count reinforcement.
+    #[serde(default = "default_w_reinforcement")]
+    pub w_reinforcement: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DecayConfig {
+    /// Half-life in days: memory strength halves every N days without access.
+    #[serde(default = "default_half_life_days")]
+    pub half_life_days: f32,
+    /// Memories below this decay score are candidates for auto-forget.
+    #[serde(default = "default_auto_forget_threshold")]
+    pub auto_forget_threshold: f32,
+    /// Maximum access count that affects reinforcement scoring.
+    #[serde(default = "default_reinforcement_cap")]
+    pub reinforcement_cap: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContradictionConfig {
+    /// Enable contradiction detection during ingest.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Maximum neighbors to check per memory.
+    #[serde(default = "default_candidates_k")]
+    pub candidates_k: usize,
+    /// Minimum similarity to consider a pair.
+    #[serde(default = "default_min_similarity")]
+    pub min_similarity: f32,
+    /// Minimum confidence to create a CONTRADICTS edge.
+    #[serde(default = "default_min_confidence")]
+    pub min_confidence: f32,
+}
+
+/// LLM provider configuration for the reflect subsystem.
+///
+/// When `provider` and `model` are set, features like cluster labeling
+/// can use the LLM for higher-quality output. Falls back to heuristics
+/// when unconfigured.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReflectLlmConfig {
+    /// Provider name: "anthropic", "openai", "gemini", "ollama".
+    #[serde(default)]
+    pub provider: Option<String>,
+    /// Model identifier (e.g. "claude-sonnet-4-20250514", "gpt-4o-mini").
+    #[serde(default)]
+    pub model: Option<String>,
+    /// API key. For security, prefer `api_key_env` instead.
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Environment variable name holding the API key (e.g. "ANTHROPIC_API_KEY").
+    #[serde(default)]
+    pub api_key_env: Option<String>,
+    /// Base URL override for the provider.
+    #[serde(default)]
+    pub base_url: Option<String>,
+}
+
+impl Default for ReflectLlmConfig {
+    fn default() -> Self {
+        Self {
+            provider: None,
+            model: None,
+            api_key: None,
+            api_key_env: None,
+            base_url: None,
+        }
+    }
+}
+
+impl ReflectLlmConfig {
+    /// Resolve the API key from either the direct value or the environment variable.
+    pub fn resolved_api_key(&self) -> Option<String> {
+        if let Some(ref key) = self.api_key {
+            if !key.is_empty() {
+                return Some(key.clone());
+            }
+        }
+        if let Some(ref env_var) = self.api_key_env {
+            if let Ok(val) = std::env::var(env_var) {
+                if !val.is_empty() {
+                    return Some(val);
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns true if both provider and model are configured.
+    pub fn is_configured(&self) -> bool {
+        self.provider.is_some() && self.model.is_some()
+    }
+}
+
+impl Default for ContradictionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            candidates_k: default_candidates_k(),
+            min_similarity: default_min_similarity(),
+            min_confidence: default_min_confidence(),
+        }
+    }
+}
+
+impl ContradictionConfig {
+    /// Convert to the core engine's ContradictionConfig.
+    pub fn to_core_config(&self) -> hebbs_core::contradict::ContradictionConfig {
+        hebbs_core::contradict::ContradictionConfig {
+            candidates_k: self.candidates_k,
+            min_similarity: self.min_similarity,
+            min_confidence: self.min_confidence,
+            enabled: self.enabled,
+        }
+    }
+}
+
+fn default_candidates_k() -> usize {
+    10
+}
+fn default_min_similarity() -> f32 {
+    0.7
+}
+fn default_min_confidence() -> f32 {
+    0.7
+}
+
 // Defaults
+
+fn default_w_relevance() -> f32 {
+    0.5
+}
+fn default_w_recency() -> f32 {
+    0.2
+}
+fn default_w_importance() -> f32 {
+    0.2
+}
+fn default_w_reinforcement() -> f32 {
+    0.1
+}
+fn default_half_life_days() -> f32 {
+    30.0
+}
+fn default_auto_forget_threshold() -> f32 {
+    0.01
+}
+fn default_reinforcement_cap() -> u64 {
+    100
+}
 
 fn default_split_on() -> String {
     "##".to_string()
@@ -91,6 +262,7 @@ fn default_ignore_patterns() -> Vec<String> {
         ".git/".to_string(),
         ".obsidian/".to_string(),
         "node_modules/".to_string(),
+        "contradictions/".to_string(),
     ]
 }
 fn default_phase1_debounce_ms() -> u64 {
@@ -108,6 +280,9 @@ fn default_burst_debounce_ms() -> u64 {
 fn default_insight_dir() -> String {
     "insights/".to_string()
 }
+fn default_contradiction_dir() -> String {
+    "contradictions/".to_string()
+}
 fn default_true() -> bool {
     true
 }
@@ -119,6 +294,10 @@ impl Default for VaultConfig {
             embedding: EmbeddingConfig::default(),
             watch: WatchConfig::default(),
             output: OutputConfig::default(),
+            scoring: ScoringConfig::default(),
+            decay: DecayConfig::default(),
+            contradiction: ContradictionConfig::default(),
+            reflect_llm: ReflectLlmConfig::default(),
         }
     }
 }
@@ -158,7 +337,29 @@ impl Default for OutputConfig {
     fn default() -> Self {
         Self {
             insight_dir: default_insight_dir(),
+            contradiction_dir: default_contradiction_dir(),
             exclude_insight_dir_from_reflect: default_true(),
+        }
+    }
+}
+
+impl Default for ScoringConfig {
+    fn default() -> Self {
+        Self {
+            w_relevance: default_w_relevance(),
+            w_recency: default_w_recency(),
+            w_importance: default_w_importance(),
+            w_reinforcement: default_w_reinforcement(),
+        }
+    }
+}
+
+impl Default for DecayConfig {
+    fn default() -> Self {
+        Self {
+            half_life_days: default_half_life_days(),
+            auto_forget_threshold: default_auto_forget_threshold(),
+            reinforcement_cap: default_reinforcement_cap(),
         }
     }
 }
@@ -181,6 +382,134 @@ impl VaultConfig {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(&path, content)?;
         Ok(())
+    }
+
+    /// Validate the config and return a map of field-specific errors.
+    /// Returns an empty map if valid.
+    pub fn validate(&self) -> std::collections::HashMap<String, String> {
+        let mut errors = std::collections::HashMap::new();
+
+        // Chunking
+        if self.chunking.split_on.is_empty() {
+            errors.insert(
+                "chunking.split_on".to_string(),
+                "must not be empty".to_string(),
+            );
+        } else if !self.chunking.split_on.starts_with('#') {
+            errors.insert(
+                "chunking.split_on".to_string(),
+                "must start with '#' (e.g. \"##\")".to_string(),
+            );
+        }
+
+        // Embedding
+        if self.embedding.batch_size < 1 {
+            errors.insert(
+                "embedding.batch_size".to_string(),
+                "must be >= 1".to_string(),
+            );
+        }
+
+        // Watch
+        if self.watch.phase1_debounce_ms < 50 {
+            errors.insert(
+                "watch.phase1_debounce_ms".to_string(),
+                "must be >= 50".to_string(),
+            );
+        }
+        if self.watch.phase2_debounce_ms < 50 {
+            errors.insert(
+                "watch.phase2_debounce_ms".to_string(),
+                "must be >= 50".to_string(),
+            );
+        }
+        if self.watch.burst_threshold < 1 {
+            errors.insert(
+                "watch.burst_threshold".to_string(),
+                "must be >= 1".to_string(),
+            );
+        }
+        if self.watch.burst_debounce_ms < 50 {
+            errors.insert(
+                "watch.burst_debounce_ms".to_string(),
+                "must be >= 50".to_string(),
+            );
+        }
+        for (i, pattern) in self.watch.ignore_patterns.iter().enumerate() {
+            if pattern.trim().is_empty() {
+                errors.insert(
+                    format!("watch.ignore_patterns[{}]", i),
+                    "pattern must not be empty".to_string(),
+                );
+            }
+            // Test glob pattern validity
+            if globset::Glob::new(pattern).is_err() {
+                errors.insert(
+                    format!("watch.ignore_patterns[{}]", i),
+                    format!("invalid glob pattern: {}", pattern),
+                );
+            }
+        }
+
+        // Scoring weights
+        if self.scoring.w_relevance < 0.0 {
+            errors.insert(
+                "scoring.w_relevance".to_string(),
+                "must be >= 0".to_string(),
+            );
+        }
+        if self.scoring.w_recency < 0.0 {
+            errors.insert(
+                "scoring.w_recency".to_string(),
+                "must be >= 0".to_string(),
+            );
+        }
+        if self.scoring.w_importance < 0.0 {
+            errors.insert(
+                "scoring.w_importance".to_string(),
+                "must be >= 0".to_string(),
+            );
+        }
+        if self.scoring.w_reinforcement < 0.0 {
+            errors.insert(
+                "scoring.w_reinforcement".to_string(),
+                "must be >= 0".to_string(),
+            );
+        }
+
+        // Decay
+        if self.decay.half_life_days <= 0.0 {
+            errors.insert(
+                "decay.half_life_days".to_string(),
+                "must be > 0".to_string(),
+            );
+        }
+        if self.decay.auto_forget_threshold < 0.0 || self.decay.auto_forget_threshold > 1.0 {
+            errors.insert(
+                "decay.auto_forget_threshold".to_string(),
+                "must be between 0 and 1".to_string(),
+            );
+        }
+        if self.decay.reinforcement_cap < 1 {
+            errors.insert(
+                "decay.reinforcement_cap".to_string(),
+                "must be >= 1".to_string(),
+            );
+        }
+
+        errors
+    }
+
+    /// Returns ignore patterns with output directories dynamically injected.
+    /// Ensures contradiction_dir is always excluded from the watcher even if
+    /// the user changed it from the default.
+    pub fn effective_ignore_patterns(&self) -> Vec<String> {
+        let mut patterns = self.watch.ignore_patterns.clone();
+        let cdir = &self.output.contradiction_dir;
+        if !patterns.iter().any(|p| p == cdir) {
+            patterns.push(cdir.clone());
+        }
+        patterns
     }
 
     /// Parse the `split_on` config into a heading level (number of `#` chars).
@@ -208,7 +537,48 @@ mod tests {
         assert_eq!(config.watch.phase1_debounce_ms, 500);
         assert_eq!(config.watch.phase2_debounce_ms, 3000);
         assert_eq!(config.output.insight_dir, "insights/");
+        assert_eq!(config.output.contradiction_dir, "contradictions/");
         assert!(config.output.exclude_insight_dir_from_reflect);
+    }
+
+    #[test]
+    fn test_default_ignore_patterns_include_contradictions() {
+        let config = VaultConfig::default();
+        assert!(
+            config.watch.ignore_patterns.contains(&"contradictions/".to_string()),
+            "default ignore patterns should include contradictions/"
+        );
+    }
+
+    #[test]
+    fn test_effective_ignore_patterns_includes_contradiction_dir() {
+        let config = VaultConfig::default();
+        let patterns = config.effective_ignore_patterns();
+        assert!(patterns.contains(&"contradictions/".to_string()));
+        // No duplicates
+        let count = patterns.iter().filter(|p| *p == "contradictions/").count();
+        assert_eq!(count, 1, "should not duplicate contradiction_dir");
+    }
+
+    #[test]
+    fn test_effective_ignore_patterns_custom_contradiction_dir() {
+        let mut config = VaultConfig::default();
+        config.output.contradiction_dir = "my_contradictions/".to_string();
+        let patterns = config.effective_ignore_patterns();
+        assert!(
+            patterns.contains(&"my_contradictions/".to_string()),
+            "effective patterns should include custom contradiction_dir"
+        );
+    }
+
+    #[test]
+    fn test_contradiction_dir_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = VaultConfig::default();
+        config.output.contradiction_dir = "custom_dir/".to_string();
+        config.save(dir.path()).unwrap();
+        let loaded = VaultConfig::load(dir.path()).unwrap();
+        assert_eq!(loaded.output.contradiction_dir, "custom_dir/");
     }
 
     #[test]

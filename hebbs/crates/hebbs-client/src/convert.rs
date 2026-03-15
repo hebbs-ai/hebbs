@@ -323,6 +323,7 @@ fn edge_type_to_proto_i32(et: EdgeType) -> i32 {
         EdgeType::FollowedBy => pb::EdgeType::FollowedBy as i32,
         EdgeType::RevisedFrom => pb::EdgeType::RevisedFrom as i32,
         EdgeType::InsightFrom => pb::EdgeType::InsightFrom as i32,
+        EdgeType::Contradicts => pb::EdgeType::Contradicts as i32,
     }
 }
 
@@ -333,6 +334,7 @@ fn proto_to_edge_type(v: i32) -> EdgeType {
         Ok(pb::EdgeType::FollowedBy) => EdgeType::FollowedBy,
         Ok(pb::EdgeType::RevisedFrom) => EdgeType::RevisedFrom,
         Ok(pb::EdgeType::InsightFrom) => EdgeType::InsightFrom,
+        Ok(pb::EdgeType::Contradicts) => EdgeType::Contradicts,
         _ => EdgeType::CausedBy,
     }
 }
@@ -474,6 +476,7 @@ mod tests {
             EdgeType::FollowedBy,
             EdgeType::RevisedFrom,
             EdgeType::InsightFrom,
+            EdgeType::Contradicts,
         ] {
             let proto = edge_type_to_proto_i32(et);
             let back = proto_to_edge_type(proto);

@@ -2,7 +2,7 @@
 //!
 //! Architecture:
 //!   1. Start a lightweight gRPC server in-process (InMemoryBackend + MockEmbedder, auth disabled).
-//!   2. Invoke the `hebbs-cli` binary as a subprocess pointing at that server.
+//!   2. Invoke the `hebbs` binary as a subprocess pointing at that server.
 //!   3. Parse `--format json` output and assert semantic correctness — not just exit codes.
 //!
 //! NOTE: MockEmbedder produces hash-based (non-semantic) vectors. Cosine distances
@@ -166,7 +166,7 @@ fn cli_bin() -> std::path::PathBuf {
         .parent()
         .unwrap()
         .to_path_buf();
-    path.push("hebbs-cli");
+    path.push("hebbs");
     if cfg!(windows) {
         path.set_extension("exe");
     }
@@ -179,7 +179,7 @@ fn run_cli(server: &TestServer, args: &[&str]) -> Output {
     cmd.arg("--format").arg("json");
     cmd.arg("--timeout").arg("10000");
     cmd.args(args);
-    cmd.output().expect("failed to execute hebbs-cli")
+    cmd.output().expect("failed to execute hebbs")
 }
 
 fn run_cli_success(server: &TestServer, args: &[&str]) -> serde_json::Value {

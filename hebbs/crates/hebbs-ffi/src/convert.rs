@@ -495,6 +495,7 @@ fn parse_edge_type(s: &str) -> Result<EdgeType, String> {
         "followed_by" => Ok(EdgeType::FollowedBy),
         "revised_from" => Ok(EdgeType::RevisedFrom),
         "insight_from" => Ok(EdgeType::InsightFrom),
+        "contradicts" => Ok(EdgeType::Contradicts),
         _ => Err(format!("unknown edge type: {}", s)),
     }
 }

@@ -31,6 +31,7 @@ use hebbs_embed::Embedder;
 use hebbs_index::{EdgeInput, EdgeType, HnswParams, IndexManager, TemporalOrder, TraversalEntry};
 use hebbs_storage::{BatchOperation, ColumnFamilyName, StorageBackend, TenantScopedStorage};
 
+use crate::contradict;
 use crate::decay::{
     clear_auto_forget_candidates, read_auto_forget_candidates, spawn_decay_worker, DecayConfig,
     DecayHandle,
@@ -488,6 +489,57 @@ impl Engine {
             memory,
             embed_duration_us,
         })
+    }
+
+    /// Check a newly remembered memory for contradictions against existing memories.
+    ///
+    /// Uses HNSW to find semantically similar memories and classifies pairs
+    /// as contradiction, revision, or neutral. Detected contradictions are
+    /// stored as bidirectional `CONTRADICTS` edges.
+    ///
+    /// Auto-selects LLM or heuristic mode based on `llm_provider`.
+    pub fn check_contradictions(
+        &self,
+        memory_id: &[u8; 16],
+        config: &contradict::ContradictionConfig,
+        llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
+    ) -> Result<Vec<contradict::Contradiction>> {
+        self.check_contradictions_for_tenant(
+            &TenantContext::default(),
+            memory_id,
+            config,
+            llm_provider,
+        )
+    }
+
+    /// Tenant-aware version of [`check_contradictions`](Self::check_contradictions).
+    pub fn check_contradictions_for_tenant(
+        &self,
+        tenant: &TenantContext,
+        memory_id: &[u8; 16],
+        config: &contradict::ContradictionConfig,
+        llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
+    ) -> Result<Vec<contradict::Contradiction>> {
+        let storage = self.scoped_storage(tenant);
+        contradict::check_memory_contradictions(
+            memory_id,
+            storage,
+            &self.index_manager,
+            tenant,
+            config,
+            llm_provider,
+        )
+    }
+
+    /// List all memories that contradict the given memory.
+    pub fn contradictions(&self, memory_id: &[u8; 16]) -> Result<Vec<([u8; 16], f32)>> {
+        let graph = hebbs_index::graph::GraphIndex::new(self.storage.clone());
+        let edges = graph
+            .outgoing_edges_of_type(memory_id, hebbs_index::graph::EdgeType::Contradicts)?;
+        Ok(edges
+            .into_iter()
+            .map(|(target, meta)| (target, meta.confidence))
+            .collect())
     }
 
     /// Retrieve a memory by its ULID bytes.
@@ -2465,6 +2517,7 @@ impl Engine {
             EdgeType::FollowedBy,
             EdgeType::RevisedFrom,
             EdgeType::InsightFrom,
+            EdgeType::Contradicts,
         ];
         let types = edge_types.unwrap_or(&default_edge_types);
 

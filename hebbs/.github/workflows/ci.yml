@@ -42,8 +42,8 @@ jobs:
           cache-on-failure: true
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - name: Build CLI (needed by e2e tests)
-        run: cargo build -p hebbs-cli
+      - name: Build unified binary (needed by e2e tests)
+        run: cargo build -p hebbs-vault
       - name: Run skill e2e tests
         run: cargo test -p hebbs-server --test skill_e2e
 

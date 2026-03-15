@@ -65,6 +65,7 @@ pub enum EdgeType {
     FollowedBy,
     RevisedFrom,
     InsightFrom,
+    Contradicts,
 }
 
 impl fmt::Display for EdgeType {
@@ -75,6 +76,7 @@ impl fmt::Display for EdgeType {
             EdgeType::FollowedBy => write!(f, "followed_by"),
             EdgeType::RevisedFrom => write!(f, "revised_from"),
             EdgeType::InsightFrom => write!(f, "insight_from"),
+            EdgeType::Contradicts => write!(f, "contradicts"),
         }
     }
 }

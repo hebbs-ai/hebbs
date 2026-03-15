@@ -640,6 +640,30 @@ impl IndexManager {
         &self.hnsw_params
     }
 
+    // ─── Neighborhood / projection ────────────────────────────────────
+
+    /// Extract a snapshot of vectors and k-NN neighbors from the default tenant's HNSW.
+    ///
+    /// The snapshot is a lock-free copy suitable for offline UMAP computation.
+    /// Holds the HNSW read lock only for the duration of the copy.
+    ///
+    /// Complexity: O(n * (d + M_max * d)).
+    pub fn extract_neighborhood_snapshot(
+        &self,
+        k: usize,
+    ) -> crate::neighborhood::NeighborhoodSnapshot {
+        let graphs = self.hnsw_graphs.read();
+        match graphs.get(DEFAULT_TENANT) {
+            Some((graph, _)) => crate::neighborhood::extract_snapshot(graph, k),
+            None => crate::neighborhood::NeighborhoodSnapshot {
+                ids: Vec::new(),
+                vectors_flat: Vec::new(),
+                neighbors: Vec::new(),
+                dimensions: self.hnsw_params.dimensions,
+            },
+        }
+    }
+
     // ─── LRU eviction ─────────────────────────────────────────────────
 
     /// Evict idle tenant HNSW graphs from memory.

@@ -330,8 +330,9 @@ fn parse_edge_type(s: &str) -> Result<pb::EdgeType, String> {
         "followed_by" => Ok(pb::EdgeType::FollowedBy),
         "revised_from" => Ok(pb::EdgeType::RevisedFrom),
         "insight_from" => Ok(pb::EdgeType::InsightFrom),
+        "contradicts" => Ok(pb::EdgeType::Contradicts),
         _ => Err(format!(
-            "Unknown edge type '{}'. Valid types: caused_by, related_to, followed_by, revised_from, insight_from",
+            "Unknown edge type '{}'. Valid types: caused_by, related_to, followed_by, revised_from, insight_from, contradicts",
             s
         )),
     }
@@ -344,6 +345,7 @@ pub fn format_edge_type(et: i32) -> &'static str {
         Ok(pb::EdgeType::FollowedBy) => "followed_by",
         Ok(pb::EdgeType::RevisedFrom) => "revised_from",
         Ok(pb::EdgeType::InsightFrom) => "insight_from",
+        Ok(pb::EdgeType::Contradicts) => "contradicts",
         _ => "unknown",
     }
 }
@@ -1064,6 +1066,7 @@ mod tests {
             ("followed_by", pb::EdgeType::FollowedBy),
             ("revised_from", pb::EdgeType::RevisedFrom),
             ("insight_from", pb::EdgeType::InsightFrom),
+            ("contradicts", pb::EdgeType::Contradicts),
         ] {
             let input = format!("{}:{}", id_str, name);
             let edge = parse_edge(&input).unwrap();
@@ -1146,6 +1149,10 @@ mod tests {
         assert_eq!(
             format_edge_type(pb::EdgeType::InsightFrom as i32),
             "insight_from"
+        );
+        assert_eq!(
+            format_edge_type(pb::EdgeType::Contradicts as i32),
+            "contradicts"
         );
         assert_eq!(format_edge_type(0), "unknown");
         assert_eq!(format_edge_type(99), "unknown");

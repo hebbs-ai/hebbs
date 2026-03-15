@@ -46,7 +46,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install protobuf
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p hebbs-server -p hebbs-cli -p hebbs-bench
+        run: cargo build --release --target ${{ matrix.target }} -p hebbs-vault -p hebbs-bench
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
@@ -54,9 +54,10 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/hebbs-server dist/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/hebbs-cli dist/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/hebbs dist/ 2>/dev/null || true
           cp target/${{ matrix.target }}/release/hebbs-bench dist/ 2>/dev/null || true
+          # Backward-compat symlinks (removed in v0.3.0)
+          cd dist && ln -s hebbs hebbs-cli && ln -s hebbs hebbs-vault && cd ..
           tar czf ${{ matrix.artifact }}.tar.gz -C dist .
       - uses: actions/upload-artifact@v4
         with:
@@ -257,13 +258,14 @@ jobs:
             end
 
             def install
-              bin.install "hebbs-server"
-              bin.install "hebbs-cli"
+              bin.install "hebbs"
+              bin.install_symlink "hebbs" => "hebbs-cli"
+              bin.install_symlink "hebbs" => "hebbs-vault"
               bin.install "hebbs-bench" if File.exist?("hebbs-bench")
             end
 
             test do
-              assert_match "hebbs-cli", shell_output("#{bin}/hebbs-cli --version")
+              assert_match "hebbs", shell_output("#{bin}/hebbs --version")
             end
           end
           FORMULA

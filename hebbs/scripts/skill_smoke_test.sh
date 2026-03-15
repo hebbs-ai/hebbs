@@ -3,8 +3,8 @@
 # HEBBS SKILL.md Smoke Test
 #
 # Exercises every CLI command documented in skills/hebbs/SKILL.md against a
-# running hebbs-server. Prints the exact command and its output for each step,
-# so a human can verify the system ACTUALLY works — not just exits 0.
+# running hebbs server. Prints the exact command and its output for each step,
+# so a human can verify the system ACTUALLY works, not just exits 0.
 #
 # NOTE: If the server uses MockEmbedder (embedding_provider=mock), similarity
 # scores will be hash-based, not semantic. Recall results will be structurally
@@ -12,21 +12,21 @@
 # run against a server with the ONNX embedder.
 #
 # Prerequisites:
-#   - hebbs-server running (default: localhost:6380, auth disabled)
-#   - hebbs-cli on PATH (or set HEBBS_CLI)
+#   - hebbs server running (default: localhost:6380, auth disabled)
+#   - hebbs on PATH (or set HEBBS_BIN)
 #   - jq installed for JSON parsing
 #
 # Usage:
-#   HEBBS_AUTH_ENABLED=false hebbs-server &
+#   HEBBS_AUTH_ENABLED=false hebbs start &
 #   ./scripts/skill_smoke_test.sh
 #
 # Environment variables:
 #   HEBBS_ENDPOINT   gRPC endpoint (default: http://localhost:6380)
-#   HEBBS_CLI        path to hebbs-cli binary (default: hebbs-cli)
+#   HEBBS_BIN        path to hebbs binary (default: hebbs)
 
 set -euo pipefail
 
-CLI="${HEBBS_CLI:-hebbs-cli}"
+CLI="${HEBBS_BIN:-hebbs}"
 ENDPOINT="${HEBBS_ENDPOINT:-http://localhost:6380}"
 PASS=0
 FAIL=0
@@ -161,7 +161,7 @@ printf "Endpoint: ${ENDPOINT}\n"
 printf "CLI:      ${CLI}\n"
 
 if ! command -v "$CLI" &>/dev/null; then
-  printf "${RED}ERROR: ${CLI} not found on PATH. Set HEBBS_CLI or add to PATH.${RESET}\n"
+  printf "${RED}ERROR: ${CLI} not found on PATH. Set HEBBS_BIN or add to PATH.${RESET}\n"
   exit 1
 fi
 
@@ -170,7 +170,7 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  1. Status — verify server is alive
+#  1. Status
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Server status" status
@@ -178,7 +178,7 @@ check_json_field "$CAPTURED" ".version" "version"
 check_json_field "$CAPTURED" ".memory_count" "memory_count"
 
 # ═══════════════════════════════════════════════════════════════════════
-#  2-7. Remember — store 6 memories for reflect testing
+#  2-7. Remember (store 6 memories for reflect testing)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Remember: dark mode preference" \
@@ -219,7 +219,7 @@ run_and_capture "Remember: separate entity for forget" \
 MEETINGS_ID=$(echo "$CAPTURED" | jq -r '.memory_id // empty')
 
 # ═══════════════════════════════════════════════════════════════════════
-#  8. Recall — similarity
+#  8. Recall (similarity)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Recall: similarity search" \
@@ -234,7 +234,7 @@ if [ "$RESULT_COUNT" -gt 0 ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  9. Recall — temporal (with required --entity-id)
+#  9. Recall (temporal, with required --entity-id)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Recall: temporal (with entity-id)" \
@@ -248,7 +248,7 @@ if [ "$T_COUNT" -eq 0 ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  10. Recall — scoring weights (R:T:I:F format)
+#  10. Recall (scoring weights, R:T:I:F format)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Recall: custom scoring weights (0.3:0.1:0.5:0.1)" \
@@ -259,14 +259,14 @@ W_COUNT=$(echo "$CAPTURED" | jq 'if type == "array" then length else 0 end' 2>/d
 printf "  ${DIM}Results with custom weights: %s${RESET}\n" "$W_COUNT"
 
 # ═══════════════════════════════════════════════════════════════════════
-#  11. Recall — ef-search parameter
+#  11. Recall (ef-search parameter)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_test "Recall: with ef-search=200" \
   recall "theme preference" --strategy similarity --ef-search 200
 
 # ═══════════════════════════════════════════════════════════════════════
-#  12. Recall — causal (with seed memory)
+#  12. Recall (causal, with seed memory)
 # ═══════════════════════════════════════════════════════════════════════
 
 if [ -n "$MEM1_ID" ]; then
@@ -276,14 +276,14 @@ if [ -n "$MEM1_ID" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  13. Recall — analogical
+#  13. Recall (analogical)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_test "Recall: analogical with alpha=0.2" \
   recall "design patterns" --strategy analogical --analogical-alpha 0.2
 
 # ═══════════════════════════════════════════════════════════════════════
-#  14. Get — round-trip verify
+#  14. Get (round-trip verify)
 # ═══════════════════════════════════════════════════════════════════════
 
 if [ -n "$MEM1_ID" ]; then
@@ -301,7 +301,7 @@ if [ -n "$MEM1_ID" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  16. Prime — load context for entity
+#  16. Prime (load context for entity)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Prime: load user_prefs context" \
@@ -314,14 +314,14 @@ if [ "$P_COUNT" -lt 6 ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  17. Prime — with similarity cue
+#  17. Prime (with similarity cue)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_test "Prime: with similarity-cue" \
   prime user_prefs --max-memories 10 --similarity-cue "dark mode"
 
 # ═══════════════════════════════════════════════════════════════════════
-#  18. Reflect-prepare — must produce clusters from 6 memories
+#  18. Reflect-prepare (must produce clusters from 6 memories)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Reflect-prepare: cluster user_prefs" \
@@ -336,7 +336,7 @@ printf "  ${DIM}Memories processed: %s${RESET}\n" "$MEMORIES_PROCESSED"
 printf "  ${DIM}Clusters found: %s${RESET}\n" "$CLUSTER_COUNT"
 
 if [ "$CLUSTER_COUNT" -eq 0 ]; then
-  printf "  ${RED}⚠  NO CLUSTERS produced from %s memories — reflect-commit will be skipped!${RESET}\n" "$MEMORIES_PROCESSED"
+  printf "  ${RED}⚠  NO CLUSTERS produced from %s memories. reflect-commit will be skipped!${RESET}\n" "$MEMORIES_PROCESSED"
   printf "  ${DIM}This can happen with MockEmbedder + default server config (min_memories=5, min_cluster=3).${RESET}\n"
   printf "  ${DIM}The Rust e2e test uses min_cluster_size=2 to guarantee clustering.${RESET}\n"
 fi
@@ -359,7 +359,7 @@ if [ "$CLUSTER_COUNT" -gt 0 ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  19. Reflect-commit — store an agent-generated insight
+#  19. Reflect-commit (store an agent-generated insight)
 # ═══════════════════════════════════════════════════════════════════════
 
 if [ -n "$SESSION_ID" ] && [ -n "$FIRST_HEX_ID" ]; then
@@ -382,7 +382,7 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  20. Insights — verify the committed insight is retrievable
+#  20. Insights (verify the committed insight is retrievable)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Insights: retrieve for user_prefs" \
@@ -395,7 +395,7 @@ elif echo "$CAPTURED" | grep -q "No insights"; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  21. Forget — by ID (and verify removal)
+#  21. Forget (by ID, and verify removal)
 # ═══════════════════════════════════════════════════════════════════════
 
 if [ -n "$MEETINGS_ID" ]; then
@@ -427,7 +427,7 @@ if [ -n "$MEETINGS_ID" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════
-#  23. Forget — by entity
+#  23. Forget (by entity)
 # ═══════════════════════════════════════════════════════════════════════
 
 run_and_capture "Forget: by entity (user_prefs)" forget --entity-id user_prefs
@@ -444,7 +444,7 @@ run_and_capture "Verify: entity is empty after forget" \
   prime user_prefs --max-memories 10
 REMAINING=$(echo "$CAPTURED" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
 if [ "$REMAINING" -eq 0 ]; then
-  printf "  ${GREEN}✓${RESET} Entity is clean — 0 memories remaining\n"
+  printf "  ${GREEN}✓${RESET} Entity is clean, 0 memories remaining\n"
 else
   printf "  ${RED}✗${RESET} Expected 0 remaining, got %s\n" "$REMAINING"
 fi

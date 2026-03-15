@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod auth;
+pub mod contradict;
 pub mod decay;
 pub mod engine;
 pub mod error;

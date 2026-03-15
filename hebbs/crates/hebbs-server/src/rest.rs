@@ -402,6 +402,7 @@ fn parse_edge_type(s: &str) -> Option<EdgeType> {
         "related_to" => Some(EdgeType::RelatedTo),
         "revised_from" => Some(EdgeType::RevisedFrom),
         "insight_from" => Some(EdgeType::InsightFrom),
+        "contradicts" => Some(EdgeType::Contradicts),
         _ => None,
     }
 }

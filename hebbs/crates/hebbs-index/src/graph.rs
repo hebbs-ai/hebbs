@@ -29,6 +29,8 @@ pub enum EdgeType {
     RevisedFrom = 0x04,
     /// Reserved for Phase 7 (reflect).
     InsightFrom = 0x05,
+    /// Contradiction detection edge.
+    Contradicts = 0x06,
 }
 
 impl EdgeType {
@@ -39,6 +41,7 @@ impl EdgeType {
             0x03 => Ok(EdgeType::FollowedBy),
             0x04 => Ok(EdgeType::RevisedFrom),
             0x05 => Ok(EdgeType::InsightFrom),
+            0x06 => Ok(EdgeType::Contradicts),
             _ => Err(IndexError::InvalidEdgeType { value: byte }),
         }
     }
@@ -515,6 +518,7 @@ mod tests {
             EdgeType::FollowedBy,
             EdgeType::RevisedFrom,
             EdgeType::InsightFrom,
+            EdgeType::Contradicts,
         ] {
             let byte = et.as_byte();
             let restored = EdgeType::from_byte(byte).unwrap();

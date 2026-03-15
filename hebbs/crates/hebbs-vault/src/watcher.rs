@@ -48,7 +48,7 @@ pub async fn watch_vault(
     let mut manifest = Manifest::load(&hebbs_dir)?;
 
     // Build ignore glob set
-    let ignore_set = build_ignore_set(&config.watch.ignore_patterns)?;
+    let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
 
     // Startup catch-up: index any files changed since last run
     info!("running startup catch-up");
@@ -249,7 +249,7 @@ enum WatchEvent {
 }
 
 /// Check if a path is a relevant .md file (not ignored).
-fn is_relevant_md(path: &Path, vault_root: &Path, ignore_set: &GlobSet) -> bool {
+pub fn is_relevant_md(path: &Path, vault_root: &Path, ignore_set: &GlobSet) -> bool {
     // Must be .md
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if ext != "md" {
@@ -279,7 +279,7 @@ fn is_relevant_md(path: &Path, vault_root: &Path, ignore_set: &GlobSet) -> bool 
 }
 
 /// Build a GlobSet from ignore patterns.
-fn build_ignore_set(patterns: &[String]) -> Result<GlobSet> {
+pub fn build_ignore_set(patterns: &[String]) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     for pattern in patterns {
         let glob = Glob::new(pattern).map_err(|e| VaultError::Config {
@@ -299,7 +299,7 @@ fn build_ignore_set(patterns: &[String]) -> Result<GlobSet> {
 }
 
 /// Walk the vault directory and find all .md files that have changed since last manifest update.
-fn find_changed_files(
+pub fn find_changed_files(
     vault_root: &Path,
     manifest: &Manifest,
     ignore_set: &GlobSet,
@@ -368,7 +368,7 @@ pub fn collect_md_files(
     vault_root: &Path,
     config: &VaultConfig,
 ) -> Result<Vec<PathBuf>> {
-    let ignore_set = build_ignore_set(&config.watch.ignore_patterns)?;
+    let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
     let mut files = Vec::new();
     walk_md_files(vault_root, vault_root, &ignore_set, &mut |path| {
         files.push(path);

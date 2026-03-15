@@ -1,10 +1,9 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# HEBBS Server - Multi-stage Production Dockerfile
+# HEBBS - Multi-stage Production Dockerfile
 # ──────────────────────────────────────────────────────────────────────────────
 # Produces a minimal container image (~80MB) with:
-#   - hebbs-server  (the cognitive memory server)
-#   - hebbs-cli     (debugging / ops from kubectl exec)
-#   - hebbs-bench   (in-situ performance validation)
+#   - hebbs        (unified binary: memory engine + vault operations)
+#   - hebbs-bench  (in-situ performance validation)
 #
 # Build:
 #   docker buildx build --platform linux/amd64,linux/arm64 -t hebbs-ai/hebbs .
@@ -33,15 +32,13 @@ COPY crates/ crates/
 COPY proto/ proto/
 
 RUN cargo build --release \
-    -p hebbs-server \
-    -p hebbs-cli \
+    -p hebbs-vault \
     -p hebbs-bench && \
-    strip target/release/hebbs-server && \
-    strip target/release/hebbs-cli && \
+    strip target/release/hebbs && \
     strip target/release/hebbs-bench
 
 # Verify the binary links only against glibc/libgcc (available in distroless cc)
-RUN ldd target/release/hebbs-server || true
+RUN ldd target/release/hebbs || true
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM gcr.io/distroless/cc-debian13:nonroot
@@ -54,8 +51,7 @@ LABEL org.opencontainers.image.title="HEBBS" \
       org.opencontainers.image.licenses="BSL-1.1"
 
 # Binaries
-COPY --from=builder /build/target/release/hebbs-server /usr/local/bin/hebbs-server
-COPY --from=builder /build/target/release/hebbs-cli /usr/local/bin/hebbs-cli
+COPY --from=builder /build/target/release/hebbs /usr/local/bin/hebbs
 COPY --from=builder /build/target/release/hebbs-bench /usr/local/bin/hebbs-bench
 
 # Data directory (RocksDB) and model cache owned by nonroot (UID 65532)
@@ -77,11 +73,10 @@ ENV HEBBS_STORAGE_DATA_DIR=/data \
 # Graceful shutdown: server handles SIGTERM (Phase 8)
 STOPSIGNAL SIGTERM
 
-# Health check: verify gRPC health service responds.
-# Uses hebbs-cli which is included in the image.
+# Health check: verify the engine responds.
 # Note: distroless has no shell, so HEALTHCHECK CMD must use exec form.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["/usr/local/bin/hebbs-cli", "status", "--endpoint", "localhost:6380", "--timeout", "3"]
+    CMD ["/usr/local/bin/hebbs", "status", "--timeout", "3"]
 
-ENTRYPOINT ["/usr/local/bin/hebbs-server"]
+ENTRYPOINT ["/usr/local/bin/hebbs"]
 CMD ["start"]
