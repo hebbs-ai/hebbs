@@ -1,0 +1,131 @@
+---
+const steps = [
+  {
+    num: "01",
+    title: "Initialize",
+    desc: "One command creates a .hebbs/ directory in your project. Downloads the embedding model. Ready in seconds.",
+    code: `$ cd ~/projects/my-notes\n$ hebbs init\n\n  Created .hebbs/config.toml\n  Downloaded bge-small-en-v1.5 (384d)\n  Ready.`,
+  },
+  {
+    num: "02",
+    title: "Index",
+    desc: "Scans all markdown files, splits by heading, embeds locally with ONNX. Each section becomes a memory with full lineage.",
+    code: `$ hebbs index\n\n  Scanning 142 files...\n  Split into 891 sections\n  Embedded 891 sections (2.3s)\n  Stored 891 memories`,
+  },
+  {
+    num: "03",
+    title: "Recall",
+    desc: "Four strategies over your own files. Similarity, temporal, causal, analogical. Composite scoring. Sub-10ms.",
+    code: `$ hebbs recall "auth token rotation"\n\n  #  Score   Source                         Content\n  1  0.847   docs/security.md ## Tokens     Rotate auth tokens every...\n  2  0.791   notes/meeting-0312.md ## Auth   Decided to move to short...\n  3  0.734   RFC-009.md ## Token Lifecycle    The rotation interval...`,
+  },
+];
+---
+
+<section id="vault" class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">File-first mode</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        Your files become searchable memories.
+      </h2>
+      <p class="text-muted text-lg max-w-3xl mx-auto">
+        HEBBS Vault indexes your markdown files locally. No server. No API key. No network calls. One binary turns any directory into a cognitive memory system.
+      </p>
+    </div>
+
+    <!-- Three-step flow -->
+    <div class="space-y-6 mb-20">
+      {steps.map((step) => (
+        <div class="grid md:grid-cols-2 gap-6 items-start">
+          <div class="flex gap-4 items-start pt-2">
+            <span class="font-mono text-sm text-accent/60 font-medium shrink-0 mt-0.5">{step.num}</span>
+            <div>
+              <h3 class="text-lg font-semibold text-text mb-2">{step.title}</h3>
+              <p class="text-sm text-muted leading-relaxed">{step.desc}</p>
+            </div>
+          </div>
+          <div class="rounded-xl border border-border bg-surface/60 overflow-hidden">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border/60">
+              <div class="w-2.5 h-2.5 rounded-full bg-red/30"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-accent/30"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-green/30"></div>
+            </div>
+            <pre class="p-5 font-mono text-xs text-muted leading-relaxed whitespace-pre overflow-x-auto">{step.code}</pre>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Watch + Daemon + Panel row -->
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="rounded-xl border border-border bg-surface/40 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <svg class="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <h3 class="text-text font-semibold">Live Watch</h3>
+        </div>
+        <p class="text-sm text-muted leading-relaxed mb-4">
+          <code class="text-cyan text-xs">hebbs watch</code> monitors your directory. Edit a file, save it, and the changed sections re-embed automatically. Two-phase debounce handles git checkouts and bulk edits.
+        </p>
+        <p class="text-xs text-muted/60 font-mono">Phase 1: 500ms &middot; Phase 2: 3s &middot; Burst: 10s</p>
+      </div>
+
+      <div class="rounded-xl border border-border bg-surface/40 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <svg class="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <h3 class="text-text font-semibold">Daemon</h3>
+        </div>
+        <p class="text-sm text-muted leading-relaxed mb-4">
+          One background process serves all your vaults. The ONNX model loads once and stays warm. Auto-starts on first use, idles down after 5 minutes.
+        </p>
+        <p class="text-xs text-muted/60 font-mono">~/.hebbs/daemon.sock &middot; Unix domain socket</p>
+      </div>
+
+      <div class="rounded-xl border border-border bg-surface/40 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+            <svg class="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+          </div>
+          <h3 class="text-text font-semibold">Memory Palace</h3>
+        </div>
+        <p class="text-sm text-muted leading-relaxed mb-4">
+          <code class="text-cyan text-xs">hebbs panel</code> opens a web UI showing your memory graph. Clusters, edges, live updates as files change. Search, inspect, switch between vaults.
+        </p>
+        <p class="text-xs text-muted/60 font-mono">127.0.0.1:6381 &middot; WebSocket live push</p>
+      </div>
+    </div>
+
+    <!-- Contradiction callout -->
+    <div class="mt-6 rounded-xl border border-accent/20 bg-accent/[0.03] p-6 md:p-8">
+      <div class="flex flex-col md:flex-row md:items-center gap-6">
+        <div class="flex-1">
+          <p class="font-mono text-xs uppercase tracking-wider text-accent mb-2">Contradiction Detection</p>
+          <p class="text-text font-medium mb-2">
+            HEBBS spots when your files disagree with each other.
+          </p>
+          <p class="text-sm text-muted leading-relaxed">
+            During ingest, each new section is checked against semantically similar existing memories. When two sections say conflicting things, HEBBS creates a <code class="text-cyan text-xs">CONTRADICTS</code> edge and writes a human-readable report. Your knowledge base stays consistent without manual review.
+          </p>
+        </div>
+        <div class="md:w-72 rounded-lg bg-bg border border-border p-4 font-mono text-xs text-muted leading-relaxed overflow-x-auto shrink-0">
+          <pre class="whitespace-pre"><span class="text-accent">contradictions/</span>
+  2026-03-14-auth-tokens.md
+  2026-03-15-deploy-strategy.md
+
+<span class="text-muted">Each report shows both sides,</span>
+<span class="text-muted">source files, and confidence.</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
