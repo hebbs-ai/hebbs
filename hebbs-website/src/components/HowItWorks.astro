@@ -1,0 +1,644 @@
+---
+---
+
+<section id="how-it-works" class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-5xl px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        How a memory travels through HEBBS
+      </h2>
+      <p class="text-muted text-lg">
+        From raw input to lasting knowledge.
+      </p>
+    </div>
+
+    <div class="pipeline-wrapper relative">
+      <!-- Canvas for particles + river -->
+      <canvas id="pipeline-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 1;"></canvas>
+
+      <!-- Pipeline stages -->
+      <div id="pipeline-stages" class="relative" style="z-index: 2;">
+
+        <!-- Act 1: Ingestion -->
+        <div class="pipeline-act mb-4">
+          <p class="text-xs font-mono tracking-widest uppercase text-accent text-center mb-8">Act 1: Ingestion</p>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="1" data-color="amber">
+          <div class="stage-card">
+            <div class="stage-number bg-accent/[0.08] text-accent">1</div>
+            <h3 class="text-base font-semibold mb-1">Information</h3>
+            <p class="text-sm text-muted">Markdown files or agentic memories enter the vault</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-right" data-stage="2" data-color="amber">
+          <div class="stage-card">
+            <div class="stage-number bg-accent/[0.08] text-accent">2</div>
+            <h3 class="text-base font-semibold mb-1">Indexed in vaults</h3>
+            <p class="text-sm text-muted">Chunked by heading, embedded, stored in RocksDB</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="3" data-color="amber">
+          <div class="stage-card">
+            <div class="stage-number bg-accent/[0.08] text-accent">3</div>
+            <h3 class="text-base font-semibold mb-1">HEBBS watches</h3>
+            <p class="text-sm text-muted">Daemon detects every change in real time</p>
+          </div>
+        </div>
+
+        <!-- Act 2: Intelligence -->
+        <div class="pipeline-act mt-12 mb-4">
+          <p class="text-xs font-mono tracking-widest uppercase text-cyan text-center mb-8">Act 2: Intelligence</p>
+        </div>
+
+        <div class="pipeline-stage stage-right" data-stage="4" data-color="cyan">
+          <div class="stage-card">
+            <div class="stage-number bg-cyan/[0.08] text-cyan">4</div>
+            <h3 class="text-base font-semibold mb-1">Calculates similarities</h3>
+            <p class="text-sm text-muted">ONNX embeddings, HNSW index finds neighbors</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="5" data-color="cyan">
+          <div class="stage-card">
+            <div class="stage-number bg-cyan/[0.08] text-cyan">5</div>
+            <h3 class="text-base font-semibold mb-1">Builds memory palace</h3>
+            <p class="text-sm text-muted">Temporal, causal, similarity edges form a graph</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-right" data-stage="6" data-color="red">
+          <div class="stage-card">
+            <div class="stage-number bg-red/[0.08] text-red">6</div>
+            <h3 class="text-base font-semibold mb-1">Sees contradictions</h3>
+            <p class="text-sm text-muted">Heuristic detection flags conflicts automatically</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="7" data-color="green">
+          <div class="stage-card">
+            <div class="stage-number bg-green/[0.08] text-green">7</div>
+            <h3 class="text-base font-semibold mb-1">Resolves them</h3>
+            <p class="text-sm text-muted">Agent reviews, creates CONTRADICTS or REVISED_FROM edges</p>
+          </div>
+        </div>
+
+        <!-- Act 3: Wisdom -->
+        <div class="pipeline-act mt-12 mb-4">
+          <p class="text-xs font-mono tracking-widest uppercase text-green text-center mb-8">Act 3: Wisdom</p>
+        </div>
+
+        <div class="pipeline-stage stage-right" data-stage="8" data-color="green">
+          <div class="stage-card">
+            <div class="stage-number bg-green/[0.08] text-green">8</div>
+            <h3 class="text-base font-semibold mb-1">Contradictions visible</h3>
+            <p class="text-sm text-muted">Conflicts appear in Memory Palace for review</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="9" data-color="amber">
+          <div class="stage-card">
+            <div class="stage-number bg-accent/[0.08] text-accent">9</div>
+            <h3 class="text-base font-semibold mb-1">Reflects periodically</h3>
+            <p class="text-sm text-muted">Clusters episodes, proposes and validates insights</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-right" data-stage="10" data-color="green">
+          <div class="stage-card">
+            <div class="stage-number bg-green/[0.08] text-green">10</div>
+            <h3 class="text-base font-semibold mb-1">Insights scored</h3>
+            <p class="text-sm text-muted">Relevance, recency, importance, reinforcement weights</p>
+          </div>
+        </div>
+
+        <div class="pipeline-stage stage-left" data-stage="11" data-color="muted">
+          <div class="stage-card">
+            <div class="stage-number bg-border/50 text-muted">11</div>
+            <h3 class="text-base font-semibold mb-1">Decay over time</h3>
+            <p class="text-sm text-muted">Half-life decay. Unreinforced memories fade</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tech badges -->
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mt-12">
+      {[
+        { label: "Rust", desc: "Zero-cost engine" },
+        { label: "RocksDB", desc: "Embedded storage" },
+        { label: "HNSW", desc: "Vector search" },
+        { label: "ONNX", desc: "Local embeddings" },
+        { label: "Daemon", desc: "Real-time watch" },
+        { label: "gRPC", desc: "Streaming API" },
+      ].map((item) => (
+        <div class="text-center py-3">
+          <p class="font-mono text-sm font-medium text-accent">{item.label}</p>
+          <p class="text-xs text-muted mt-1">{item.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .pipeline-wrapper {
+    min-height: 200px;
+  }
+
+  /* Stage layout */
+  .pipeline-stage {
+    display: flex;
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+  .stage-left {
+    justify-content: flex-start;
+    padding-right: 54%;
+  }
+  .stage-right {
+    justify-content: flex-end;
+    padding-left: 54%;
+  }
+
+  /* Stage card */
+  .stage-card {
+    background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    position: relative;
+    max-width: 280px;
+    width: 100%;
+    backdrop-filter: blur(4px);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .stage-card:hover {
+    border-color: var(--color-accent-light);
+    box-shadow: 0 0 20px rgba(180, 83, 9, 0.08);
+  }
+
+  .stage-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    margin-bottom: 0.5rem;
+  }
+
+  /* Mobile: stack full-width */
+  @media (max-width: 768px) {
+    .stage-left,
+    .stage-right {
+      padding-left: 0;
+      padding-right: 0;
+      justify-content: center;
+    }
+    .stage-card {
+      max-width: 100%;
+    }
+  }
+</style>
+
+<script>
+  function initPipelineAnimation() {
+    const canvas = document.getElementById('pipeline-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const wrapper = canvas.parentElement!;
+    const stagesContainer = document.getElementById('pipeline-stages')!;
+    const stageElements = stagesContainer.querySelectorAll('.pipeline-stage');
+
+    // Colors matching the theme
+    const COLORS = {
+      amber: { r: 217, g: 119, b: 6 },
+      cyan: { r: 14, g: 116, b: 144 },
+      green: { r: 4, g: 120, b: 87 },
+      red: { r: 185, g: 28, b: 28 },
+      muted: { r: 120, g: 113, b: 108 },
+    };
+
+    type ColorKey = keyof typeof COLORS;
+
+    interface StageInfo {
+      x: number;
+      y: number;
+      color: ColorKey;
+      index: number;
+    }
+
+    interface Particle {
+      x: number;
+      y: number;
+      progress: number;       // 0..1 through entire pipeline
+      speed: number;
+      radius: number;
+      opacity: number;
+      color: ColorKey;
+      active: boolean;
+      // Split effect state
+      splitPhase: number;     // 0 = not splitting, 0..1 = splitting
+      splitOffsets: { x: number; y: number }[];
+      // Trail state for stage 5
+      trailLines: { x1: number; y1: number; x2: number; y2: number; opacity: number }[];
+      // Flash state for stage 6
+      flashRed: number;       // 0..1
+      // Merge state for stage 9
+      mergeScale: number;     // 1 = normal, >1 = merged
+      // Decay state for stage 11
+      decayFade: number;      // 1 = full, fading to 0
+    }
+
+    let stages: StageInfo[] = [];
+    let particles: Particle[] = [];
+    let riverPoints: { x: number; y: number }[] = [];
+    let animationId: number;
+    let lastSpawn = 0;
+    let isMobile = window.innerWidth < 768;
+    const MAX_PARTICLES = isMobile ? 10 : 20;
+    const SPAWN_INTERVAL = 400;
+
+    function resize() {
+      const rect = wrapper.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      isMobile = window.innerWidth < 768;
+      computeStagePositions();
+    }
+
+    function computeStagePositions() {
+      const wrapperRect = wrapper.getBoundingClientRect();
+      stages = [];
+      riverPoints = [];
+
+      stageElements.forEach((el, i) => {
+        const rect = el.getBoundingClientRect();
+        const card = el.querySelector('.stage-card')!;
+        const cardRect = card.getBoundingClientRect();
+        const color = (el as HTMLElement).dataset.color as ColorKey || 'amber';
+
+        // Anchor point: the edge of the card closest to center
+        const centerX = wrapperRect.width / 2;
+        let anchorX: number;
+
+        if (isMobile) {
+          anchorX = centerX;
+        } else if (el.classList.contains('stage-left')) {
+          anchorX = cardRect.right - wrapperRect.left + 16;
+        } else {
+          anchorX = cardRect.left - wrapperRect.left - 16;
+        }
+
+        const anchorY = rect.top - wrapperRect.top + rect.height / 2;
+
+        stages.push({ x: anchorX, y: anchorY, color, index: i + 1 });
+        riverPoints.push({ x: centerX, y: anchorY });
+      });
+    }
+
+    function spawnParticle() {
+      const existing = particles.find(p => !p.active);
+      const p: Particle = existing || {
+        x: 0, y: 0, progress: 0, speed: 0, radius: 0, opacity: 0,
+        color: 'amber', active: false,
+        splitPhase: 0, splitOffsets: [],
+        trailLines: [], flashRed: 0, mergeScale: 1, decayFade: 1,
+      };
+
+      if (stages.length === 0) return;
+
+      p.x = stages[0].x;
+      p.y = stages[0].y;
+      p.progress = 0;
+      p.speed = (0.9 + Math.random() * 0.3) / (stages.length * 80); // ~8s total
+      p.radius = 3 + Math.random() * 2;
+      p.opacity = 0.9;
+      p.color = 'amber';
+      p.active = true;
+      p.splitPhase = 0;
+      p.splitOffsets = [
+        { x: -8 - Math.random() * 4, y: -3 + Math.random() * 6 },
+        { x: 4 + Math.random() * 4, y: -5 + Math.random() * 10 },
+        { x: 1 + Math.random() * 3, y: 4 + Math.random() * 4 },
+      ];
+      p.trailLines = [];
+      p.flashRed = 0;
+      p.mergeScale = 1;
+      p.decayFade = 1;
+
+      if (!existing) particles.push(p);
+    }
+
+    function getPositionAlongPipeline(progress: number): { x: number; y: number } {
+      if (stages.length < 2) return stages[0] || { x: 0, y: 0 };
+
+      const totalSegments = stages.length - 1;
+      const segment = progress * totalSegments;
+      const segIndex = Math.min(Math.floor(segment), totalSegments - 1);
+      const t = segment - segIndex;
+
+      const from = stages[segIndex];
+      const to = stages[Math.min(segIndex + 1, stages.length - 1)];
+
+      // Bezier through center river
+      const centerX = (canvas.width / (window.devicePixelRatio || 1)) / 2;
+      const midY = (from.y + to.y) / 2;
+
+      // Control points pull toward center
+      const cp1x = centerX + (from.x - centerX) * 0.3;
+      const cp1y = from.y + (midY - from.y) * 0.6;
+      const cp2x = centerX + (to.x - centerX) * 0.3;
+      const cp2y = midY + (to.y - midY) * 0.4;
+
+      // Cubic bezier
+      const u = 1 - t;
+      const x = u*u*u*from.x + 3*u*u*t*cp1x + 3*u*t*t*cp2x + t*t*t*to.x;
+      const y = u*u*u*from.y + 3*u*u*t*cp1y + 3*u*t*t*cp2y + t*t*t*to.y;
+
+      return { x, y };
+    }
+
+    function getCurrentStage(progress: number): number {
+      return Math.min(Math.floor(progress * stages.length) + 1, stages.length);
+    }
+
+    function getStageLocalProgress(progress: number): number {
+      const totalSegments = stages.length;
+      const segment = progress * totalSegments;
+      return segment - Math.floor(segment);
+    }
+
+    function updateParticle(p: Particle) {
+      if (!p.active) return;
+
+      p.progress += p.speed;
+
+      if (p.progress >= 1) {
+        p.active = false;
+        return;
+      }
+
+      const pos = getPositionAlongPipeline(p.progress);
+      p.x = pos.x;
+      p.y = pos.y;
+
+      const stage = getCurrentStage(p.progress);
+      const localT = getStageLocalProgress(p.progress);
+
+      // Stage 2: Split effect (chunking)
+      if (stage === 2) {
+        p.splitPhase = Math.sin(localT * Math.PI); // ramp up then down
+      } else {
+        p.splitPhase *= 0.9;
+      }
+
+      // Stage 4+: color shifts
+      if (stage >= 4 && stage <= 5) p.color = 'cyan';
+      else if (stage === 6) p.color = 'cyan';
+      else if (stage >= 7 && stage <= 8) p.color = 'green';
+      else if (stage === 9) p.color = 'amber';
+      else if (stage >= 10) p.color = 'green';
+
+      // Stage 5: trail lines to neighbors
+      if (stage === 5 && localT > 0.3 && localT < 0.7) {
+        if (p.trailLines.length === 0) {
+          for (let i = 0; i < 3; i++) {
+            p.trailLines.push({
+              x1: p.x, y1: p.y,
+              x2: p.x + (Math.random() - 0.5) * 60,
+              y2: p.y + (Math.random() - 0.5) * 40,
+              opacity: 0.4,
+            });
+          }
+        }
+        p.trailLines.forEach(t => t.opacity *= 0.98);
+      } else if (stage !== 5) {
+        p.trailLines = [];
+      }
+
+      // Stage 6: ~20% flash red
+      if (stage === 6 && localT > 0.2 && localT < 0.8) {
+        if (p.flashRed === 0 && Math.random() < 0.003) {
+          p.flashRed = 1;
+          p.color = 'red';
+        }
+        if (p.flashRed > 0) {
+          p.color = 'red';
+        }
+      }
+
+      // Stage 7: resolve red to green
+      if (stage === 7 && p.flashRed > 0) {
+        p.flashRed *= 0.95;
+        if (p.flashRed < 0.1) {
+          p.flashRed = 0;
+          p.color = 'green';
+        } else {
+          p.color = 'red';
+        }
+      }
+
+      // Stage 9: merge (grow)
+      if (stage === 9 && localT > 0.4) {
+        p.mergeScale = 1 + (localT - 0.4) * 2.5;
+        p.opacity = Math.min(1, p.opacity + 0.01);
+      }
+
+      // Stage 11: decay
+      if (stage === 11) {
+        p.decayFade = 1 - localT * 0.9;
+        p.color = 'muted';
+      }
+    }
+
+    function drawRiver() {
+      if (stages.length < 2) return;
+
+      const centerX = (canvas.width / (window.devicePixelRatio || 1)) / 2;
+
+      ctx!.beginPath();
+      ctx!.moveTo(centerX, stages[0].y - 20);
+
+      for (let i = 0; i < stages.length; i++) {
+        const s = stages[i];
+        if (i === 0) {
+          ctx!.lineTo(centerX, s.y);
+        } else {
+          const prev = stages[i - 1];
+          const midY = (prev.y + s.y) / 2;
+          ctx!.quadraticCurveTo(centerX, midY, centerX, s.y);
+        }
+      }
+
+      ctx!.strokeStyle = 'rgba(180, 83, 9, 0.06)';
+      ctx!.lineWidth = 24;
+      ctx!.lineCap = 'round';
+      ctx!.stroke();
+
+      // Thinner bright center line
+      ctx!.beginPath();
+      ctx!.moveTo(centerX, stages[0].y - 20);
+      for (let i = 0; i < stages.length; i++) {
+        const s = stages[i];
+        if (i === 0) {
+          ctx!.lineTo(centerX, s.y);
+        } else {
+          const prev = stages[i - 1];
+          const midY = (prev.y + s.y) / 2;
+          ctx!.quadraticCurveTo(centerX, midY, centerX, s.y);
+        }
+      }
+      ctx!.strokeStyle = 'rgba(180, 83, 9, 0.03)';
+      ctx!.lineWidth = 2;
+      ctx!.setLineDash([4, 8]);
+      ctx!.stroke();
+      ctx!.setLineDash([]);
+    }
+
+    function drawDashedConnectors() {
+      if (stages.length < 2) return;
+
+      ctx!.setLineDash([3, 5]);
+      ctx!.lineWidth = 1;
+
+      const centerX = (canvas.width / (window.devicePixelRatio || 1)) / 2;
+
+      for (let i = 0; i < stages.length; i++) {
+        const s = stages[i];
+        ctx!.beginPath();
+        ctx!.moveTo(s.x, s.y);
+        ctx!.lineTo(centerX, s.y);
+        ctx!.strokeStyle = `rgba(${COLORS[s.color].r}, ${COLORS[s.color].g}, ${COLORS[s.color].b}, 0.12)`;
+        ctx!.stroke();
+      }
+
+      ctx!.setLineDash([]);
+    }
+
+    function drawParticle(p: Particle) {
+      if (!p.active) return;
+
+      const c = COLORS[p.color];
+      const baseOpacity = p.opacity * p.decayFade;
+
+      // Trail lines (stage 5)
+      p.trailLines.forEach(line => {
+        ctx!.beginPath();
+        ctx!.moveTo(line.x1, line.y1);
+        ctx!.lineTo(line.x2, line.y2);
+        ctx!.strokeStyle = `rgba(${COLORS.cyan.r}, ${COLORS.cyan.g}, ${COLORS.cyan.b}, ${line.opacity * 0.5})`;
+        ctx!.lineWidth = 1;
+        ctx!.stroke();
+      });
+
+      // Split effect (stage 2)
+      if (p.splitPhase > 0.1) {
+        const splitAlpha = baseOpacity * p.splitPhase * 0.7;
+        const splitR = p.radius * 0.6;
+        p.splitOffsets.forEach(off => {
+          ctx!.beginPath();
+          ctx!.arc(
+            p.x + off.x * p.splitPhase,
+            p.y + off.y * p.splitPhase,
+            splitR, 0, Math.PI * 2
+          );
+          ctx!.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${splitAlpha})`;
+          ctx!.fill();
+        });
+      }
+
+      // Main dot
+      const r = p.radius * p.mergeScale;
+      const glow = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
+      glow.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${baseOpacity})`);
+      glow.addColorStop(0.4, `rgba(${c.r}, ${c.g}, ${c.b}, ${baseOpacity * 0.4})`);
+      glow.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+
+      ctx!.beginPath();
+      ctx!.arc(p.x, p.y, r * 3, 0, Math.PI * 2);
+      ctx!.fillStyle = glow;
+      ctx!.fill();
+
+      ctx!.beginPath();
+      ctx!.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx!.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${baseOpacity})`;
+      ctx!.fill();
+
+      // Bright core
+      ctx!.beginPath();
+      ctx!.arc(p.x, p.y, r * 0.4, 0, Math.PI * 2);
+      ctx!.fillStyle = `rgba(255, 255, 255, ${baseOpacity * 0.6})`;
+      ctx!.fill();
+    }
+
+    function animate(time: number) {
+      if (!ctx) return;
+
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, w, h);
+
+      // Spawn
+      const activeCount = particles.filter(p => p.active).length;
+      if (time - lastSpawn > SPAWN_INTERVAL && activeCount < MAX_PARTICLES) {
+        spawnParticle();
+        lastSpawn = time;
+      }
+
+      drawRiver();
+      drawDashedConnectors();
+
+      particles.forEach(p => {
+        updateParticle(p);
+        drawParticle(p);
+      });
+
+      animationId = requestAnimationFrame(animate);
+    }
+
+    // IntersectionObserver to pause when off-screen
+    let isVisible = false;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && !isVisible) {
+          isVisible = true;
+          resize();
+          animationId = requestAnimationFrame(animate);
+        } else if (!entry.isIntersecting && isVisible) {
+          isVisible = false;
+          cancelAnimationFrame(animationId);
+        }
+      });
+    }, { threshold: 0.05 });
+
+    observer.observe(wrapper);
+
+    window.addEventListener('resize', () => {
+      if (isVisible) resize();
+    });
+
+    resize();
+  }
+
+  // Run after DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPipelineAnimation);
+  } else {
+    initPipelineAnimation();
+  }
+</script>

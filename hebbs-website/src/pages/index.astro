@@ -12,6 +12,7 @@ import Consolidation from "../components/Consolidation.astro";
 import ScoringWeights from "../components/ScoringWeights.astro";
 import Operations from "../components/Operations.astro";
 import Benchmarks from "../components/Benchmarks.astro";
+import HowItWorks from "../components/HowItWorks.astro";
 import Architecture from "../components/Architecture.astro";
 import Comparison from "../components/Comparison.astro";
 import CodeExample from "../components/CodeExample.astro";
@@ -26,10 +27,10 @@ import Footer from "../components/Footer.astro";
     <!-- Warm parchment base -->
     <Hero />
 
-    <!-- Amber band: problem/solution -->
+    <!-- Amber band: how it works pipeline -->
     <div class="band-amber">
       <div class="section-divider"></div>
-      <Problem />
+      <HowItWorks />
       <OutOfTheBox />
     </div>
 
@@ -55,6 +56,10 @@ import Footer from "../components/Footer.astro";
       <Operations />
       <Benchmarks />
     </div>
+
+    <!-- Base: problem + comparison -->
+    <div class="section-divider"></div>
+    <Problem />
 
     <!-- Base: architecture + comparison -->
     <div class="section-divider"></div>
