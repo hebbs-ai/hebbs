@@ -494,8 +494,9 @@ impl Engine {
     /// Check a newly remembered memory for contradictions against existing memories.
     ///
     /// Uses HNSW to find semantically similar memories and classifies pairs
-    /// as contradiction, revision, or neutral. Detected contradictions are
-    /// stored as bidirectional `CONTRADICTS` edges.
+    /// as contradiction, revision, or neutral. Candidates that pass the
+    /// heuristic filter are stored as `PendingContradiction` records for
+    /// AI review (two-phase contradiction detection).
     ///
     /// Auto-selects LLM or heuristic mode based on `llm_provider`.
     pub fn check_contradictions(
@@ -503,7 +504,7 @@ impl Engine {
         memory_id: &[u8; 16],
         config: &contradict::ContradictionConfig,
         llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-    ) -> Result<Vec<contradict::Contradiction>> {
+    ) -> Result<Vec<contradict::PendingContradiction>> {
         self.check_contradictions_for_tenant(
             &TenantContext::default(),
             memory_id,
@@ -519,7 +520,7 @@ impl Engine {
         memory_id: &[u8; 16],
         config: &contradict::ContradictionConfig,
         llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-    ) -> Result<Vec<contradict::Contradiction>> {
+    ) -> Result<Vec<contradict::PendingContradiction>> {
         let storage = self.scoped_storage(tenant);
         contradict::check_memory_contradictions(
             memory_id,
@@ -529,6 +530,44 @@ impl Engine {
             config,
             llm_provider,
         )
+    }
+
+    /// Phase 2a: retrieve all pending contradiction candidates for AI review.
+    ///
+    /// Scans the Pending CF for records written by `check_contradictions`.
+    pub fn contradiction_prepare(&self) -> Result<Vec<contradict::PendingContradiction>> {
+        contradict::prepare_contradictions(self.storage.clone())
+    }
+
+    /// Tenant-aware version of [`contradiction_prepare`](Self::contradiction_prepare).
+    pub fn contradiction_prepare_for_tenant(
+        &self,
+        tenant: &TenantContext,
+    ) -> Result<Vec<contradict::PendingContradiction>> {
+        let storage = self.scoped_storage(tenant);
+        contradict::prepare_contradictions(storage)
+    }
+
+    /// Phase 2b: commit AI-reviewed verdicts, creating graph edges.
+    ///
+    /// Accepts a slice of verdicts (contradiction / revision / dismiss)
+    /// and atomically creates the appropriate graph edges while deleting
+    /// the consumed pending records.
+    pub fn contradiction_commit(
+        &self,
+        verdicts: &[contradict::ContradictionVerdict],
+    ) -> Result<contradict::ContradictionCommitResult> {
+        contradict::commit_contradictions(self.storage.clone(), verdicts)
+    }
+
+    /// Tenant-aware version of [`contradiction_commit`](Self::contradiction_commit).
+    pub fn contradiction_commit_for_tenant(
+        &self,
+        tenant: &TenantContext,
+        verdicts: &[contradict::ContradictionVerdict],
+    ) -> Result<contradict::ContradictionCommitResult> {
+        let storage = self.scoped_storage(tenant);
+        contradict::commit_contradictions(storage, verdicts)
     }
 
     /// List all memories that contradict the given memory.

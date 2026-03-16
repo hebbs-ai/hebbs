@@ -757,6 +757,7 @@ main {
   min-height: 0;
   overflow: hidden;
   flex-direction: column;
+  position: relative;
 }
 
 /* ── Graph tab specific ───────────────────────────────────────────── */
@@ -1111,20 +1112,104 @@ main {
   font-family: var(--font-mono);
 }
 
-.explorer-detail {
+/* ── Detail drawer (shared across non-graph tabs) ─────────────────── */
+
+.detail-drawer {
   position: absolute;
   top: 0;
   right: 0;
-  width: 400px;
+  width: 420px;
   height: 100%;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border);
-  overflow-y: auto;
+  overflow: hidden;
   z-index: 50;
   box-shadow: var(--shadow);
+  transition: transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
-.explorer-detail.hidden { display: none; }
+.detail-drawer.hidden {
+  transform: translateX(100%);
+  pointer-events: none;
+}
+
+.detail-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.detail-drawer-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.detail-drawer-breadcrumbs .bc-item {
+  cursor: pointer;
+  color: var(--amber-mid);
+  white-space: nowrap;
+}
+.detail-drawer-breadcrumbs .bc-item:hover {
+  color: var(--amber-bright);
+}
+.detail-drawer-breadcrumbs .bc-sep {
+  color: var(--text-muted);
+}
+.detail-drawer-breadcrumbs .bc-current {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.detail-drawer-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.detail-drawer-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.detail-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.detail-drawer-graph-link {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  color: var(--amber-mid);
+  font-size: 12px;
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.detail-drawer-graph-link:hover {
+  color: var(--amber-bright);
+  background: var(--amber-subtle);
+}
 
 /* ── Recall tab ───────────────────────────────────────────────────── */
 

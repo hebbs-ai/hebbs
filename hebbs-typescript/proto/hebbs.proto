@@ -29,6 +29,8 @@ service ReflectService {
   rpc GetInsights(GetInsightsRequest) returns (GetInsightsResponse);
   rpc ReflectPrepare(ReflectPrepareRequest) returns (ReflectPrepareResponse);
   rpc ReflectCommit(ReflectCommitRequest) returns (ReflectCommitResponse);
+  rpc ContradictionPrepare(ContradictionPrepareRequest) returns (ContradictionPrepareResponse);
+  rpc ContradictionCommit(ContradictionCommitRequest) returns (ContradictionCommitResponse);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -399,6 +401,46 @@ message ReflectCommitRequest {
 
 message ReflectCommitResponse {
   uint64 insights_created = 1;
+}
+
+// --- ContradictionPrepare / ContradictionCommit (agent-driven two-step) ---
+
+message ContradictionPrepareRequest {
+  optional string tenant_id = 1;
+}
+
+message PendingContradictionProto {
+  string pending_id = 1;
+  string memory_id_a = 2;
+  string memory_id_b = 3;
+  string content_a_snippet = 4;
+  string content_b_snippet = 5;
+  float classifier_score = 6;
+  string classifier_method = 7;
+  float similarity = 8;
+  uint64 created_at = 9;
+}
+
+message ContradictionPrepareResponse {
+  repeated PendingContradictionProto candidates = 1;
+}
+
+message ContradictionVerdictInput {
+  string pending_id = 1;
+  string verdict = 2;
+  float confidence = 3;
+  optional string reasoning = 4;
+}
+
+message ContradictionCommitRequest {
+  repeated ContradictionVerdictInput verdicts = 1;
+  optional string tenant_id = 2;
+}
+
+message ContradictionCommitResponse {
+  uint64 contradictions_confirmed = 1;
+  uint64 revisions_created = 2;
+  uint64 dismissed = 3;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

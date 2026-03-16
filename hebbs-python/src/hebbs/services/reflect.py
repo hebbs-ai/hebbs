@@ -8,7 +8,10 @@ from hebbs.services.memory import _proto_to_memory
 from hebbs.types import (
     ClusterMemorySummary,
     ClusterPrompt,
+    ContradictionCommitResult,
+    ContradictionVerdictInput,
     Memory,
+    PendingContradiction,
     ProducedInsightInput,
     ReflectCommitResult,
     ReflectPrepareResult,
@@ -141,3 +144,60 @@ class ReflectServiceClient:
             raise _map_grpc_error(e) from e
 
         return ReflectCommitResult(insights_created=resp.insights_created)
+
+    async def contradiction_prepare(self) -> list[PendingContradiction]:
+        """Retrieve pending contradiction candidates for agent review."""
+        req = hebbs_pb2.ContradictionPrepareRequest()
+        if self._tenant_id:
+            req.tenant_id = self._tenant_id
+
+        try:
+            resp = await self._stub.ContradictionPrepare(req)
+        except Exception as e:
+            raise _map_grpc_error(e) from e
+
+        return [
+            PendingContradiction(
+                pending_id=c.pending_id,
+                memory_id_a=c.memory_id_a,
+                memory_id_b=c.memory_id_b,
+                content_a_snippet=c.content_a_snippet,
+                content_b_snippet=c.content_b_snippet,
+                classifier_score=c.classifier_score,
+                classifier_method=c.classifier_method,
+                similarity=c.similarity,
+                created_at=c.created_at,
+            )
+            for c in resp.candidates
+        ]
+
+    async def contradiction_commit(
+        self,
+        verdicts: list[ContradictionVerdictInput],
+    ) -> ContradictionCommitResult:
+        """Commit agent-reviewed contradiction verdicts."""
+        proto_verdicts = []
+        for v in verdicts:
+            pv = hebbs_pb2.ContradictionVerdictInput(
+                pending_id=v.pending_id,
+                verdict=v.verdict,
+                confidence=v.confidence,
+            )
+            if v.reasoning is not None:
+                pv.reasoning = v.reasoning
+            proto_verdicts.append(pv)
+
+        req = hebbs_pb2.ContradictionCommitRequest(verdicts=proto_verdicts)
+        if self._tenant_id:
+            req.tenant_id = self._tenant_id
+
+        try:
+            resp = await self._stub.ContradictionCommit(req)
+        except Exception as e:
+            raise _map_grpc_error(e) from e
+
+        return ContradictionCommitResult(
+            contradictions_confirmed=resp.contradictions_confirmed,
+            revisions_created=resp.revisions_created,
+            dismissed=resp.dismissed,
+        )

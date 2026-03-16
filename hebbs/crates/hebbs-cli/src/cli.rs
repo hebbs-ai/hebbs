@@ -271,6 +271,16 @@ pub enum Commands {
         insights: String,
     },
 
+    /// Retrieve pending contradiction candidates for agent review
+    ContradictionPrepare,
+
+    /// Commit agent-reviewed contradiction verdicts
+    ContradictionCommit {
+        /// JSON array of verdicts to commit
+        #[arg(short, long)]
+        verdicts: String,
+    },
+
     /// Query consolidated insights
     Insights {
         /// Entity ID filter

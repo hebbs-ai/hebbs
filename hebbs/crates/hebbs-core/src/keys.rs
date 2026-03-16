@@ -97,6 +97,23 @@ pub fn encode_u64_be(val: u64) -> [u8; 8] {
     val.to_be_bytes()
 }
 
+/// Prefix for pending contradiction keys in the Pending CF.
+pub const PENDING_CONTRADICTION_PREFIX: &[u8] = b"ctr:";
+
+/// Encode a pending contradiction key: `[ctr:][pending_id 16B]`.
+///
+/// Enables prefix scan on `ctr:` to retrieve all pending contradiction
+/// candidates awaiting AI review.
+///
+/// Complexity: O(1).
+#[inline]
+pub fn encode_pending_contradiction_key(pending_id: &[u8; 16]) -> Vec<u8> {
+    let mut key = Vec::with_capacity(PENDING_CONTRADICTION_PREFIX.len() + 16);
+    key.extend_from_slice(PENDING_CONTRADICTION_PREFIX);
+    key.extend_from_slice(pending_id);
+    key
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +179,14 @@ mod tests {
         let c = encode_u64_be(u64::MAX);
         assert!(a.as_slice() < b.as_slice());
         assert!(b.as_slice() < c.as_slice());
+    }
+
+    #[test]
+    fn pending_contradiction_key_format() {
+        let id = [0xABu8; 16];
+        let key = encode_pending_contradiction_key(&id);
+        assert_eq!(key.len(), PENDING_CONTRADICTION_PREFIX.len() + 16);
+        assert!(key.starts_with(PENDING_CONTRADICTION_PREFIX));
+        assert_eq!(&key[PENDING_CONTRADICTION_PREFIX.len()..], &id);
     }
 }

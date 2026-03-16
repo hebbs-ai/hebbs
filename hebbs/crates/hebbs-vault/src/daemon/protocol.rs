@@ -133,6 +133,10 @@ pub enum Command {
         session_id: String,
         insights: String,
     },
+    ContradictionPrepare {},
+    ContradictionCommit {
+        results: String,
+    },
     Insights {
         #[serde(default)]
         entity_id: Option<String>,

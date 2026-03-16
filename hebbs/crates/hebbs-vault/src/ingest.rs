@@ -9,7 +9,6 @@ use hebbs_core::engine::Engine;
 use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
-use crate::contradiction_writer::{ContradictionOutput, ContradictionWriter};
 use crate::error::{Result, VaultError};
 use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
 use crate::parser::parse_markdown_file;
@@ -35,7 +34,6 @@ pub struct Phase2Stats {
     pub embed_batches: usize,
     pub edges_created: usize,
     pub contradictions_found: usize,
-    pub contradiction_files_written: usize,
     pub errors: usize,
 }
 
@@ -326,9 +324,6 @@ pub async fn phase2_ingest(
     // (before engine.remember() assigns a new one).
     let mut processed_ids: HashSet<(String, String)> = HashSet::new();
 
-    // Collect contradiction outputs for file writing (done after manifest updates)
-    let mut contradiction_outputs: Vec<ContradictionOutput> = Vec::new();
-
     // Process new items (remember)
     let mut embed_idx = 0;
     for (rel_path, memory_id, content, work) in &new_items {
@@ -373,28 +368,14 @@ pub async fn phase2_ingest(
                     if config.contradiction.enabled {
                         let core_config = config.contradiction.to_core_config();
                         match engine.check_contradictions(&arr, &core_config, None) {
-                            Ok(contradictions) => {
-                                if !contradictions.is_empty() {
+                            Ok(pending) => {
+                                if !pending.is_empty() {
                                     debug!(
-                                        "found {} contradiction(s) for memory {}",
-                                        contradictions.len(),
+                                        "found {} contradiction candidate(s) for memory {}",
+                                        pending.len(),
                                         hex::encode(arr),
                                     );
-                                    stats.contradictions_found += contradictions.len();
-
-                                    // Collect for file output
-                                    for c in &contradictions {
-                                        if let Ok(other_mem) = engine.get(&c.memory_id_b) {
-                                            contradiction_outputs.push(ContradictionOutput {
-                                                content_a: content.clone(),
-                                                content_b: other_mem.content.clone(),
-                                                memory_id_a: c.memory_id_a,
-                                                memory_id_b: c.memory_id_b,
-                                                confidence: c.confidence,
-                                                method: c.method,
-                                            });
-                                        }
-                                    }
+                                    stats.contradictions_found += pending.len();
                                 }
                             }
                             Err(e) => {
@@ -542,19 +523,6 @@ pub async fn phase2_ingest(
 
     // Remove file entries with no sections left
     manifest.files.retain(|_, entry| !entry.sections.is_empty());
-
-    // Write contradiction files (after all manifest mutations are done)
-    if !contradiction_outputs.is_empty() {
-        let writer = ContradictionWriter::new(vault_root, manifest, config);
-        match writer.write_contradictions(&contradiction_outputs) {
-            Ok(paths) => {
-                stats.contradiction_files_written = paths.len();
-            }
-            Err(e) => {
-                warn!("failed to write contradiction files: {}", e);
-            }
-        }
-    }
 
     Ok(stats)
 }

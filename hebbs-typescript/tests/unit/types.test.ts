@@ -21,6 +21,9 @@ import {
   type ProducedInsightInput,
   type ReflectCommitResult,
   type ReflectPrepareResult,
+  type PendingContradiction,
+  type ContradictionVerdictInput,
+  type ContradictionCommitResult,
 } from '../../src/index.js';
 
 describe('MemoryKind', () => {
@@ -401,5 +404,83 @@ describe('Edge with CONTRADICTS type', () => {
 
     expect(edge.edgeType).toBe(EdgeType.CONTRADICTS);
     expect(edge.confidence).toBe(0.75);
+  });
+});
+
+describe('PendingContradiction interface', () => {
+  it('can construct a full PendingContradiction', () => {
+    const pc: PendingContradiction = {
+      pendingId: 'abc123',
+      memoryIdA: 'mem_a',
+      memoryIdB: 'mem_b',
+      contentASnippet: 'The system is reliable',
+      contentBSnippet: 'The system is unreliable',
+      classifierScore: 0.65,
+      classifierMethod: 'heuristic',
+      similarity: 0.82,
+      createdAt: 1_700_000_000_000_000,
+    };
+
+    expect(pc.pendingId).toBe('abc123');
+    expect(pc.memoryIdA).toBe('mem_a');
+    expect(pc.memoryIdB).toBe('mem_b');
+    expect(pc.contentASnippet).toBe('The system is reliable');
+    expect(pc.contentBSnippet).toBe('The system is unreliable');
+    expect(pc.classifierScore).toBe(0.65);
+    expect(pc.classifierMethod).toBe('heuristic');
+    expect(pc.similarity).toBe(0.82);
+    expect(pc.createdAt).toBe(1_700_000_000_000_000);
+  });
+});
+
+describe('ContradictionVerdictInput interface', () => {
+  it('can construct a contradiction verdict', () => {
+    const v: ContradictionVerdictInput = {
+      pendingId: 'abc123',
+      verdict: 'contradiction',
+      confidence: 0.9,
+      reasoning: 'Direct conflict in vendor assessment',
+    };
+
+    expect(v.pendingId).toBe('abc123');
+    expect(v.verdict).toBe('contradiction');
+    expect(v.confidence).toBe(0.9);
+    expect(v.reasoning).toBe('Direct conflict in vendor assessment');
+  });
+
+  it('can construct a dismiss verdict without reasoning', () => {
+    const v: ContradictionVerdictInput = {
+      pendingId: 'def456',
+      verdict: 'dismiss',
+      confidence: 0.95,
+    };
+
+    expect(v.verdict).toBe('dismiss');
+    expect(v.reasoning).toBeUndefined();
+  });
+
+  it('can construct a revision verdict', () => {
+    const v: ContradictionVerdictInput = {
+      pendingId: 'ghi789',
+      verdict: 'revision',
+      confidence: 0.85,
+      reasoning: 'Updated timeline',
+    };
+
+    expect(v.verdict).toBe('revision');
+  });
+});
+
+describe('ContradictionCommitResult interface', () => {
+  it('captures all fields', () => {
+    const result: ContradictionCommitResult = {
+      contradictionsConfirmed: 2,
+      revisionsCreated: 1,
+      dismissed: 3,
+    };
+
+    expect(result.contradictionsConfirmed).toBe(2);
+    expect(result.revisionsCreated).toBe(1);
+    expect(result.dismissed).toBe(3);
   });
 });

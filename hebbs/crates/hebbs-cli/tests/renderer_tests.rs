@@ -424,3 +424,134 @@ fn render_memory_with_context() {
     assert_eq!(ctx["topic"], "sales");
     assert_eq!(ctx["priority"], 1.0);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Contradiction Prepare/Commit Rendering Tests
+// ═══════════════════════════════════════════════════════════════════════
+
+fn make_test_contradiction_prepare_response() -> pb::ContradictionPrepareResponse {
+    pb::ContradictionPrepareResponse {
+        candidates: vec![
+            pb::PendingContradictionProto {
+                pending_id: "abc123def456".to_string(),
+                memory_id_a: "mem_a_001".to_string(),
+                memory_id_b: "mem_b_002".to_string(),
+                content_a_snippet: "The system is reliable".to_string(),
+                content_b_snippet: "The system is unreliable".to_string(),
+                classifier_score: 0.65,
+                classifier_method: "heuristic".to_string(),
+                similarity: 0.82,
+                created_at: 1_700_000_000_000_000,
+            },
+        ],
+    }
+}
+
+#[test]
+fn render_contradiction_prepare_human_empty() {
+    let renderer = Renderer::new(OutputFormat::Human, false);
+    let resp = pb::ContradictionPrepareResponse { candidates: vec![] };
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_prepare_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+    assert!(output.contains("No pending contradictions"));
+}
+
+#[test]
+fn render_contradiction_prepare_human_with_candidates() {
+    let renderer = Renderer::new(OutputFormat::Human, false);
+    let resp = make_test_contradiction_prepare_response();
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_prepare_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+
+    assert!(output.contains("Pending contradictions: 1"));
+    assert!(output.contains("abc123def456"));
+    assert!(output.contains("The system is reliable"));
+    assert!(output.contains("The system is unreliable"));
+    assert!(output.contains("heuristic"));
+    assert!(output.contains("0.65"));
+    assert!(output.contains("0.82"));
+}
+
+#[test]
+fn render_contradiction_prepare_json_is_valid() {
+    let renderer = Renderer::new(OutputFormat::Json, false);
+    let resp = make_test_contradiction_prepare_response();
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_prepare_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(output.trim()).unwrap();
+    assert!(parsed.is_array());
+    let arr = parsed.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+
+    let candidate = &arr[0];
+    assert_eq!(candidate["pending_id"], "abc123def456");
+    assert_eq!(candidate["memory_id_a"], "mem_a_001");
+    assert_eq!(candidate["memory_id_b"], "mem_b_002");
+    assert_eq!(candidate["content_a_snippet"], "The system is reliable");
+    assert_eq!(candidate["content_b_snippet"], "The system is unreliable");
+    assert_eq!(candidate["classifier_method"], "heuristic");
+}
+
+#[test]
+fn render_contradiction_prepare_json_empty() {
+    let renderer = Renderer::new(OutputFormat::Json, false);
+    let resp = pb::ContradictionPrepareResponse { candidates: vec![] };
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_prepare_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(output.trim()).unwrap();
+    assert!(parsed.is_array());
+    assert!(parsed.as_array().unwrap().is_empty());
+}
+
+#[test]
+fn render_contradiction_commit_human() {
+    let renderer = Renderer::new(OutputFormat::Human, false);
+    let resp = pb::ContradictionCommitResponse {
+        contradictions_confirmed: 2,
+        revisions_created: 1,
+        dismissed: 3,
+    };
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_commit_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+
+    assert!(output.contains("Contradictions confirmed: 2"));
+    assert!(output.contains("Revisions created: 1"));
+    assert!(output.contains("Dismissed: 3"));
+}
+
+#[test]
+fn render_contradiction_commit_json_is_valid() {
+    let renderer = Renderer::new(OutputFormat::Json, false);
+    let resp = pb::ContradictionCommitResponse {
+        contradictions_confirmed: 2,
+        revisions_created: 1,
+        dismissed: 3,
+    };
+    let mut buf = Vec::new();
+    renderer
+        .render_contradiction_commit_result(&resp, &mut buf)
+        .unwrap();
+    let output = String::from_utf8(buf).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(output.trim()).unwrap();
+    assert_eq!(parsed["contradictions_confirmed"], 2);
+    assert_eq!(parsed["revisions_created"], 1);
+    assert_eq!(parsed["dismissed"], 3);
+}

@@ -84,6 +84,7 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/panel/queries", get(list_queries))
         .route("/api/panel/queries/stats", get(query_stats))
         .route("/api/panel/queries/:id", get(get_query))
+        .route("/api/panel/vaults/switch", post(switch_vault))
 }
 
 // ── Vault listing ──────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ struct VaultEntry {
 }
 
 async fn list_vaults(State(state): State<AppState>) -> Json<Vec<VaultEntry>> {
+    let vault_root = state.vault_root().await;
     let mut vaults = Vec::new();
 
     // Read ~/.hebbs/vaults.json
@@ -104,7 +106,7 @@ async fn list_vaults(State(state): State<AppState>) -> Json<Vec<VaultEntry>> {
         if let Ok(content) = std::fs::read_to_string(&registry_path) {
             if let Ok(registry) = serde_json::from_str::<serde_json::Value>(&content) {
                 if let Some(arr) = registry.get("vaults").and_then(|v| v.as_array()) {
-                    let active_path = state.vault_root.canonicalize().ok();
+                    let active_path = vault_root.canonicalize().ok();
                     for entry in arr {
                         let path = entry
                             .get("path")
@@ -135,6 +137,46 @@ async fn list_vaults(State(state): State<AppState>) -> Json<Vec<VaultEntry>> {
     Json(vaults)
 }
 
+// ── Vault switch ──────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SwitchVaultRequest {
+    path: String,
+}
+
+async fn switch_vault(
+    State(state): State<AppState>,
+    Json(body): Json<SwitchVaultRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let vault_path = std::path::PathBuf::from(&body.path);
+    let hebbs_dir = vault_path.join(".hebbs");
+    if !hebbs_dir.exists() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let vault_manager = state.vault_manager.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+
+    let (engine, _embedder) = vault_manager
+        .lock()
+        .await
+        .get_or_open(&vault_path)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Swap the active vault
+    {
+        let mut active = state.active_vault.write().await;
+        active.engine = engine;
+        active.vault_root = vault_path.clone();
+    }
+
+    // Invalidate projection cache
+    if let Ok(mut cache) = state.projection_cache.lock() {
+        *cache = None;
+    }
+
+    Ok(Json(serde_json::json!({"switched": true, "vault_path": body.path})))
+}
+
 // ── Vault status ───────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -151,7 +193,8 @@ struct StatusResponse {
 }
 
 async fn vault_status(State(state): State<AppState>) -> Result<Json<StatusResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let (synced, stale, orphaned) = manifest.section_counts();
@@ -171,7 +214,7 @@ async fn vault_status(State(state): State<AppState>) -> Result<Json<StatusRespon
                 continue;
             }
             if let Ok(id_bytes) = parse_memory_id(&section.memory_id) {
-                if let Ok(mem) = state.engine.get(&id_bytes) {
+                if let Ok(mem) = engine.get(&id_bytes) {
                     match mem.kind {
                         MemoryKind::Insight => insight_count += 1,
                         _ => memory_count += 1,
@@ -186,7 +229,7 @@ async fn vault_status(State(state): State<AppState>) -> Result<Json<StatusRespon
     }
 
     Ok(Json(StatusResponse {
-        vault_path: state.vault_root.display().to_string(),
+        vault_path: vault_root.display().to_string(),
         memory_count,
         insight_count,
         file_count: manifest.files.len(),
@@ -247,7 +290,8 @@ struct GraphEdge {
 }
 
 async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let now_us = std::time::SystemTime::now()
@@ -288,7 +332,7 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 content_preview,
                 embedding,
                 confidence,
-            ) = match state.engine.get(&id_bytes) {
+            ) = match engine.get(&id_bytes) {
                 Ok(mem) => {
                     let k = match mem.kind {
                         MemoryKind::Episode => "episode",
@@ -380,7 +424,7 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
 
     // Compute similarity edges using HNSW
     // For each node with an embedding, find top-3 nearest neighbors
-    let index_manager = state.engine.index_manager();
+    let index_manager = engine.index_manager();
     for (mem_id, embedding) in &embeddings {
         match index_manager.search_vector(embedding, 4, None) {
             Ok(neighbors) => {
@@ -465,7 +509,7 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
         };
 
         if needs_recompute {
-            let index_manager = state.engine.index_manager();
+            let index_manager = engine.index_manager();
             let k = 15.min(node_count.saturating_sub(1)).max(1);
             let snapshot = index_manager.extract_neighborhood_snapshot(k);
 
@@ -489,10 +533,10 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 let nc = proj.n_clusters;
 
                 // Load pinned positions from storage
-                let pinned = load_pinned_positions(state.engine.storage());
+                let pinned = load_pinned_positions(engine.storage());
 
                 // Compute cluster labels: try LLM first, fall back to TF heuristic.
-                let labels = compute_cluster_labels_llm(&nodes, &clusters, &state.vault_root)
+                let labels = compute_cluster_labels_llm(&nodes, &clusters, &vault_root)
                     .unwrap_or_else(|| compute_cluster_labels(&nodes, &clusters));
 
                 let mut cache = state
@@ -613,7 +657,8 @@ async fn pin_position(
     Path(id): Path<String>,
     Json(body): Json<PinPositionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    save_pinned_position(state.engine.storage(), &id, body.x, body.y)?;
+    let engine = state.engine().await;
+    save_pinned_position(engine.storage(), &id, body.x, body.y)?;
     // Update in-memory cache
     let mut cache = state
         .projection_cache
@@ -630,7 +675,8 @@ async fn unpin_position(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    delete_pinned_position(state.engine.storage(), &id)?;
+    let engine = state.engine().await;
+    delete_pinned_position(engine.storage(), &id)?;
     // Update in-memory cache
     let mut cache = state
         .projection_cache
@@ -894,10 +940,10 @@ async fn memory_detail(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<MemoryDetailResponse>, StatusCode> {
+    let (engine, vault_root) = state.vault_snapshot().await;
     let id_bytes = parse_memory_id(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let mem = state
-        .engine
+    let mem = engine
         .get(&id_bytes)
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -943,7 +989,7 @@ async fn memory_detail(
 
     // Get edges from graph index
     let mut edges_out = Vec::new();
-    let index_manager = state.engine.index_manager();
+    let index_manager = engine.index_manager();
     let id_16: [u8; 16] = match id_bytes.as_slice().try_into() {
         Ok(a) => a,
         Err(_) => return Err(StatusCode::BAD_REQUEST),
@@ -968,8 +1014,7 @@ async fn memory_detail(
                     continue;
                 }
                 let similarity = 1.0 - distance.min(2.0) / 2.0;
-                let label = state
-                    .engine
+                let label = engine
                     .get(&nid)
                     .ok()
                     .map(|m| {
@@ -990,7 +1035,7 @@ async fn memory_detail(
     }
 
     // Look up file info from manifest
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let hebbs_dir = vault_root.join(".hebbs");
     let (file_path, heading_path, section_state) = if let Ok(manifest) = Manifest::load(&hebbs_dir)
     {
         find_section_info(&manifest, &id)
@@ -1106,6 +1151,7 @@ async fn recall_search(
     State(state): State<AppState>,
     Json(req): Json<RecallRequest>,
 ) -> Result<Json<RecallResponse>, StatusCode> {
+    let (engine, vault_root) = state.vault_snapshot().await;
     let start = std::time::Instant::now();
 
     // Save for query log before fields are moved
@@ -1145,13 +1191,12 @@ async fn recall_search(
         });
     }
 
-    let output = state
-        .engine
+    let output = engine
         .recall(input)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Load manifest for file path and state lookups.
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).ok();
 
     let now_us = std::time::SystemTime::now()
@@ -1260,9 +1305,9 @@ async fn recall_search(
             result_ids,
             top_score,
             latency_us,
-            Some(&state.vault_root.to_string_lossy()),
+            Some(&vault_root.to_string_lossy()),
         );
-        if let Err(e) = crate::query_log::append_to_storage(state.engine.storage(), &entry) {
+        if let Err(e) = crate::query_log::append_to_storage(engine.storage(), &entry) {
             debug!("failed to write query log: {}", e);
         }
     }
@@ -1304,7 +1349,8 @@ struct HealthResponse {
 }
 
 async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Scan manifest for stale files: files with at least one ContentStale section.
@@ -1331,8 +1377,7 @@ async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthRespo
                 continue;
             }
             let preview = if let Ok(id_bytes) = parse_memory_id(&section.memory_id) {
-                state
-                    .engine
+                engine
                     .get(&id_bytes)
                     .ok()
                     .map(|m| {
@@ -1362,7 +1407,7 @@ async fn health_detail(State(state): State<AppState>) -> Result<Json<HealthRespo
                 continue;
             }
             if let Ok(id_bytes) = parse_memory_id(&section.memory_id) {
-                if let Ok(mem) = state.engine.get(&id_bytes) {
+                if let Ok(mem) = engine.get(&id_bytes) {
                     if mem.decay_score <= auto_forget_threshold {
                         let label = if mem.content.len() > 80 {
                             format!("{}...", &mem.content[..80])
@@ -1400,21 +1445,20 @@ async fn health_action(
     State(state): State<AppState>,
     Json(req): Json<HealthActionRequest>,
 ) -> Result<StatusCode, StatusCode> {
+    let engine = state.engine().await;
     let id_bytes = parse_memory_id(&req.memory_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     match req.action.as_str() {
         "dismiss" => {
             let criteria = ForgetCriteria::by_ids(vec![id_bytes]);
-            state
-                .engine
+            engine
                 .forget(criteria)
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(StatusCode::OK)
         }
         "reinforce" => {
             // Retrieve the memory, then re-remember it to increment access_count.
-            let mem = state
-                .engine
+            let mem = engine
                 .get(&id_bytes)
                 .map_err(|_| StatusCode::NOT_FOUND)?;
             let input = hebbs_core::engine::RememberInput {
@@ -1424,8 +1468,7 @@ async fn health_action(
                 entity_id: None,
                 edges: Vec::new(),
             };
-            state
-                .engine
+            engine
                 .remember(input)
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(StatusCode::OK)
@@ -1465,7 +1508,8 @@ struct TimelineResponse {
 async fn timeline_data(
     State(state): State<AppState>,
 ) -> Result<Json<TimelineResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Bucket memories by day using created_at (microsecond timestamps).
@@ -1485,7 +1529,7 @@ async fn timeline_data(
                 Ok(b) => b,
                 Err(_) => continue,
             };
-            let mem = match state.engine.get(&id_bytes) {
+            let mem = match engine.get(&id_bytes) {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -1560,7 +1604,8 @@ async fn timeline_snapshot(
     State(state): State<AppState>,
     Query(query): Query<SnapshotQuery>,
 ) -> Result<Json<SnapshotResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let at_us = query.at;
@@ -1572,7 +1617,7 @@ async fn timeline_snapshot(
                 Ok(b) => b,
                 Err(_) => continue,
             };
-            let mem = match state.engine.get(&id_bytes) {
+            let mem = match engine.get(&id_bytes) {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -1607,7 +1652,8 @@ struct ForgottenResponse {
 async fn forgotten_timeline(
     State(state): State<AppState>,
 ) -> Result<Json<ForgottenResponse>, StatusCode> {
-    let storage = state.engine.storage();
+    let engine = state.engine().await;
+    let storage = engine.storage();
     let prefix = tombstone_prefix();
 
     let entries = storage
@@ -1657,7 +1703,8 @@ async fn forgotten_timeline(
 // ── Config endpoints (Phase 4, Steps 20-21) ─────────────────────────────
 
 async fn get_config(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let vault_root = state.vault_root().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let config = VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let val = serde_json::to_value(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(val))
@@ -1677,7 +1724,8 @@ async fn update_config(
     State(state): State<AppState>,
     Json(req): Json<ConfigUpdateRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let vault_root = state.vault_root().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let mut config = VaultConfig::load(&hebbs_dir)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -1784,7 +1832,8 @@ async fn update_config(
 async fn reset_config(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let vault_root = state.vault_root().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let config = VaultConfig::default();
     config
         .save(&hebbs_dir)
@@ -1800,7 +1849,8 @@ async fn reset_config(
 }
 
 async fn export_config(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let vault_root = state.vault_root().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let config = VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let toml_str =
         toml::to_string_pretty(&config).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -1865,7 +1915,8 @@ struct ScoringDefaultsResponse {
 async fn dashboard_data(
     State(state): State<AppState>,
 ) -> Result<Json<DashboardResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let (synced, stale, orphaned) = manifest.section_counts();
@@ -1912,7 +1963,7 @@ async fn dashboard_data(
                 Ok(b) => b,
                 Err(_) => continue,
             };
-            let mem = match state.engine.get(&id_bytes) {
+            let mem = match engine.get(&id_bytes) {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -2060,7 +2111,8 @@ async fn list_memories(
     State(state): State<AppState>,
     Query(query): Query<MemoryListQuery>,
 ) -> Result<Json<MemoryListResponse>, StatusCode> {
-    let hebbs_dir = state.vault_root.join(".hebbs");
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let now_us = std::time::SystemTime::now()
@@ -2097,7 +2149,7 @@ async fn list_memories(
                 Ok(b) => b,
                 Err(_) => continue,
             };
-            let mem = match state.engine.get(&id_bytes) {
+            let mem = match engine.get(&id_bytes) {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -2362,7 +2414,8 @@ async fn list_queries(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     use crate::query_log::{QueryLogListParams, QueryLogStore, QueryOperation};
 
-    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+    let engine = state.engine().await;
+    let store = QueryLogStore::new(Arc::new(StorageRef(engine.clone())));
 
     let operation = params.operation.as_deref().and_then(|op| match op {
         "recall" => Some(QueryOperation::Recall),
@@ -2397,7 +2450,8 @@ async fn get_query(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     use crate::query_log::QueryLogStore;
 
-    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+    let engine = state.engine().await;
+    let store = QueryLogStore::new(Arc::new(StorageRef(engine.clone())));
 
     match store.get(id) {
         Ok(Some(entry)) => Ok(Json(serde_json::to_value(entry).unwrap_or_default())),
@@ -2412,7 +2466,8 @@ async fn query_stats(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     use crate::query_log::QueryLogStore;
 
-    let store = QueryLogStore::new(Arc::new(StorageRef(state.engine.clone())));
+    let engine = state.engine().await;
+    let store = QueryLogStore::new(Arc::new(StorageRef(engine.clone())));
 
     let stats = store
         .stats(params.since_us)

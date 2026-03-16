@@ -5,7 +5,7 @@
 import type { Metadata } from '@grpc/grpc-js';
 import { mapGrpcError } from '../errors.js';
 import { grpcUnary, protoToMemory } from '../proto.js';
-import type { Memory, ReflectResult, ClusterMemorySummary, ClusterPrompt, ReflectPrepareResult, ProducedInsightInput, ReflectCommitResult } from '../types.js';
+import type { Memory, ReflectResult, ClusterMemorySummary, ClusterPrompt, ReflectPrepareResult, ProducedInsightInput, ReflectCommitResult, PendingContradiction, ContradictionVerdictInput, ContradictionCommitResult } from '../types.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -130,6 +130,56 @@ export class ReflectService {
       );
       return {
         insightsCreated: resp.insightsCreated ?? resp.insights_created ?? 0,
+      };
+    } catch (e) {
+      throw mapGrpcError(e);
+    }
+  }
+  async contradictionPrepare(): Promise<PendingContradiction[]> {
+    const req: any = {};
+    if (this.tenantId) req.tenantId = this.tenantId;
+
+    try {
+      const resp = await grpcUnary<any>((cb) =>
+        this.stub.contradictionPrepare(req, this.metadata, cb),
+      );
+      return (resp.candidates ?? []).map((c: any): PendingContradiction => ({
+        pendingId: c.pendingId ?? c.pending_id ?? '',
+        memoryIdA: c.memoryIdA ?? c.memory_id_a ?? '',
+        memoryIdB: c.memoryIdB ?? c.memory_id_b ?? '',
+        contentASnippet: c.contentASnippet ?? c.content_a_snippet ?? '',
+        contentBSnippet: c.contentBSnippet ?? c.content_b_snippet ?? '',
+        classifierScore: c.classifierScore ?? c.classifier_score ?? 0,
+        classifierMethod: c.classifierMethod ?? c.classifier_method ?? '',
+        similarity: c.similarity ?? 0,
+        createdAt: c.createdAt ?? c.created_at ?? 0,
+      }));
+    } catch (e) {
+      throw mapGrpcError(e);
+    }
+  }
+
+  async contradictionCommit(
+    verdicts: ContradictionVerdictInput[],
+  ): Promise<ContradictionCommitResult> {
+    const protoVerdicts = verdicts.map((v) => ({
+      pendingId: v.pendingId,
+      verdict: v.verdict,
+      confidence: v.confidence,
+      ...(v.reasoning !== undefined ? { reasoning: v.reasoning } : {}),
+    }));
+
+    const req: any = { verdicts: protoVerdicts };
+    if (this.tenantId) req.tenantId = this.tenantId;
+
+    try {
+      const resp = await grpcUnary<any>((cb) =>
+        this.stub.contradictionCommit(req, this.metadata, cb),
+      );
+      return {
+        contradictionsConfirmed: resp.contradictionsConfirmed ?? resp.contradictions_confirmed ?? 0,
+        revisionsCreated: resp.revisionsCreated ?? resp.revisions_created ?? 0,
+        dismissed: resp.dismissed ?? 0,
       };
     } catch (e) {
       throw mapGrpcError(e);

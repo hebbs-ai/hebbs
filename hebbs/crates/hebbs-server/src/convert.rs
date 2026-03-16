@@ -588,6 +588,40 @@ pub fn proto_to_produced_insight(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Contradiction
+// ═══════════════════════════════════════════════════════════════════════
+
+pub fn pending_contradiction_to_proto(
+    p: &hebbs_core::contradict::PendingContradiction,
+) -> pb::PendingContradictionProto {
+    pb::PendingContradictionProto {
+        pending_id: hex::encode(p.id),
+        memory_id_a: hex::encode(p.memory_id_a),
+        memory_id_b: hex::encode(p.memory_id_b),
+        content_a_snippet: p.content_a_snippet.clone(),
+        content_b_snippet: p.content_b_snippet.clone(),
+        classifier_score: p.classifier_score,
+        classifier_method: match p.classifier_method {
+            hebbs_core::contradict::ClassifierMethod::Heuristic => "heuristic".to_string(),
+            hebbs_core::contradict::ClassifierMethod::Llm => "llm".to_string(),
+        },
+        similarity: p.similarity,
+        created_at: p.created_at,
+    }
+}
+
+pub fn proto_to_contradiction_verdict(
+    v: &pb::ContradictionVerdictInput,
+) -> hebbs_core::contradict::ContradictionVerdict {
+    hebbs_core::contradict::ContradictionVerdict {
+        pending_id: v.pending_id.clone(),
+        verdict: v.verdict.clone(),
+        confidence: v.confidence,
+        reasoning: v.reasoning.clone(),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  Error mapping
 // ═══════════════════════════════════════════════════════════════════════
 

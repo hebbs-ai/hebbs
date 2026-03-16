@@ -23,10 +23,13 @@ from hebbs.services.reflect import ReflectServiceClient
 from hebbs.services.subscribe import SubscribeServiceClient, Subscription
 from hebbs.types import (
     ClusterPrompt,
+    ContradictionCommitResult,
+    ContradictionVerdictInput,
     Edge,
     ForgetResult,
     HealthStatus,
     Memory,
+    PendingContradiction,
     PrimeOutput,
     ProducedInsightInput,
     RecallOutput,
@@ -296,6 +299,21 @@ class HebbsClient:
         self._ensure_connected()
         assert self._reflect is not None
         return await self._reflect.reflect_commit(session_id, insights)
+
+    async def contradiction_prepare(self) -> list[PendingContradiction]:
+        """Retrieve pending contradiction candidates for agent review."""
+        self._ensure_connected()
+        assert self._reflect is not None
+        return await self._reflect.contradiction_prepare()
+
+    async def contradiction_commit(
+        self,
+        verdicts: list[ContradictionVerdictInput],
+    ) -> ContradictionCommitResult:
+        """Commit agent-reviewed contradiction verdicts."""
+        self._ensure_connected()
+        assert self._reflect is not None
+        return await self._reflect.contradiction_commit(verdicts)
 
     # ── HealthService ────────────────────────────────────────────────────
 

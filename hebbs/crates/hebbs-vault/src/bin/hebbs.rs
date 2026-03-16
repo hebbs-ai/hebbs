@@ -333,6 +333,16 @@ enum Commands {
         insights: String,
     },
 
+    /// List pending contradiction candidates for AI review
+    ContradictionPrepare {},
+
+    /// Commit AI-reviewed contradiction verdicts
+    ContradictionCommit {
+        /// JSON array of verdicts
+        #[arg(short, long)]
+        results: String,
+    },
+
     /// Query consolidated insights
     Insights {
         /// Entity ID filter
@@ -387,6 +397,9 @@ enum Commands {
 
     /// Display server metrics (remote mode)
     Metrics,
+
+    /// Stop the running daemon
+    Stop,
 
     /// Print version
     Version,
@@ -472,7 +485,8 @@ async fn run(cli: Cli) -> i32 {
         Commands::Init { .. }
         | Commands::Version
         | Commands::Serve { .. }
-        | Commands::Panel { .. } => {
+        | Commands::Panel { .. }
+        | Commands::Stop => {
             return run_local(cli).await;
         }
         _ => {}
@@ -1453,6 +1467,121 @@ async fn run_local(cli: Cli) -> i32 {
             }
         }
 
+        Commands::ContradictionPrepare {} => {
+            let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                Ok(p) => p,
+                Err(code) => return code,
+            };
+            match setup_engine(&path).await {
+                Ok((engine, _)) => match engine.contradiction_prepare() {
+                    Ok(candidates) => {
+                        if is_json_format(&cli.format) {
+                            let items: Vec<serde_json::Value> = candidates
+                                .iter()
+                                .map(|c| {
+                                    serde_json::json!({
+                                        "id": hex::encode(c.id),
+                                        "memory_id_a": hex::encode(c.memory_id_a),
+                                        "memory_id_b": hex::encode(c.memory_id_b),
+                                        "content_a_snippet": c.content_a_snippet,
+                                        "content_b_snippet": c.content_b_snippet,
+                                        "classifier_score": c.classifier_score,
+                                        "similarity": c.similarity,
+                                    })
+                                })
+                                .collect();
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&serde_json::json!({
+                                    "candidates": items,
+                                    "count": candidates.len(),
+                                }))
+                                .unwrap_or_default()
+                            );
+                        } else {
+                            println!("Found {} pending contradiction candidate(s)", candidates.len());
+                            for (i, c) in candidates.iter().enumerate() {
+                                println!(
+                                    "\n--- Candidate {} (score: {:.3}) ---",
+                                    i + 1,
+                                    c.classifier_score
+                                );
+                                println!("  Memory A: {}", hex::encode(c.memory_id_a));
+                                println!("  Memory B: {}", hex::encode(c.memory_id_b));
+                                println!(
+                                    "  Snippet A: {}",
+                                    truncate(&c.content_a_snippet, 120)
+                                );
+                                println!(
+                                    "  Snippet B: {}",
+                                    truncate(&c.content_b_snippet, 120)
+                                );
+                            }
+                        }
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        1
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Error setting up engine: {}", e);
+                    1
+                }
+            }
+        }
+
+        Commands::ContradictionCommit { ref results } => {
+            let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                Ok(p) => p,
+                Err(code) => return code,
+            };
+            match setup_engine(&path).await {
+                Ok((engine, _)) => {
+                    let verdicts: Vec<hebbs_core::contradict::ContradictionVerdict> =
+                        match serde_json::from_str(results) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                eprintln!("Error parsing verdicts JSON: {}", e);
+                                return 1;
+                            }
+                        };
+
+                    match engine.contradiction_commit(&verdicts) {
+                        Ok(result) => {
+                            if is_json_format(&cli.format) {
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "contradictions_confirmed": result.contradictions_confirmed,
+                                        "revisions_created": result.revisions_created,
+                                        "dismissed": result.dismissed,
+                                    })
+                                );
+                            } else {
+                                println!(
+                                    "Committed: {} confirmed, {} revised, {} dismissed",
+                                    result.contradictions_confirmed,
+                                    result.revisions_created,
+                                    result.dismissed
+                                );
+                            }
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error setting up engine: {}", e);
+                    1
+                }
+            }
+        }
+
         Commands::Insights {
             ref entity_id,
             min_confidence,
@@ -1647,16 +1776,40 @@ async fn run_local(cli: Cli) -> i32 {
             1
         }
 
-        Commands::Panel {
-            vault_path: _,
-            port,
-        } => {
-            // Panel always runs through the daemon. The daemon serves the panel
-            // HTTP server, so we just need to ensure the daemon is running and
-            // open the browser.
+        Commands::Panel { vault_path, port } => {
+            // Panel runs through the daemon. Ensure it's running, then
+            // tell it which vault to show via the switch endpoint.
             match client::ensure_daemon_with_opts(Some(port)).await {
                 Ok(_daemon) => {
                     let url = format!("http://127.0.0.1:{}", port);
+
+                    // If a vault path was specified, switch the panel to it.
+                    // Retry a few times since the panel HTTP server may still
+                    // be binding when the daemon Unix socket is already up.
+                    if let Some(vp) = vault_path.as_ref().or(cli.vault.as_ref()) {
+                        let abs_path = std::fs::canonicalize(vp).unwrap_or_else(|_| vp.clone());
+                        if abs_path.join(".hebbs").exists() {
+                            let body = serde_json::json!({"path": abs_path.display().to_string()}).to_string();
+                            let req = format!(
+                                "POST /api/panel/vaults/switch HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                                port, body.len(), body
+                            );
+                            for attempt in 0..5u32 {
+                                if attempt > 0 {
+                                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                                }
+                                if let Ok(mut stream) = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+                                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                                    if stream.write_all(req.as_bytes()).await.is_ok() {
+                                        let mut buf = vec![0u8; 256];
+                                        let _ = stream.read(&mut buf).await;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     println!("Memory Palace running at {}", url);
                     open_browser(&url);
                     println!("Press Ctrl+C to stop.");
@@ -1699,6 +1852,44 @@ async fn run_local(cli: Cli) -> i32 {
         Commands::Queries { .. } => {
             eprintln!("Query log requires the daemon. Do not set HEBBS_NO_DAEMON=1.");
             1
+        }
+
+        Commands::Stop => {
+            let socket_path = match client::default_socket_path() {
+                Some(p) => p,
+                None => {
+                    eprintln!("Error: cannot determine home directory");
+                    return 1;
+                }
+            };
+            if !socket_path.exists() {
+                eprintln!("Daemon is not running (no socket found).");
+                return 1;
+            }
+            match client::DaemonClient::connect(&socket_path).await {
+                Ok(mut daemon) => {
+                    let request = DaemonRequest {
+                        command: DaemonCommand::Shutdown,
+                        vault_path: None,
+                        vault_paths: None,
+                        caller: "cli".to_string(),
+                    };
+                    match daemon.send(&request).await {
+                        Ok(_) => {
+                            println!("Daemon stopped.");
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error stopping daemon: {}", e);
+                            1
+                        }
+                    }
+                }
+                Err(_) => {
+                    eprintln!("Daemon is not running (cannot connect).");
+                    1
+                }
+            }
         }
 
         Commands::Version => {
@@ -1935,6 +2126,12 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
             session_id: session_id.clone(),
             insights: insights.clone(),
         }),
+        Commands::ContradictionPrepare {} => Some(DaemonCommand::ContradictionPrepare {}),
+        Commands::ContradictionCommit { results } => {
+            Some(DaemonCommand::ContradictionCommit {
+                results: results.clone(),
+            })
+        }
         Commands::Insights {
             entity_id,
             min_confidence,
@@ -1960,6 +2157,7 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
         | Commands::Version
         | Commands::Serve { .. }
         | Commands::Panel { .. }
+        | Commands::Stop
         | Commands::Reflect { .. }
         | Commands::Revise { .. }
         | Commands::Subscribe { .. }
@@ -2190,6 +2388,57 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
             println!("Committed: {} insights created", created);
+        }
+        Commands::ContradictionPrepare { .. } => {
+            if let Some(candidates) = data.get("candidates").and_then(|v| v.as_array()) {
+                let count = candidates.len();
+                println!("Found {} pending contradiction candidate(s)", count);
+                for (i, c) in candidates.iter().enumerate() {
+                    let id_a = c
+                        .get("memory_id_a")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
+                    let id_b = c
+                        .get("memory_id_b")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
+                    let snippet_a = c
+                        .get("content_a_snippet")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let snippet_b = c
+                        .get("content_b_snippet")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let score = c
+                        .get("classifier_score")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0);
+                    println!("\n--- Candidate {} (score: {:.3}) ---", i + 1, score);
+                    println!("  Memory A: {}", id_a);
+                    println!("  Memory B: {}", id_b);
+                    println!("  Snippet A: {}", truncate(snippet_a, 120));
+                    println!("  Snippet B: {}", truncate(snippet_b, 120));
+                }
+            }
+        }
+        Commands::ContradictionCommit { .. } => {
+            let confirmed = data
+                .get("contradictions_confirmed")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let revised = data
+                .get("revisions_created")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let dismissed = data
+                .get("dismissed")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            println!(
+                "Committed: {} confirmed, {} revised, {} dismissed",
+                confirmed, revised, dismissed
+            );
         }
         Commands::Queries { .. } => {
             if let Some(entries) = data.get("entries").and_then(|v| v.as_array()) {
@@ -2514,7 +2763,10 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
         | Commands::List { .. }
         | Commands::Serve { .. }
         | Commands::Panel { .. }
-        | Commands::Queries { .. } => None,
+        | Commands::Stop
+        | Commands::Queries { .. }
+        | Commands::ContradictionPrepare { .. }
+        | Commands::ContradictionCommit { .. } => None,
     }
 }
 

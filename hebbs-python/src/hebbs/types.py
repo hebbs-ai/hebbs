@@ -209,3 +209,31 @@ class ProducedInsightInput:
 @dataclass
 class ReflectCommitResult:
     insights_created: int
+
+
+@dataclass
+class PendingContradiction:
+    pending_id: str
+    memory_id_a: str
+    memory_id_b: str
+    content_a_snippet: str
+    content_b_snippet: str
+    classifier_score: float
+    classifier_method: str
+    similarity: float
+    created_at: int = 0
+
+
+@dataclass
+class ContradictionVerdictInput:
+    pending_id: str
+    verdict: str  # "contradiction", "revision", or "dismiss"
+    confidence: float
+    reasoning: str | None = None
+
+
+@dataclass
+class ContradictionCommitResult:
+    contradictions_confirmed: int
+    revisions_created: int
+    dismissed: int

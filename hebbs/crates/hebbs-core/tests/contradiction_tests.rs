@@ -1,16 +1,18 @@
-//! Integration tests for contradiction detection pipeline.
+//! Integration tests for two-phase contradiction detection pipeline.
 //!
 //! Tests cover:
 //! - Heuristic classifier edge cases
-//! - Engine API (check_contradictions, contradictions)
-//! - Full pipeline: remember -> check -> edges created
+//! - Engine API (check_contradictions, contradiction_prepare, contradiction_commit)
+//! - Full pipeline: remember -> check -> pending -> commit -> edges
 //! - Config behavior (enabled/disabled, thresholds)
 //! - LLM response parsing
-//! - Bidirectional edge creation
+//! - Bidirectional edge creation via commit
 
 use std::sync::Arc;
 
-use hebbs_core::contradict::{heuristic_classify, ContradictionConfig, EntailmentResult};
+use hebbs_core::contradict::{
+    heuristic_classify, ContradictionConfig, ContradictionVerdict, EntailmentResult,
+};
 use hebbs_core::engine::{Engine, RememberInput};
 use hebbs_embed::MockEmbedder;
 use hebbs_index::graph::{EdgeType, GraphIndex};
@@ -314,11 +316,42 @@ fn check_contradictions_finds_contradiction_in_pipeline() {
         "should detect contradiction between affirmative and negative vendor statements"
     );
 
-    // Verify bidirectional edges were created
+    // Phase 1 creates pending records, not edges
     let contradictions_from_new = engine.contradictions(&id).unwrap();
     assert!(
-        !contradictions_from_new.is_empty(),
-        "new memory should have CONTRADICTS edges"
+        contradictions_from_new.is_empty(),
+        "pending records should not create edges until commit"
+    );
+
+    // Phase 2a: prepare retrieves all pending candidates
+    let pending = engine.contradiction_prepare().unwrap();
+    assert!(
+        !pending.is_empty(),
+        "prepare should return pending candidates"
+    );
+
+    // Phase 2b: commit with "contradiction" verdict creates edges
+    let verdicts: Vec<ContradictionVerdict> = pending
+        .iter()
+        .map(|p| ContradictionVerdict {
+            pending_id: hex::encode(p.id),
+            verdict: "contradiction".to_string(),
+            confidence: p.classifier_score,
+            reasoning: None,
+        })
+        .collect();
+
+    let commit_result = engine.contradiction_commit(&verdicts).unwrap();
+    assert!(
+        commit_result.contradictions_confirmed > 0,
+        "commit should confirm at least one contradiction"
+    );
+
+    // Now edges should exist
+    let edges = engine.contradictions(&id).unwrap();
+    assert!(
+        !edges.is_empty(),
+        "committed contradictions should create CONTRADICTS edges"
     );
 }
 
@@ -409,6 +442,18 @@ fn check_contradictions_creates_bidirectional_edges() {
 
     let result = engine.check_contradictions(&id_b, &config, None).unwrap();
     if !result.is_empty() {
+        // Commit the pending contradictions as confirmed
+        let verdicts: Vec<ContradictionVerdict> = result
+            .iter()
+            .map(|p| ContradictionVerdict {
+                pending_id: hex::encode(p.id),
+                verdict: "contradiction".to_string(),
+                confidence: p.classifier_score,
+                reasoning: None,
+            })
+            .collect();
+        engine.contradiction_commit(&verdicts).unwrap();
+
         // Verify bidirectional: B->A exists AND A->B exists
         let from_b = engine.contradictions(&id_b).unwrap();
         let from_a = engine.contradictions(&id_a).unwrap();
@@ -450,10 +495,24 @@ fn check_contradictions_skips_already_classified_pairs() {
         min_confidence: 0.35,
     };
 
-    // First check should find contradictions
+    // First check should find contradiction candidates
     let first = engine.check_contradictions(&id_b, &config, None).unwrap();
 
-    // Second check should skip already-classified pair
+    // Commit the first batch to create graph edges
+    if !first.is_empty() {
+        let verdicts: Vec<ContradictionVerdict> = first
+            .iter()
+            .map(|p| ContradictionVerdict {
+                pending_id: hex::encode(p.id),
+                verdict: "contradiction".to_string(),
+                confidence: p.classifier_score,
+                reasoning: None,
+            })
+            .collect();
+        engine.contradiction_commit(&verdicts).unwrap();
+    }
+
+    // Second check should skip already-classified pair (edges exist now)
     let second = engine.check_contradictions(&id_b, &config, None).unwrap();
     assert!(
         second.is_empty(),
@@ -461,7 +520,7 @@ fn check_contradictions_skips_already_classified_pairs() {
         second.len()
     );
 
-    // But edges from first run should still exist
+    // Edges from first run should still exist
     if !first.is_empty() {
         let edges = engine.contradictions(&id_b).unwrap();
         assert!(!edges.is_empty(), "edges from first run should persist");
@@ -508,8 +567,8 @@ fn contradiction_config_defaults() {
     let config = ContradictionConfig::default();
     assert!(config.enabled);
     assert_eq!(config.candidates_k, 10);
-    assert!((config.min_similarity - 0.7).abs() < 0.01);
-    assert!((config.min_confidence - 0.7).abs() < 0.01);
+    assert!((config.min_similarity - 0.5).abs() < 0.01);
+    assert!((config.min_confidence - 0.35).abs() < 0.01);
 }
 
 // ── LLM Response Parsing (via heuristic to test parse_llm_response indirectly) ──
@@ -548,5 +607,249 @@ fn heuristic_handles_case_insensitivity() {
     match heuristic_classify(a, b) {
         EntailmentResult::Contradiction { .. } => {} // Expected
         other => panic!("case should not matter, got {:?}", other),
+    }
+}
+
+// ── Contradiction Prepare/Commit: Verdict Types ─────────────────────
+
+#[test]
+fn contradiction_prepare_returns_empty_when_no_pending() {
+    let (engine, _storage) = test_engine();
+
+    // Store some compatible memories -- no contradictions
+    engine
+        .remember(simple_input("The sky is blue."))
+        .unwrap();
+    engine
+        .remember(simple_input("Water is wet."))
+        .unwrap();
+
+    let pending = engine.contradiction_prepare().unwrap();
+    assert!(
+        pending.is_empty(),
+        "no pending contradictions should exist for compatible memories"
+    );
+}
+
+#[test]
+fn contradiction_commit_dismiss_removes_candidate() {
+    let (engine, _storage) = test_engine();
+
+    engine
+        .remember(simple_input(
+            "The system is reliable, stable, and well-tested under heavy load.",
+        ))
+        .unwrap();
+
+    let mem_b = engine
+        .remember(simple_input(
+            "The system is unreliable, unstable, and poorly tested under any load.",
+        ))
+        .unwrap();
+    let mut id_b = [0u8; 16];
+    id_b.copy_from_slice(&mem_b.memory_id);
+
+    let config = ContradictionConfig {
+        enabled: true,
+        candidates_k: 10,
+        min_similarity: 0.0,
+        min_confidence: 0.35,
+    };
+
+    let result = engine.check_contradictions(&id_b, &config, None).unwrap();
+    if result.is_empty() {
+        return; // MockEmbedder may not produce candidates
+    }
+
+    // Dismiss all candidates
+    let verdicts: Vec<ContradictionVerdict> = result
+        .iter()
+        .map(|p| ContradictionVerdict {
+            pending_id: hex::encode(p.id),
+            verdict: "dismiss".to_string(),
+            confidence: 0.95,
+            reasoning: Some("Not a real conflict".to_string()),
+        })
+        .collect();
+
+    let commit_result = engine.contradiction_commit(&verdicts).unwrap();
+    assert!(
+        commit_result.dismissed > 0,
+        "should have dismissed at least one candidate"
+    );
+    assert_eq!(
+        commit_result.contradictions_confirmed, 0,
+        "no contradictions should be confirmed on dismiss"
+    );
+
+    // No edges should be created
+    let edges = engine.contradictions(&id_b).unwrap();
+    assert!(
+        edges.is_empty(),
+        "dismissed candidates should not create edges"
+    );
+
+    // Prepare again should return empty (candidates consumed)
+    let pending_after = engine.contradiction_prepare().unwrap();
+    assert!(
+        pending_after.is_empty(),
+        "dismissed candidates should be removed from pending"
+    );
+}
+
+#[test]
+fn contradiction_commit_revision_creates_revised_from_edge() {
+    let (engine, _storage) = test_engine();
+
+    let mem_a = engine
+        .remember(simple_input(
+            "The system is reliable, stable, and well-tested under heavy load.",
+        ))
+        .unwrap();
+    let mut id_a = [0u8; 16];
+    id_a.copy_from_slice(&mem_a.memory_id);
+
+    let mem_b = engine
+        .remember(simple_input(
+            "The system is unreliable, unstable, and poorly tested under any load.",
+        ))
+        .unwrap();
+    let mut id_b = [0u8; 16];
+    id_b.copy_from_slice(&mem_b.memory_id);
+
+    let config = ContradictionConfig {
+        enabled: true,
+        candidates_k: 10,
+        min_similarity: 0.0,
+        min_confidence: 0.35,
+    };
+
+    let result = engine.check_contradictions(&id_b, &config, None).unwrap();
+    if result.is_empty() {
+        return; // MockEmbedder may not produce candidates
+    }
+
+    // Mark as revision instead of contradiction
+    let verdicts: Vec<ContradictionVerdict> = result
+        .iter()
+        .map(|p| ContradictionVerdict {
+            pending_id: hex::encode(p.id),
+            verdict: "revision".to_string(),
+            confidence: 0.85,
+            reasoning: Some("Updated assessment".to_string()),
+        })
+        .collect();
+
+    let commit_result = engine.contradiction_commit(&verdicts).unwrap();
+    assert!(
+        commit_result.revisions_created > 0,
+        "should have created at least one revision"
+    );
+    assert_eq!(
+        commit_result.contradictions_confirmed, 0,
+        "no contradictions should be confirmed on revision"
+    );
+
+    // Contradiction edges should NOT exist (revision creates REVISED_FROM, not CONTRADICTS)
+    let contradiction_edges = engine.contradictions(&id_b).unwrap();
+    assert!(
+        contradiction_edges.is_empty(),
+        "revision verdict should not create CONTRADICTS edges"
+    );
+}
+
+#[test]
+fn contradiction_commit_with_reasoning() {
+    let (engine, _storage) = test_engine();
+
+    engine
+        .remember(simple_input(
+            "The vendor delivered every milestone on time and was reliable throughout.",
+        ))
+        .unwrap();
+
+    let mem_b = engine
+        .remember(simple_input(
+            "The vendor failed to deliver and was unreliable, missing every deadline.",
+        ))
+        .unwrap();
+    let mut id_b = [0u8; 16];
+    id_b.copy_from_slice(&mem_b.memory_id);
+
+    let config = ContradictionConfig {
+        enabled: true,
+        candidates_k: 10,
+        min_similarity: 0.0,
+        min_confidence: 0.35,
+    };
+
+    let result = engine.check_contradictions(&id_b, &config, None).unwrap();
+    if result.is_empty() {
+        return;
+    }
+
+    // Commit with detailed reasoning
+    let verdicts: Vec<ContradictionVerdict> = result
+        .iter()
+        .map(|p| ContradictionVerdict {
+            pending_id: hex::encode(p.id),
+            verdict: "contradiction".to_string(),
+            confidence: 0.9,
+            reasoning: Some("Vendor reliability assessment directly contradicts: delivered vs failed to deliver".to_string()),
+        })
+        .collect();
+
+    let commit_result = engine.contradiction_commit(&verdicts).unwrap();
+    assert!(
+        commit_result.contradictions_confirmed > 0,
+        "should confirm contradiction with reasoning"
+    );
+}
+
+#[test]
+fn contradiction_prepare_returns_classifier_fields() {
+    let (engine, _storage) = test_engine();
+
+    engine
+        .remember(simple_input(
+            "The API is fast, efficient, and handles all requests reliably in production.",
+        ))
+        .unwrap();
+
+    let mem_b = engine
+        .remember(simple_input(
+            "The API is slow, inefficient, and unreliable at handling any requests.",
+        ))
+        .unwrap();
+    let mut id_b = [0u8; 16];
+    id_b.copy_from_slice(&mem_b.memory_id);
+
+    let config = ContradictionConfig {
+        enabled: true,
+        candidates_k: 10,
+        min_similarity: 0.0,
+        min_confidence: 0.35,
+    };
+
+    engine.check_contradictions(&id_b, &config, None).unwrap();
+
+    let pending = engine.contradiction_prepare().unwrap();
+    if pending.is_empty() {
+        return;
+    }
+
+    for p in &pending {
+        assert!(
+            p.classifier_score > 0.0,
+            "classifier_score should be positive: {}",
+            p.classifier_score
+        );
+        assert!(
+            p.classifier_score <= 0.75,
+            "heuristic classifier_score should be capped at 0.75: {}",
+            p.classifier_score
+        );
+        assert!(!p.content_a_snippet.is_empty(), "content_a_snippet should not be empty");
+        assert!(!p.content_b_snippet.is_empty(), "content_b_snippet should not be empty");
     }
 }

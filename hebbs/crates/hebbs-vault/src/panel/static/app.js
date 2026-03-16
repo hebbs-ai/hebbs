@@ -128,6 +128,8 @@ async function loadStatus() {
 async function loadGraph() {
   state.graphData = await api('/api/panel/graph');
   if (state.graphData.nodes.length === 0) {
+    // Clear the canvas so stale nodes from a previous vault don't linger
+    if (state.graph) state.graph.setData([], [], false, 0, {});
     showEmptyState();
     return;
   }
@@ -148,11 +150,181 @@ async function loadMemoryDetail(id) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Detail Drawer (shared across non-graph tabs)
+// ═══════════════════════════════════════════════════════════════════════
+
+let _drawers = {};
+
+class DetailDrawer {
+  constructor(tabPaneId) {
+    this.tabPaneId = tabPaneId;
+    this.el = document.querySelector(`#${tabPaneId} .detail-drawer`);
+    this.contentEl = this.el.querySelector('.detail-drawer-content');
+    this.breadcrumbsEl = this.el.querySelector('.detail-drawer-breadcrumbs');
+    this.closeBtn = this.el.querySelector('.detail-drawer-close');
+    this.stack = [];
+
+    this.closeBtn.addEventListener('click', () => this.close());
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.el.classList.contains('hidden')) {
+        e.stopPropagation();
+        this.close();
+      }
+    });
+  }
+
+  async open(memoryId) {
+    const detail = await api(`/api/panel/memories/${memoryId}`);
+    const label = detail.heading_path.length > 0
+      ? detail.heading_path[detail.heading_path.length - 1]
+      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : memoryId.slice(0, 12));
+
+    const existingIdx = this.stack.findIndex(s => s.id === memoryId);
+    if (existingIdx >= 0) {
+      this.stack = this.stack.slice(0, existingIdx + 1);
+    } else {
+      this.stack.push({ id: memoryId, label });
+    }
+
+    this._renderBreadcrumbs();
+    this._renderContent(detail);
+    this.el.classList.remove('hidden');
+  }
+
+  close() {
+    this.el.classList.add('hidden');
+    this.stack = [];
+  }
+
+  _renderBreadcrumbs() {
+    if (this.stack.length <= 1) {
+      this.breadcrumbsEl.innerHTML = '';
+      return;
+    }
+    const parts = this.stack.map((item, i) => {
+      if (i === this.stack.length - 1) {
+        return `<span class="bc-current">${escapeHtml(item.label)}</span>`;
+      }
+      return `<span class="bc-item" data-idx="${i}">${escapeHtml(item.label)}</span><span class="bc-sep">\u203A</span>`;
+    });
+    this.breadcrumbsEl.innerHTML = parts.join('');
+
+    this.breadcrumbsEl.querySelectorAll('.bc-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx);
+        const target = this.stack[idx];
+        this.open(target.id);
+      });
+    });
+  }
+
+  _renderContent(m) {
+    const title = m.heading_path.length > 0
+      ? m.heading_path[m.heading_path.length - 1]
+      : (m.file_path ? m.file_path.split('/').pop().replace('.md', '') : 'Memory');
+
+    let html = `
+      <div class="panel-header">
+        <span class="panel-kind ${m.kind}">${m.kind}</span>
+        ${m.confidence !== null && m.confidence !== undefined
+          ? `<span class="confidence-badge">Confidence: ${(m.confidence * 100).toFixed(0)}%</span>`
+          : ''}
+        <div class="panel-title">${escapeHtml(title)}</div>
+        <div class="panel-file">${escapeHtml(m.file_path || m.memory_id)}</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Content</div>
+        <div class="panel-content-preview">${escapeHtml(m.content.slice(0, 500))}${m.content.length > 500 ? '...' : ''}</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Score Breakdown</div>
+        ${renderScoreRow('Recency', m.scores.recency, 'recency')}
+        ${renderScoreRow('Importance', m.scores.importance, 'importance')}
+        ${renderScoreRow('Reinforcement', m.scores.reinforcement, 'reinforcement')}
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Metadata</div>
+        ${renderMetaRow('Decay score', m.decay_score.toFixed(3))}
+        ${renderMetaRow('Access count', m.access_count)}
+        ${renderMetaRow('Created', formatTimestamp(m.created_at))}
+        ${renderMetaRow('Last accessed', formatTimestamp(m.last_accessed_at))}
+        ${m.state ? renderMetaRow('State', m.state) : ''}
+      </div>
+    `;
+
+    if (m.source_ids && m.source_ids.length > 0) {
+      html += `<div class="panel-section">
+        <div class="panel-section-title">Source Memories</div>
+        ${m.source_ids.map(sid => `
+          <div class="edge-item" data-drawer-nav="${sid}">
+            <span class="edge-type-badge">source</span>
+            <span style="color:var(--text-secondary)">${sid.slice(0, 12)}...</span>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+
+    if (m.edges.length > 0) {
+      html += `<div class="panel-section">
+        <div class="panel-section-title">Edges</div>
+        ${m.edges.map(e => `
+          <div class="edge-item" data-drawer-nav="${e.target_id}">
+            <span class="edge-type-badge">${e.type.replace('_', ' ')}</span>
+            <span style="color:var(--text-secondary)">${e.target_id.slice(0, 12)}...</span>
+            <span style="color:var(--text-muted);font-size:10px;margin-left:auto">${(e.confidence * 100).toFixed(0)}%</span>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+
+    if (m.neighbors && m.neighbors.length > 0) {
+      html += `<div class="panel-section">
+        <div class="panel-section-title">Similar Memories</div>
+        ${m.neighbors.map(n => `
+          <div class="neighbor-item" data-drawer-nav="${n.id}">
+            <span style="color:var(--amber-bright);font-size:10px;font-family:var(--font-mono)">${(n.similarity * 100).toFixed(0)}%</span>
+            <span style="color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(n.label)}</span>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+
+    html += `<div class="detail-drawer-graph-link" data-graph-nav="${m.memory_id}">View on graph \u2192</div>`;
+
+    this.contentEl.innerHTML = html;
+
+    this.contentEl.querySelectorAll('[data-drawer-nav]').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.open(el.dataset.drawerNav);
+      });
+    });
+
+    const graphLink = this.contentEl.querySelector('[data-graph-nav]');
+    if (graphLink) {
+      graphLink.addEventListener('click', () => {
+        const id = m.memory_id;
+        this.close();
+        switchTab('graph');
+        state.selectedNodeId = id;
+        if (state.graph) state.graph.selectNode(id);
+        loadMemoryDetail(id);
+      });
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  Tab Router
 // ═══════════════════════════════════════════════════════════════════════
 
 function switchTab(tabName) {
   state.activeTab = tabName;
+
+  // Close any open detail drawers
+  Object.values(_drawers).forEach(d => d.close());
 
   // Update tab button states
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -249,7 +421,7 @@ function renderDashboard() {
       <div class="dash-section-title">Top Memories (by composite score)</div>
       <div class="dash-top-list">
         ${d.top_memories.map(m => `
-          <div class="dash-top-item" onclick="window._selectNodeTab('${m.memory_id}')">
+          <div class="dash-top-item" onclick="window._openDetail('${m.memory_id}')">
             <span class="dash-top-score">${m.composite_score.toFixed(2)}</span>
             <span class="dash-top-kind ${m.kind}">${m.kind}</span>
             <span class="dash-top-label">${escapeHtml(m.label)}</span>
@@ -263,7 +435,7 @@ function renderDashboard() {
       <div class="dash-section-title">Recent Activity</div>
       <div class="dash-top-list">
         ${d.recent_activity.map(m => `
-          <div class="dash-recent-item" onclick="window._selectNodeTab('${m.memory_id}')">
+          <div class="dash-recent-item" onclick="window._openDetail('${m.memory_id}')">
             <span class="dash-recent-time">${formatTimestamp(m.created_at)}</span>
             <span class="dash-top-kind ${m.kind}">${m.kind}</span>
             <span class="dash-recent-label">${escapeHtml(m.label)}</span>
@@ -397,7 +569,7 @@ function renderExplorer() {
 
   for (const m of d.memories) {
     html += `
-      <div class="explorer-row" onclick="window._selectNodeTab('${m.memory_id}')">
+      <div class="explorer-row" onclick="window._openDetail('${m.memory_id}')">
         <div class="explorer-row-label">
           <span class="explorer-row-title">${escapeHtml(m.label)}</span>
           <span class="explorer-row-file">${escapeHtml(m.content_preview.slice(0, 60))}</span>
@@ -542,7 +714,7 @@ function renderRecallResults() {
       : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : r.memory_id.slice(0, 16));
 
     html += `
-      <div class="recall-result-card" onclick="window._selectNodeTab('${r.memory_id}')">
+      <div class="recall-result-card" onclick="window._openDetail('${r.memory_id}')">
         <div class="recall-result-header">
           <span class="recall-result-title">${escapeHtml(title)}</span>
           <span class="recall-result-score">${r.score.toFixed(4)}</span>
@@ -673,7 +845,7 @@ function renderQueriesList() {
     const queryPreview = e.query || (e.entity_id ? `entity: ${e.entity_id}` : '(no query)');
 
     const resultIds = (e.result_memory_ids || []).map(id =>
-      `<span class="queries-result-id" onclick="event.stopPropagation(); window._selectNodeTab('${id}')" title="${id}">${id.slice(0, 12)}</span>`
+      `<span class="queries-result-id" onclick="event.stopPropagation(); window._openDetail('${id}')" title="${id}">${id.slice(0, 12)}</span>`
     ).join('');
 
     html += `
@@ -807,7 +979,7 @@ function renderTimelineTab() {
       <div class="dash-section timeline-decay-section">
         <div class="dash-section-title">Decay Candidates (${h.decay_candidates.length})</div>
         ${h.decay_candidates.map(c => `
-          <div class="timeline-decay-item" onclick="window._selectNodeTab('${c.memory_id}')">
+          <div class="timeline-decay-item" onclick="window._openDetail('${c.memory_id}')">
             <span class="timeline-decay-label">${escapeHtml(c.label)}</span>
             <span class="timeline-decay-score">${c.decay_score.toFixed(4)}</span>
           </div>
@@ -1549,19 +1721,36 @@ function populateFileFilter() {
 function renderVaultDropdown() {
   const select = document.getElementById('vault-select');
   select.innerHTML = '';
+  if (state.vaults.length === 0 && state.status) {
+    const opt = document.createElement('option');
+    opt.value = state.status.vault_path;
+    opt.textContent = state.status.vault_path.split('/').pop() || state.status.vault_path;
+    opt.selected = true;
+    select.appendChild(opt);
+    return;
+  }
   for (const vault of state.vaults) {
     const opt = document.createElement('option');
     opt.value = vault.path;
     opt.textContent = vault.label || vault.path;
     opt.selected = vault.active;
-    if (!vault.active) opt.disabled = true;
     select.appendChild(opt);
   }
   select.addEventListener('change', async () => {
+    const selectedPath = select.value;
     try {
+      const resp = await fetch('/api/panel/vaults/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: selectedPath }),
+      });
+      if (!resp.ok) {
+        console.error('Failed to switch vault:', resp.statusText);
+        return;
+      }
       await Promise.all([loadStatus(), loadGraph()]);
     } catch (err) {
-      console.error('Failed to reload vault data:', err);
+      console.error('Failed to switch vault:', err);
     }
   });
 }
@@ -1778,6 +1967,30 @@ async function init() {
     await loadMemoryDetail(id);
   };
 
+  // Initialize detail drawers for non-graph tabs
+  _drawers = {
+    dashboard: new DetailDrawer('tab-dashboard'),
+    explorer:  new DetailDrawer('tab-explorer'),
+    recall:    new DetailDrawer('tab-recall'),
+    queries:   new DetailDrawer('tab-queries'),
+    timeline:  new DetailDrawer('tab-timeline'),
+  };
+
+  // Global function for in-context detail (opens drawer in current tab, or graph side panel)
+  window._openDetail = async (id) => {
+    const tab = state.activeTab;
+    if (tab === 'graph') {
+      state.selectedNodeId = id;
+      state.graph.selectNode(id);
+      await loadMemoryDetail(id);
+      return;
+    }
+    const drawer = _drawers[tab];
+    if (drawer) {
+      await drawer.open(id);
+    }
+  };
+
   // Tab bar setup
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -1792,6 +2005,8 @@ async function init() {
   // Load data
   try {
     await Promise.all([loadVaults(), loadStatus()]);
+    // Re-render vault dropdown now that status is available (fallback for standalone mode)
+    renderVaultDropdown();
     await loadGraph();
   } catch (err) {
     console.error('Failed to load data:', err);

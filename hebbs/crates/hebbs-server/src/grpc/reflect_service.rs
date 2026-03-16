@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
 
-use hebbs_core::auth::{PERM_ADMIN, PERM_READ};
+use hebbs_core::auth::{PERM_ADMIN, PERM_READ, PERM_WRITE};
 use hebbs_core::engine::Engine;
 use hebbs_core::reflect::ReflectConfig;
 use hebbs_proto::generated as pb;
@@ -222,6 +222,95 @@ impl ReflectService for ReflectServiceImpl {
                 let elapsed = start.elapsed().as_secs_f64();
                 self.metrics
                     .observe_operation("reflect_commit", "error", elapsed);
+                Err(convert::hebbs_error_to_status(e))
+            }
+        }
+    }
+
+    #[instrument(skip_all, fields(operation = "contradiction_prepare"))]
+    async fn contradiction_prepare(
+        &self,
+        request: Request<pb::ContradictionPrepareRequest>,
+    ) -> Result<Response<pb::ContradictionPrepareResponse>, Status> {
+        let start = std::time::Instant::now();
+        let auth_tenant = middleware::extract_tenant_from_request(&request);
+        middleware::check_permission(&request, PERM_READ)?;
+        middleware::check_rate_limit(&self.auth_state, &auth_tenant, "contradiction")?;
+        let req = request.into_inner();
+        let tenant = middleware::resolve_tenant(auth_tenant, req.tenant_id.as_deref())?;
+
+        let engine = self.engine.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            engine.contradiction_prepare_for_tenant(&tenant)
+        })
+        .await
+        .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
+
+        match result {
+            Ok(pending) => {
+                let elapsed = start.elapsed().as_secs_f64();
+                self.metrics
+                    .observe_operation("contradiction_prepare", "ok", elapsed);
+
+                let candidates = pending
+                    .iter()
+                    .map(convert::pending_contradiction_to_proto)
+                    .collect();
+
+                Ok(Response::new(pb::ContradictionPrepareResponse {
+                    candidates,
+                }))
+            }
+            Err(e) => {
+                let elapsed = start.elapsed().as_secs_f64();
+                self.metrics
+                    .observe_operation("contradiction_prepare", "error", elapsed);
+                Err(convert::hebbs_error_to_status(e))
+            }
+        }
+    }
+
+    #[instrument(skip_all, fields(operation = "contradiction_commit"))]
+    async fn contradiction_commit(
+        &self,
+        request: Request<pb::ContradictionCommitRequest>,
+    ) -> Result<Response<pb::ContradictionCommitResponse>, Status> {
+        let start = std::time::Instant::now();
+        let auth_tenant = middleware::extract_tenant_from_request(&request);
+        middleware::check_permission(&request, PERM_WRITE)?;
+        middleware::check_rate_limit(&self.auth_state, &auth_tenant, "contradiction")?;
+        let req = request.into_inner();
+        let tenant = middleware::resolve_tenant(auth_tenant, req.tenant_id.as_deref())?;
+
+        let verdicts: Vec<hebbs_core::contradict::ContradictionVerdict> = req
+            .verdicts
+            .iter()
+            .map(convert::proto_to_contradiction_verdict)
+            .collect();
+
+        let engine = self.engine.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            engine.contradiction_commit_for_tenant(&tenant, &verdicts)
+        })
+        .await
+        .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
+
+        match result {
+            Ok(output) => {
+                let elapsed = start.elapsed().as_secs_f64();
+                self.metrics
+                    .observe_operation("contradiction_commit", "ok", elapsed);
+
+                Ok(Response::new(pb::ContradictionCommitResponse {
+                    contradictions_confirmed: output.contradictions_confirmed as u64,
+                    revisions_created: output.revisions_created as u64,
+                    dismissed: output.dismissed as u64,
+                }))
+            }
+            Err(e) => {
+                let elapsed = start.elapsed().as_secs_f64();
+                self.metrics
+                    .observe_operation("contradiction_commit", "error", elapsed);
                 Err(convert::hebbs_error_to_status(e))
             }
         }

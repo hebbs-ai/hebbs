@@ -40,6 +40,13 @@
       <div id="dashboard-content" class="dashboard-layout">
         <div class="dash-loading">Loading dashboard...</div>
       </div>
+      <div class="detail-drawer hidden">
+        <div class="detail-drawer-header">
+          <div class="detail-drawer-breadcrumbs"></div>
+          <button class="detail-drawer-close">&times;</button>
+        </div>
+        <div class="detail-drawer-content"></div>
+      </div>
     </div>
 
     <!-- ── Explorer Tab ───────────────────────────────────────────── -->
@@ -67,7 +74,13 @@
       </div>
       <div id="explorer-list" class="explorer-list"></div>
       <div id="explorer-pagination" class="explorer-pagination"></div>
-      <div id="explorer-detail" class="explorer-detail hidden"></div>
+      <div class="detail-drawer hidden">
+        <div class="detail-drawer-header">
+          <div class="detail-drawer-breadcrumbs"></div>
+          <button class="detail-drawer-close">&times;</button>
+        </div>
+        <div class="detail-drawer-content"></div>
+      </div>
     </div>
 
     <!-- ── Recall Tab ─────────────────────────────────────────────── -->
@@ -123,6 +136,13 @@
         <div id="recall-results" class="recall-results">
           <div class="recall-empty">Enter a query and click Run Recall to search your memories.</div>
         </div>
+      </div>
+      <div class="detail-drawer hidden">
+        <div class="detail-drawer-header">
+          <div class="detail-drawer-breadcrumbs"></div>
+          <button class="detail-drawer-close">&times;</button>
+        </div>
+        <div class="detail-drawer-content"></div>
       </div>
     </div>
 
@@ -254,12 +274,26 @@
           <div class="recall-empty">Loading query log...</div>
         </div>
       </div>
+      <div class="detail-drawer hidden">
+        <div class="detail-drawer-header">
+          <div class="detail-drawer-breadcrumbs"></div>
+          <button class="detail-drawer-close">&times;</button>
+        </div>
+        <div class="detail-drawer-content"></div>
+      </div>
     </div>
 
     <!-- ── Timeline Tab ───────────────────────────────────────────── -->
     <div id="tab-timeline" class="tab-pane" style="display:none">
       <div id="timeline-content" class="timeline-layout">
         <div class="dash-loading">Loading timeline...</div>
+      </div>
+      <div class="detail-drawer hidden">
+        <div class="detail-drawer-header">
+          <div class="detail-drawer-breadcrumbs"></div>
+          <button class="detail-drawer-close">&times;</button>
+        </div>
+        <div class="detail-drawer-content"></div>
       </div>
     </div>
 

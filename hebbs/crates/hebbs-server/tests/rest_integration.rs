@@ -627,3 +627,43 @@ async fn rest_episodes_omit_source_memory_ids() {
         "episode memories must not include source_memory_ids field"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Contradiction Prepare / Commit
+// ═══════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn rest_contradiction_prepare_empty() {
+    let app = test_app(test_engine());
+    let req = Request::builder()
+        .method(http::Method::POST)
+        .uri("/v1/contradictions/prepare")
+        .header("content-type", "application/json")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_to_json(resp.into_body()).await;
+    assert!(json.as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn rest_contradiction_commit_empty_verdicts() {
+    let app = test_app(test_engine());
+    let req = Request::builder()
+        .method(http::Method::POST)
+        .uri("/v1/contradictions/commit")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"verdicts": []}"#))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_to_json(resp.into_body()).await;
+    assert_eq!(json["contradictions_confirmed"], 0);
+    assert_eq!(json["revisions_created"], 0);
+    assert_eq!(json["dismissed"], 0);
+}

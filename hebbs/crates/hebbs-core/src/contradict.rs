@@ -15,6 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use hebbs_index::graph::{EdgeMetadata, EdgeType, GraphIndex};
 use hebbs_index::IndexManager;
 use hebbs_storage::{BatchOperation, ColumnFamilyName, StorageBackend};
+use serde::{Deserialize, Serialize};
 
 use crate::error::{HebbsError, Result};
 use crate::keys;
@@ -48,7 +49,8 @@ pub struct Contradiction {
 }
 
 /// Which classifier produced the result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ClassifierMethod {
     Heuristic,
     Llm,
@@ -71,8 +73,8 @@ impl Default for ContradictionConfig {
     fn default() -> Self {
         Self {
             candidates_k: 10,
-            min_similarity: 0.7,
-            min_confidence: 0.7,
+            min_similarity: 0.5,
+            min_confidence: 0.35,
             enabled: true,
         }
     }
@@ -87,6 +89,71 @@ pub struct ContradictionScanOutput {
     pub contradictions: Vec<Contradiction>,
     /// Number of revisions detected (not stored as contradictions).
     pub revisions_detected: usize,
+}
+
+/// A pending contradiction candidate awaiting AI review.
+///
+/// Created during Phase 1 (detect) by either the heuristic or LLM classifier.
+/// Stored in `ColumnFamilyName::Pending` with key prefix `ctr:`.
+/// Consumed by `prepare_contradictions` / `commit_contradictions` in Phase 2.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingContradiction {
+    pub id: [u8; 16],
+    pub memory_id_a: [u8; 16],
+    pub memory_id_b: [u8; 16],
+    pub content_a_snippet: String,
+    pub content_b_snippet: String,
+    /// Confidence score from the Phase 1 classifier (heuristic or LLM).
+    pub classifier_score: f32,
+    /// Which classifier produced this candidate.
+    pub classifier_method: ClassifierMethod,
+    pub similarity: f32,
+    pub created_at: u64,
+}
+
+impl PendingContradiction {
+    /// Serialize to JSON bytes for storage.
+    ///
+    /// Complexity: O(n) where n = serialized size.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        serde_json::to_vec(self).map_err(|e| HebbsError::Serialization {
+            message: format!("failed to serialize PendingContradiction: {}", e),
+        })
+    }
+
+    /// Deserialize from JSON bytes.
+    ///
+    /// Complexity: O(n) where n = byte length.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        serde_json::from_slice(bytes).map_err(|e| HebbsError::Serialization {
+            message: format!("failed to deserialize PendingContradiction: {}", e),
+        })
+    }
+}
+
+/// An AI reviewer's verdict on a pending contradiction candidate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContradictionVerdict {
+    /// Hex-encoded pending ID.
+    pub pending_id: String,
+    /// One of "contradiction", "revision", "dismiss".
+    pub verdict: String,
+    /// AI confidence in the verdict [0.0, 1.0].
+    pub confidence: f32,
+    /// Optional reasoning from the AI reviewer.
+    pub reasoning: Option<String>,
+}
+
+/// Result of committing contradiction verdicts.
+pub struct ContradictionCommitResult {
+    /// Number of candidates confirmed as contradictions.
+    pub contradictions_confirmed: usize,
+    /// Number of candidates classified as revisions.
+    pub revisions_created: usize,
+    /// Number of candidates dismissed.
+    pub dismissed: usize,
+    /// Details of confirmed contradictions for file writing.
+    pub confirmed: Vec<Contradiction>,
 }
 
 // ── Heuristic Classifier ──────────────────────────────────────────────
@@ -170,6 +237,10 @@ const ANTONYM_PAIRS: &[(&str, &str)] = &[
 ///
 /// Combines negation asymmetry, antonym detection, and numeric disagreement.
 /// Confidence capped at 0.75 to reflect reduced accuracy vs LLM.
+///
+/// In two-phase mode, this serves as a candidate finder (high recall).
+/// AI review via `contradiction prepare`/`contradiction commit` provides
+/// the final classification.
 ///
 /// Complexity: O(|content_a| + |content_b|) for tokenization + O(1) for signal checks.
 pub fn heuristic_classify(content_a: &str, content_b: &str) -> EntailmentResult {
@@ -274,12 +345,17 @@ fn has_numeric_disagreement(text_a: &str, text_b: &str) -> bool {
 
 /// Check a single memory against its nearest neighbors for contradictions.
 ///
+/// Two-phase design: this function is Phase 1 (detect). It writes
+/// `PendingContradiction` records to `ColumnFamilyName::Pending` instead
+/// of creating graph edges. Phase 2 (commit) happens via
+/// `prepare_contradictions` + `commit_contradictions` after AI review.
+///
 /// 1. HNSW search for top-K similar memories (O(log n))
 /// 2. Filter out pairs that already have CONTRADICTS or REVISED_FROM edges
-/// 3. Classify each candidate pair
-/// 4. Store CONTRADICTS edges for confirmed contradictions
+/// 3. Classify each candidate pair with the heuristic classifier
+/// 4. Store passing candidates as pending records
 ///
-/// Returns the contradictions found.
+/// Returns the pending contradiction candidates created.
 pub fn check_memory_contradictions(
     memory_id: &[u8; 16],
     storage: Arc<dyn StorageBackend>,
@@ -287,7 +363,7 @@ pub fn check_memory_contradictions(
     tenant: &TenantContext,
     config: &ContradictionConfig,
     llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-) -> Result<Vec<Contradiction>> {
+) -> Result<Vec<PendingContradiction>> {
     if !config.enabled {
         return Ok(Vec::new());
     }
@@ -328,7 +404,7 @@ pub fn check_memory_contradictions(
         .unwrap_or_default()
         .as_micros() as u64;
 
-    let mut contradictions = Vec::new();
+    let mut pending = Vec::new();
     let mut batch_ops = Vec::new();
 
     for (candidate_id, distance) in &candidates {
@@ -357,7 +433,8 @@ pub fn check_memory_contradictions(
             continue;
         }
 
-        // Classify
+        // Classify using heuristic (or LLM if provided, though two-phase
+        // mode primarily uses heuristic as the candidate finder)
         let result = if let Some(provider) = llm_provider {
             llm_classify(provider, content_a, &candidate.content)
         } else {
@@ -368,15 +445,208 @@ pub fn check_memory_contradictions(
             EntailmentResult::Contradiction { confidence }
                 if confidence >= config.min_confidence =>
             {
-                // Create bidirectional CONTRADICTS edges
-                let metadata = EdgeMetadata::new(confidence, now_us);
+                // Generate a ULID for the pending record
+                let pending_id = ulid::Ulid::new().to_bytes();
+
+                // Truncate content to snippet (bounded at 200 chars)
+                let snippet_a = truncate_snippet(content_a, 200);
+                let snippet_b = truncate_snippet(&candidate.content, 200);
+
+                let method = if llm_provider.is_some() {
+                    ClassifierMethod::Llm
+                } else {
+                    ClassifierMethod::Heuristic
+                };
+
+                let record = PendingContradiction {
+                    id: pending_id,
+                    memory_id_a: *memory_id,
+                    memory_id_b: *candidate_id,
+                    content_a_snippet: snippet_a,
+                    content_b_snippet: snippet_b,
+                    classifier_score: confidence,
+                    classifier_method: method,
+                    similarity,
+                    created_at: now_us,
+                };
+
+                let key = keys::encode_pending_contradiction_key(&pending_id);
+                let value = record.to_bytes()?;
+
+                batch_ops.push(BatchOperation::Put {
+                    cf: ColumnFamilyName::Pending,
+                    key,
+                    value,
+                });
+
+                pending.push(record);
+            }
+            _ => {}
+        }
+    }
+
+    // Write all pending records atomically
+    if !batch_ops.is_empty() {
+        storage.write_batch(&batch_ops)?;
+    }
+
+    Ok(pending)
+}
+
+// ── Two-Phase Commit API ──────────────────────────────────────────────
+
+/// Phase 2a: retrieve all pending contradiction candidates for AI review.
+///
+/// Prefix-scans `ColumnFamilyName::Pending` for keys starting with `ctr:`.
+///
+/// Complexity: O(log n) seek + O(k) scan where k = pending records.
+pub fn prepare_contradictions(
+    storage: Arc<dyn StorageBackend>,
+) -> Result<Vec<PendingContradiction>> {
+    let entries = storage.prefix_iterator(
+        ColumnFamilyName::Pending,
+        keys::PENDING_CONTRADICTION_PREFIX,
+    )?;
+
+    let mut results = Vec::with_capacity(entries.len());
+    for (_key, value) in &entries {
+        let record = PendingContradiction::from_bytes(value)?;
+        results.push(record);
+    }
+
+    Ok(results)
+}
+
+/// Phase 2b: commit AI-reviewed verdicts, creating graph edges and
+/// cleaning up pending records.
+///
+/// For verdict "contradiction": creates bidirectional CONTRADICTS edges.
+/// For verdict "revision": creates REVISED_FROM edges (A revised from B).
+/// For all verdicts: deletes the pending record from the Pending CF.
+///
+/// Complexity: O(k) where k = number of verdicts.
+pub fn commit_contradictions(
+    storage: Arc<dyn StorageBackend>,
+    verdicts: &[ContradictionVerdict],
+) -> Result<ContradictionCommitResult> {
+    let now_us = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros() as u64;
+
+    let mut batch_ops = Vec::new();
+    let mut contradictions_confirmed: usize = 0;
+    let mut revisions_created: usize = 0;
+    let mut dismissed: usize = 0;
+    let mut confirmed = Vec::new();
+
+    for verdict in verdicts {
+        // Decode the hex pending ID
+        let id_bytes = hex::decode(&verdict.pending_id).map_err(|e| HebbsError::Serialization {
+            message: format!("invalid pending_id hex: {}", e),
+        })?;
+        if id_bytes.len() != 16 {
+            return Err(HebbsError::Serialization {
+                message: format!(
+                    "pending_id must be 16 bytes, got {}",
+                    id_bytes.len()
+                ),
+            });
+        }
+        let mut pending_id = [0u8; 16];
+        pending_id.copy_from_slice(&id_bytes);
+
+        // Load the pending record to get memory IDs
+        let pending_key = keys::encode_pending_contradiction_key(&pending_id);
+        let pending_bytes = storage
+            .get(ColumnFamilyName::Pending, &pending_key)?
+            .ok_or_else(|| HebbsError::Serialization {
+                message: format!(
+                    "pending contradiction {} not found",
+                    verdict.pending_id
+                ),
+            })?;
+        let record = PendingContradiction::from_bytes(&pending_bytes)?;
+
+        // Delete the pending record regardless of verdict
+        batch_ops.push(BatchOperation::Delete {
+            cf: ColumnFamilyName::Pending,
+            key: pending_key,
+        });
+
+        match verdict.verdict.as_str() {
+            "contradiction" => {
+                let metadata = EdgeMetadata::new(verdict.confidence, now_us);
                 let meta_bytes = metadata.to_bytes();
 
-                // Forward: A -> B
-                let fwd_key =
-                    GraphIndex::encode_forward_key(memory_id, EdgeType::Contradicts, candidate_id);
-                let rev_key =
-                    GraphIndex::encode_reverse_key(memory_id, EdgeType::Contradicts, candidate_id);
+                // Bidirectional CONTRADICTS edges: A->B and B->A
+                // Forward and reverse index entries for each direction.
+                let fwd_ab = GraphIndex::encode_forward_key(
+                    &record.memory_id_a,
+                    EdgeType::Contradicts,
+                    &record.memory_id_b,
+                );
+                let rev_ab = GraphIndex::encode_reverse_key(
+                    &record.memory_id_a,
+                    EdgeType::Contradicts,
+                    &record.memory_id_b,
+                );
+                let fwd_ba = GraphIndex::encode_forward_key(
+                    &record.memory_id_b,
+                    EdgeType::Contradicts,
+                    &record.memory_id_a,
+                );
+                let rev_ba = GraphIndex::encode_reverse_key(
+                    &record.memory_id_b,
+                    EdgeType::Contradicts,
+                    &record.memory_id_a,
+                );
+
+                batch_ops.push(BatchOperation::Put {
+                    cf: ColumnFamilyName::Graph,
+                    key: fwd_ab,
+                    value: meta_bytes.clone(),
+                });
+                batch_ops.push(BatchOperation::Put {
+                    cf: ColumnFamilyName::Graph,
+                    key: rev_ab,
+                    value: meta_bytes.clone(),
+                });
+                batch_ops.push(BatchOperation::Put {
+                    cf: ColumnFamilyName::Graph,
+                    key: fwd_ba,
+                    value: meta_bytes.clone(),
+                });
+                batch_ops.push(BatchOperation::Put {
+                    cf: ColumnFamilyName::Graph,
+                    key: rev_ba,
+                    value: meta_bytes,
+                });
+
+                confirmed.push(Contradiction {
+                    memory_id_a: record.memory_id_a,
+                    memory_id_b: record.memory_id_b,
+                    confidence: verdict.confidence,
+                    method: ClassifierMethod::Heuristic,
+                });
+                contradictions_confirmed += 1;
+            }
+            "revision" => {
+                let metadata = EdgeMetadata::new(verdict.confidence, now_us);
+                let meta_bytes = metadata.to_bytes();
+
+                // REVISED_FROM edge: B revised from A (B supersedes A)
+                let fwd_key = GraphIndex::encode_forward_key(
+                    &record.memory_id_b,
+                    EdgeType::RevisedFrom,
+                    &record.memory_id_a,
+                );
+                let rev_key = GraphIndex::encode_reverse_key(
+                    &record.memory_id_b,
+                    EdgeType::RevisedFrom,
+                    &record.memory_id_a,
+                );
+
                 batch_ops.push(BatchOperation::Put {
                     cf: ColumnFamilyName::Graph,
                     key: fwd_key,
@@ -385,48 +655,47 @@ pub fn check_memory_contradictions(
                 batch_ops.push(BatchOperation::Put {
                     cf: ColumnFamilyName::Graph,
                     key: rev_key,
-                    value: meta_bytes.clone(),
-                });
-
-                // Reverse direction: B -> A
-                let fwd_key_ba =
-                    GraphIndex::encode_forward_key(candidate_id, EdgeType::Contradicts, memory_id);
-                let rev_key_ba =
-                    GraphIndex::encode_reverse_key(candidate_id, EdgeType::Contradicts, memory_id);
-                batch_ops.push(BatchOperation::Put {
-                    cf: ColumnFamilyName::Graph,
-                    key: fwd_key_ba,
-                    value: meta_bytes.clone(),
-                });
-                batch_ops.push(BatchOperation::Put {
-                    cf: ColumnFamilyName::Graph,
-                    key: rev_key_ba,
                     value: meta_bytes,
                 });
 
-                let method = if llm_provider.is_some() {
-                    ClassifierMethod::Llm
-                } else {
-                    ClassifierMethod::Heuristic
-                };
-
-                contradictions.push(Contradiction {
-                    memory_id_a: *memory_id,
-                    memory_id_b: *candidate_id,
-                    confidence,
-                    method,
-                });
+                revisions_created += 1;
             }
-            _ => {}
+            _ => {
+                // "dismiss" or any unknown verdict: just delete the pending record
+                dismissed += 1;
+            }
         }
     }
 
-    // Write all edges atomically
+    // Write all operations atomically
     if !batch_ops.is_empty() {
         storage.write_batch(&batch_ops)?;
     }
 
-    Ok(contradictions)
+    Ok(ContradictionCommitResult {
+        contradictions_confirmed,
+        revisions_created,
+        dismissed,
+        confirmed,
+    })
+}
+
+/// Truncate content to a bounded snippet for pending record storage.
+///
+/// Complexity: O(max_len).
+fn truncate_snippet(content: &str, max_len: usize) -> String {
+    if content.len() <= max_len {
+        content.to_string()
+    } else {
+        // Find a char boundary to avoid splitting a multi-byte char
+        let end = content
+            .char_indices()
+            .take_while(|(i, _)| *i < max_len)
+            .last()
+            .map(|(i, c)| i + c.len_utf8())
+            .unwrap_or(0);
+        content[..end].to_string()
+    }
 }
 
 /// LLM-based entailment classification.

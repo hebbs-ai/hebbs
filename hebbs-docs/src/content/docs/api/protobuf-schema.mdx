@@ -13,7 +13,7 @@ The HEBBS gRPC API is defined in `hebbs.proto`. The schema defines services, mes
 |---------|-------------|
 | **MemoryService** | Write and read operations: Remember, Recall, Revise, Forget, Prime. |
 | **SubscribeService** | Bidirectional streaming for real-time memory push. |
-| **ReflectService** | Reflection pipeline: Reflect, GetInsights, policy configuration. |
+| **ReflectService** | Reflection pipeline: Reflect, GetInsights, policy configuration, contradiction review. |
 | **HealthService** | Liveness, readiness, and metrics. |
 
 ## Schema Location
@@ -56,6 +56,8 @@ service ReflectService {
   rpc GetInsights(GetInsightsRequest) returns (GetInsightsResponse);
   rpc ReflectPrepare(ReflectPrepareRequest) returns (ReflectPrepareResponse);
   rpc ReflectCommit(ReflectCommitRequest) returns (ReflectCommitResponse);
+  rpc ContradictionPrepare(ContradictionPrepareRequest) returns (ContradictionPrepareResponse);
+  rpc ContradictionCommit(ContradictionCommitRequest) returns (ContradictionCommitResponse);
 }
 ```
 
@@ -120,3 +122,55 @@ message ReflectCommitResponse {
 ```
 
 Sessions are ephemeral (10-minute TTL). Source memory IDs in `ProducedInsightInput` must be a subset of the IDs returned in the corresponding `ReflectPrepareResponse` cluster.
+
+### ContradictionPrepare
+
+Retrieve pending contradiction candidates flagged by the heuristic classifier during ingest. HEBBS has no LLM -- the calling agent reviews candidates and commits verdicts.
+
+```protobuf
+message ContradictionPrepareRequest {
+  optional string tenant_id = 1;
+}
+
+message PendingContradictionProto {
+  string pending_id = 1;
+  string memory_id_a = 2;
+  string memory_id_b = 3;
+  string content_a_snippet = 4;
+  string content_b_snippet = 5;
+  float classifier_score = 6;
+  string classifier_method = 7;
+  float similarity = 8;
+  uint64 created_at = 9;
+}
+
+message ContradictionPrepareResponse {
+  repeated PendingContradictionProto candidates = 1;
+}
+```
+
+### ContradictionCommit
+
+Commit agent-reviewed verdicts for pending contradiction candidates.
+
+```protobuf
+message ContradictionVerdictInput {
+  string pending_id = 1;
+  string verdict = 2;       // "contradiction", "revision", or "dismiss"
+  float confidence = 3;
+  optional string reasoning = 4;
+}
+
+message ContradictionCommitRequest {
+  repeated ContradictionVerdictInput verdicts = 1;
+  optional string tenant_id = 2;
+}
+
+message ContradictionCommitResponse {
+  uint64 contradictions_confirmed = 1;
+  uint64 revisions_created = 2;
+  uint64 dismissed = 3;
+}
+```
+
+Verdict `"contradiction"` creates bidirectional `CONTRADICTS` edges. Verdict `"revision"` creates a `REVISED_FROM` edge. Verdict `"dismiss"` removes the candidate without creating edges.

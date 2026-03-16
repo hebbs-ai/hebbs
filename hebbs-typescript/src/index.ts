@@ -38,6 +38,9 @@ export {
   type ReflectPrepareResult,
   type ReflectPrepareParams,
   type ReflectCommitParams,
+  type PendingContradiction,
+  type ContradictionVerdictInput,
+  type ContradictionCommitResult,
 } from './types.js';
 
 export {

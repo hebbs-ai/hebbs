@@ -34,6 +34,8 @@ To disable auth for local development, start the server with `HEBBS_AUTH_ENABLED
 | POST | `/v1/subscribe/:id/feed` | Feed text to a subscription | `text` | `{}` |
 | DELETE | `/v1/subscribe/:id` | Close a subscription | — | `{}` |
 | GET | `/v1/insights` | Query consolidated insights | Query params: `entity_id`, `min_confidence`, `max_results` | `Memory[]` |
+| POST | `/v1/contradictions/prepare` | Get pending contradiction candidates | — | `PendingContradiction[]` |
+| POST | `/v1/contradictions/commit` | Commit agent-reviewed verdicts | `verdicts` | `ContradictionCommitResponse` |
 | GET | `/v1/health/live` | Liveness probe | — | `{"status": "alive"}` |
 | GET | `/v1/health/ready` | Readiness probe | — | `{"status": "ready"}` |
 | GET | `/v1/metrics` | Prometheus metrics | — | Text exposition format |
@@ -253,6 +255,73 @@ curl -s -X POST http://localhost:6381/v1/reflect/commit \
 ```
 
 Sessions expire after 10 minutes. Source memory IDs must be from the original prepare output.
+
+### Contradiction Prepare (agent-driven)
+
+Retrieve pending contradiction candidates that were flagged by the heuristic classifier during ingest. HEBBS has no LLM -- the agent reviews candidates and commits verdicts.
+
+```bash
+curl -s -X POST http://localhost:6381/v1/contradictions/prepare \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+
+**Response:**
+
+```json
+[
+  {
+    "pending_id": "abc123def456...",
+    "memory_id_a": "aabb1122...",
+    "memory_id_b": "ccdd3344...",
+    "content_a_snippet": "The system is reliable and stable",
+    "content_b_snippet": "The system is unreliable and unstable",
+    "classifier_score": 0.65,
+    "classifier_method": "heuristic",
+    "similarity": 0.82,
+    "created_at": 1720000000000000
+  }
+]
+```
+
+Returns an empty array when no pending candidates exist.
+
+### Contradiction Commit (agent-driven)
+
+Commit verdicts for pending contradiction candidates after agent review.
+
+```bash
+curl -s -X POST http://localhost:6381/v1/contradictions/commit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" \
+  -d '{
+    "verdicts": [
+      {"pending_id": "abc123def456...", "verdict": "contradiction", "confidence": 0.9, "reasoning": "Direct conflict in reliability assessment"},
+      {"pending_id": "def789...", "verdict": "dismiss", "confidence": 0.95, "reasoning": "Different topics"}
+    ]
+  }' | jq .
+```
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `verdicts` | array | Yes | Array of verdict objects |
+| `verdicts[].pending_id` | string | Yes | Pending candidate ID from prepare |
+| `verdicts[].verdict` | string | Yes | `"contradiction"`, `"revision"`, or `"dismiss"` |
+| `verdicts[].confidence` | float | Yes | Agent confidence (0.0--1.0) |
+| `verdicts[].reasoning` | string | No | Explanation for the verdict |
+
+**Response:**
+
+```json
+{
+  "contradictions_confirmed": 1,
+  "revisions_created": 0,
+  "dismissed": 1
+}
+```
+
+See [Contradiction Detection](/vault/contradiction-detection/) for the full two-phase pipeline explanation.
 
 ## Notes
 

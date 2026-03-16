@@ -18,6 +18,7 @@ use tracing::info;
 
 use tokio::sync::broadcast;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::RwLock;
 
 use hebbs_core::engine::Engine;
 use hebbs_embed::Embedder;
@@ -54,11 +55,17 @@ pub struct ProjectionCache {
     pub pinned: HashMap<String, (f32, f32)>,
 }
 
+/// Active vault handle: engine + root path, swappable via vault switching.
+pub struct ActiveVault {
+    pub engine: Arc<Engine>,
+    pub vault_root: PathBuf,
+}
+
 /// Shared state for all panel API handlers.
 pub struct PanelState {
-    pub engine: Arc<Engine>,
+    /// Currently active vault (switchable via RwLock for vault switching).
+    pub active_vault: RwLock<ActiveVault>,
     pub embedder: Arc<dyn Embedder>,
-    pub vault_root: PathBuf,
     /// Cached UMAP projection, recomputed when node count changes.
     pub projection_cache: Mutex<Option<ProjectionCache>>,
     /// Vault manager reference for vault switching (daemon mode only).
@@ -72,6 +79,24 @@ pub struct PanelState {
     pub event_tx: broadcast::Sender<PanelEvent>,
 }
 
+impl PanelState {
+    /// Get a snapshot of the current engine and vault root.
+    pub async fn vault_snapshot(&self) -> (Arc<Engine>, PathBuf) {
+        let guard = self.active_vault.read().await;
+        (guard.engine.clone(), guard.vault_root.clone())
+    }
+
+    /// Get a reference to the current engine.
+    pub async fn engine(&self) -> Arc<Engine> {
+        self.active_vault.read().await.engine.clone()
+    }
+
+    /// Get the current vault root path.
+    pub async fn vault_root(&self) -> PathBuf {
+        self.active_vault.read().await.vault_root.clone()
+    }
+}
+
 /// Start the panel HTTP server and return the bound address.
 ///
 /// Does NOT open the browser; the caller handles that.
@@ -83,9 +108,11 @@ pub async fn start_panel_server(
 ) -> Result<SocketAddr, String> {
     let (event_tx, _rx) = broadcast::channel(256);
     let state = Arc::new(PanelState {
-        engine: Arc::new(engine),
+        active_vault: RwLock::new(ActiveVault {
+            engine: Arc::new(engine),
+            vault_root,
+        }),
         embedder,
-        vault_root,
         projection_cache: Mutex::new(None),
         vault_manager: None,
         last_request: None,
@@ -112,9 +139,11 @@ pub async fn start_panel_server_from_daemon(
     event_tx: broadcast::Sender<PanelEvent>,
 ) -> Result<SocketAddr, String> {
     let state = Arc::new(PanelState {
-        engine,
+        active_vault: RwLock::new(ActiveVault {
+            engine,
+            vault_root,
+        }),
         embedder,
-        vault_root,
         projection_cache: Mutex::new(None),
         vault_manager: Some(vault_manager),
         last_request: Some(last_request),

@@ -727,6 +727,83 @@ impl Renderer {
         }
     }
 
+    pub fn render_contradiction_prepare_result(
+        &self,
+        resp: &pb::ContradictionPrepareResponse,
+        w: &mut dyn Write,
+    ) -> std::io::Result<()> {
+        match self.format {
+            OutputFormat::Human => {
+                if resp.candidates.is_empty() {
+                    writeln!(w, "No pending contradictions.")
+                } else {
+                    writeln!(w, "Pending contradictions: {}\n", resp.candidates.len())?;
+                    for c in &resp.candidates {
+                        writeln!(w, "--- {} ---", c.pending_id)?;
+                        writeln!(w, "  Memory A ({}): {}", c.memory_id_a, c.content_a_snippet)?;
+                        writeln!(w, "  Memory B ({}): {}", c.memory_id_b, c.content_b_snippet)?;
+                        writeln!(
+                            w,
+                            "  Score: {:.2} ({}) | Similarity: {:.2}",
+                            c.classifier_score, c.classifier_method, c.similarity
+                        )?;
+                    }
+                    Ok(())
+                }
+            }
+            OutputFormat::Json => {
+                let json: Vec<serde_json::Value> = resp
+                    .candidates
+                    .iter()
+                    .map(|c| {
+                        serde_json::json!({
+                            "pending_id": c.pending_id,
+                            "memory_id_a": c.memory_id_a,
+                            "memory_id_b": c.memory_id_b,
+                            "content_a_snippet": c.content_a_snippet,
+                            "content_b_snippet": c.content_b_snippet,
+                            "classifier_score": c.classifier_score,
+                            "classifier_method": c.classifier_method,
+                            "similarity": c.similarity,
+                            "created_at": c.created_at,
+                        })
+                    })
+                    .collect();
+                writeln!(
+                    w,
+                    "{}",
+                    serde_json::to_string_pretty(&json).unwrap_or_default()
+                )
+            }
+            OutputFormat::Raw => writeln!(w, "{:?}", resp),
+        }
+    }
+
+    pub fn render_contradiction_commit_result(
+        &self,
+        resp: &pb::ContradictionCommitResponse,
+        w: &mut dyn Write,
+    ) -> std::io::Result<()> {
+        match self.format {
+            OutputFormat::Human => {
+                writeln!(
+                    w,
+                    "Contradictions confirmed: {}, Revisions created: {}, Dismissed: {}",
+                    resp.contradictions_confirmed, resp.revisions_created, resp.dismissed
+                )
+            }
+            OutputFormat::Json => {
+                let json = serde_json::json!({
+                    "contradictions_confirmed": resp.contradictions_confirmed,
+                    "revisions_created": resp.revisions_created,
+                    "dismissed": resp.dismissed,
+                });
+                writeln!(w, "{}", serde_json::to_string(&json).unwrap_or_default())
+            }
+            OutputFormat::Raw => writeln!(w, "{:?}", resp),
+        }
+    }
+
     pub fn render_subscribe_push(
         &self,
         push: &pb::SubscribePushMessage,

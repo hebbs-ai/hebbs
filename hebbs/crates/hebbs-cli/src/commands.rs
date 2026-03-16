@@ -207,6 +207,14 @@ pub async fn execute(
             .await
         }
 
+        Commands::ContradictionPrepare => {
+            execute_contradiction_prepare(conn, renderer, tenant_id, &mut stdout).await
+        }
+
+        Commands::ContradictionCommit { verdicts } => {
+            execute_contradiction_commit(conn, renderer, &verdicts, tenant_id, &mut stdout).await
+        }
+
         Commands::Insights {
             entity_id,
             min_confidence,
@@ -942,6 +950,73 @@ async fn execute_reflect_commit(
 
     renderer
         .render_reflect_commit_result(&resp.into_inner(), w)
+        .map_err(|e| CliError::Internal {
+            message: e.to_string(),
+        })?;
+
+    Ok(())
+}
+
+async fn execute_contradiction_prepare(
+    conn: &mut ConnectionManager,
+    renderer: &Renderer,
+    tenant_id: Option<&str>,
+    w: &mut dyn Write,
+) -> Result<(), CliError> {
+    let req = pb::ContradictionPrepareRequest {
+        tenant_id: tenant_id.map(str::to_string),
+    };
+
+    let mut client = conn.reflect_client().await?;
+    let resp = client
+        .contradiction_prepare(req)
+        .await
+        .map_err(|s| CliError::from_status(s, conn.endpoint()))?;
+
+    renderer
+        .render_contradiction_prepare_result(&resp.into_inner(), w)
+        .map_err(|e| CliError::Internal {
+            message: e.to_string(),
+        })?;
+
+    Ok(())
+}
+
+async fn execute_contradiction_commit(
+    conn: &mut ConnectionManager,
+    renderer: &Renderer,
+    verdicts_json: &str,
+    tenant_id: Option<&str>,
+    w: &mut dyn Write,
+) -> Result<(), CliError> {
+    let parsed: Vec<serde_json::Value> =
+        serde_json::from_str(verdicts_json).map_err(|e| CliError::InvalidArgument {
+            message: format!("invalid JSON for --verdicts: {e}"),
+        })?;
+
+    let verdicts: Vec<pb::ContradictionVerdictInput> = parsed
+        .iter()
+        .map(|v| pb::ContradictionVerdictInput {
+            pending_id: v["pending_id"].as_str().unwrap_or_default().to_string(),
+            verdict: v["verdict"].as_str().unwrap_or("dismiss").to_string(),
+            confidence: v["confidence"].as_f64().unwrap_or(0.8) as f32,
+            reasoning: v["reasoning"].as_str().map(String::from),
+        })
+        .collect();
+
+    let req = pb::ContradictionCommitRequest {
+        verdicts,
+        tenant_id: tenant_id.map(str::to_string),
+    };
+
+    let mut client = conn.reflect_client().await?;
+    let resp = client
+        .contradiction_commit(req)
+        .await
+        .map_err(|s| CliError::from_status(s, conn.endpoint()))?;
+
+    renderer
+        .render_contradiction_commit_result(&resp.into_inner(), w)
         .map_err(|e| CliError::Internal {
             message: e.to_string(),
         })?;

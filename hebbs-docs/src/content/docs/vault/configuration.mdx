@@ -43,8 +43,8 @@ reinforcement_cap = 100        # Maximum access count that affects scoring
 [contradiction]
 enabled = true          # Enable contradiction detection during ingest
 candidates_k = 10       # Max neighbors to check per memory
-min_similarity = 0.7    # Minimum cosine similarity to consider a pair
-min_confidence = 0.7    # Minimum confidence to create a CONTRADICTS edge
+min_similarity = 0.5    # Minimum cosine similarity to consider a pair
+min_confidence = 0.35   # Minimum heuristic confidence to create a pending candidate
 
 [reflect_llm]
 # provider = "anthropic"                # "anthropic", "openai", "gemini", "ollama"
@@ -127,8 +127,8 @@ Controls contradiction detection during ingest. See [Contradiction Detection](/v
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable contradiction detection. |
 | `candidates_k` | integer | `10` | Maximum nearest neighbors to check per ingested memory. |
-| `min_similarity` | float | `0.7` | Minimum cosine similarity to consider two memories as potentially contradictory. |
-| `min_confidence` | float | `0.7` | Minimum confidence to create a `CONTRADICTS` edge and write a report. |
+| `min_similarity` | float | `0.5` | Minimum cosine similarity to consider two memories as potentially contradictory. |
+| `min_confidence` | float | `0.35` | Minimum heuristic confidence to create a pending contradiction candidate for agent review. |
 
 ### `[reflect_llm]`
 

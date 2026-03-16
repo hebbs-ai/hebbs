@@ -1101,6 +1101,114 @@ async fn dispatch_command(
             }
         }
 
+        Command::ContradictionPrepare {} => {
+            let vault_path = match require_vault_path(&request.vault_path) {
+                Ok(p) => p,
+                Err(resp) => return resp,
+            };
+            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(pair) => pair,
+                Err(e) => return DaemonResponse::err(e),
+            };
+
+            match engine.contradiction_prepare() {
+                Ok(candidates) => {
+                    let items: Vec<serde_json::Value> = candidates
+                        .iter()
+                        .map(|c| {
+                            serde_json::json!({
+                                "id": hex::encode(c.id),
+                                "memory_id_a": hex::encode(c.memory_id_a),
+                                "memory_id_b": hex::encode(c.memory_id_b),
+                                "content_a_snippet": c.content_a_snippet,
+                                "content_b_snippet": c.content_b_snippet,
+                                "classifier_score": c.classifier_score,
+                                "similarity": c.similarity,
+                            })
+                        })
+                        .collect();
+                    DaemonResponse::ok(serde_json::json!({
+                        "candidates": items,
+                        "count": candidates.len(),
+                    }))
+                }
+                Err(e) => DaemonResponse::err(format!("{}", e)),
+            }
+        }
+
+        Command::ContradictionCommit { results } => {
+            let vault_path = match require_vault_path(&request.vault_path) {
+                Ok(p) => p,
+                Err(resp) => return resp,
+            };
+            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(pair) => pair,
+                Err(e) => return DaemonResponse::err(e),
+            };
+
+            let verdicts: Vec<hebbs_core::contradict::ContradictionVerdict> =
+                match serde_json::from_str(&results) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return DaemonResponse::err(format!(
+                            "failed to parse verdicts JSON: {}",
+                            e
+                        ))
+                    }
+                };
+
+            match engine.contradiction_commit(&verdicts) {
+                Ok(result) => {
+                    // Write contradiction markdown files for confirmed contradictions
+                    if !result.confirmed.is_empty() {
+                        let hebbs_dir = vault_path.join(".hebbs");
+                        let config_res = VaultConfig::load(&hebbs_dir);
+                        let manifest_res = Manifest::load(&hebbs_dir);
+                        if let (Ok(config), Ok(manifest)) = (config_res, manifest_res) {
+                            let mut outputs: Vec<
+                                crate::contradiction_writer::ContradictionOutput,
+                            > = Vec::new();
+                            for c in &result.confirmed {
+                                let content_a = engine
+                                    .get(&c.memory_id_a)
+                                    .map(|m| m.content.clone())
+                                    .unwrap_or_default();
+                                let content_b = engine
+                                    .get(&c.memory_id_b)
+                                    .map(|m| m.content.clone())
+                                    .unwrap_or_default();
+                                outputs.push(
+                                    crate::contradiction_writer::ContradictionOutput {
+                                        content_a,
+                                        content_b,
+                                        memory_id_a: c.memory_id_a,
+                                        memory_id_b: c.memory_id_b,
+                                        confidence: c.confidence,
+                                        method: c.method,
+                                    },
+                                );
+                            }
+                            let writer = crate::contradiction_writer::ContradictionWriter::new(
+                                &vault_path,
+                                &manifest,
+                                &config,
+                            );
+                            if let Err(e) = writer.write_contradictions(&outputs) {
+                                warn!("failed to write contradiction files: {}", e);
+                            }
+                        }
+                    }
+
+                    DaemonResponse::ok(serde_json::json!({
+                        "contradictions_confirmed": result.contradictions_confirmed,
+                        "revisions_created": result.revisions_created,
+                        "dismissed": result.dismissed,
+                    }))
+                }
+                Err(e) => DaemonResponse::err(format!("{}", e)),
+            }
+        }
+
         Command::Insights {
             entity_id,
             min_confidence,

@@ -267,3 +267,30 @@ export interface ProducedInsightInput {
 export interface ReflectCommitResult {
   readonly insightsCreated: number;
 }
+
+// ── Contradiction Prepare/Commit Types ─────────────────────────────
+
+export interface PendingContradiction {
+  readonly pendingId: string;
+  readonly memoryIdA: string;
+  readonly memoryIdB: string;
+  readonly contentASnippet: string;
+  readonly contentBSnippet: string;
+  readonly classifierScore: number;
+  readonly classifierMethod: string;
+  readonly similarity: number;
+  readonly createdAt: number;
+}
+
+export interface ContradictionVerdictInput {
+  readonly pendingId: string;
+  readonly verdict: 'contradiction' | 'revision' | 'dismiss';
+  readonly confidence: number;
+  readonly reasoning?: string;
+}
+
+export interface ContradictionCommitResult {
+  readonly contradictionsConfirmed: number;
+  readonly revisionsCreated: number;
+  readonly dismissed: number;
+}

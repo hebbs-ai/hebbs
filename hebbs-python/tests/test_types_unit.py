@@ -116,6 +116,99 @@ class TestReflectCommitResult:
         assert result.insights_created == 5
 
 
+class TestPendingContradiction:
+    def test_construction(self):
+        from hebbs import PendingContradiction
+
+        pc = PendingContradiction(
+            pending_id="abc123",
+            memory_id_a="mem_a",
+            memory_id_b="mem_b",
+            content_a_snippet="The system is reliable",
+            content_b_snippet="The system is unreliable",
+            classifier_score=0.65,
+            classifier_method="heuristic",
+            similarity=0.82,
+            created_at=1_700_000_000_000_000,
+        )
+        assert pc.pending_id == "abc123"
+        assert pc.memory_id_a == "mem_a"
+        assert pc.memory_id_b == "mem_b"
+        assert pc.content_a_snippet == "The system is reliable"
+        assert pc.content_b_snippet == "The system is unreliable"
+        assert pc.classifier_score == 0.65
+        assert pc.classifier_method == "heuristic"
+        assert pc.similarity == 0.82
+        assert pc.created_at == 1_700_000_000_000_000
+
+    def test_defaults(self):
+        from hebbs import PendingContradiction
+
+        pc = PendingContradiction(
+            pending_id="id",
+            memory_id_a="a",
+            memory_id_b="b",
+            content_a_snippet="x",
+            content_b_snippet="y",
+            classifier_score=0.5,
+            classifier_method="heuristic",
+            similarity=0.7,
+        )
+        assert pc.created_at == 0
+
+
+class TestContradictionVerdictInput:
+    def test_construction(self):
+        from hebbs import ContradictionVerdictInput
+
+        v = ContradictionVerdictInput(
+            pending_id="abc123",
+            verdict="contradiction",
+            confidence=0.9,
+            reasoning="Direct conflict in vendor assessment",
+        )
+        assert v.pending_id == "abc123"
+        assert v.verdict == "contradiction"
+        assert v.confidence == 0.9
+        assert v.reasoning == "Direct conflict in vendor assessment"
+
+    def test_dismiss_verdict(self):
+        from hebbs import ContradictionVerdictInput
+
+        v = ContradictionVerdictInput(
+            pending_id="def456",
+            verdict="dismiss",
+            confidence=0.95,
+        )
+        assert v.verdict == "dismiss"
+        assert v.reasoning is None
+
+    def test_revision_verdict(self):
+        from hebbs import ContradictionVerdictInput
+
+        v = ContradictionVerdictInput(
+            pending_id="ghi789",
+            verdict="revision",
+            confidence=0.85,
+            reasoning="Updated timeline",
+        )
+        assert v.verdict == "revision"
+
+
+class TestContradictionCommitResult:
+    def test_construction(self):
+        from hebbs import ContradictionCommitResult
+
+        r = ContradictionCommitResult(
+            contradictions_confirmed=2,
+            revisions_created=1,
+            dismissed=3,
+        )
+        assert r.contradictions_confirmed == 2
+        assert r.revisions_created == 1
+        assert r.dismissed == 3
+
+
 class TestEdgeWithContradicts:
     def test_edge_with_contradicts(self):
         edge = Edge(

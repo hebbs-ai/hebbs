@@ -82,6 +82,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/v1/insights", get(insights_handler))
         .route("/v1/reflect/prepare", post(reflect_prepare_handler))
         .route("/v1/reflect/commit", post(reflect_commit_handler))
+        .route("/v1/contradictions/prepare", post(contradiction_prepare_handler))
+        .route("/v1/contradictions/commit", post(contradiction_commit_handler))
         .route("/v1/health/live", get(liveness_handler))
         .route("/v1/health/ready", get(readiness_handler))
         .route("/v1/metrics", get(metrics_handler))
@@ -1047,6 +1049,143 @@ async fn reflect_commit_handler(
         Ok(Ok(output)) => {
             let resp = ReflectCommitJson {
                 insights_created: output.insights_created,
+            };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Contradiction Prepare / Commit (agent-driven two-step)
+// ═══════════════════════════════════════════════════════════════════════
+
+#[derive(Serialize)]
+struct PendingContradictionJson {
+    pending_id: String,
+    memory_id_a: String,
+    memory_id_b: String,
+    content_a_snippet: String,
+    content_b_snippet: String,
+    classifier_score: f32,
+    classifier_method: String,
+    similarity: f32,
+    created_at: u64,
+}
+
+#[derive(Deserialize)]
+struct ContradictionVerdictBody {
+    pending_id: String,
+    verdict: String,
+    confidence: f32,
+    reasoning: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ContradictionCommitBody {
+    verdicts: Vec<ContradictionVerdictBody>,
+}
+
+#[derive(Serialize)]
+struct ContradictionCommitJson {
+    contradictions_confirmed: usize,
+    revisions_created: usize,
+    dismissed: usize,
+}
+
+async fn contradiction_prepare_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+) -> impl IntoResponse {
+    let engine = state.engine.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        engine.contradiction_prepare_for_tenant(&tenant)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(pending)) => {
+            let candidates: Vec<PendingContradictionJson> = pending
+                .iter()
+                .map(|p| PendingContradictionJson {
+                    pending_id: hex::encode(p.id),
+                    memory_id_a: hex::encode(p.memory_id_a),
+                    memory_id_b: hex::encode(p.memory_id_b),
+                    content_a_snippet: p.content_a_snippet.clone(),
+                    content_b_snippet: p.content_b_snippet.clone(),
+                    classifier_score: p.classifier_score,
+                    classifier_method: match p.classifier_method {
+                        hebbs_core::contradict::ClassifierMethod::Heuristic => {
+                            "heuristic".to_string()
+                        }
+                        hebbs_core::contradict::ClassifierMethod::Llm => "llm".to_string(),
+                    },
+                    similarity: p.similarity,
+                    created_at: p.created_at,
+                })
+                .collect();
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&candidates).unwrap()),
+            )
+                .into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn contradiction_commit_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+    Json(body): Json<ContradictionCommitBody>,
+) -> impl IntoResponse {
+    use hebbs_core::contradict::ContradictionVerdict;
+
+    let verdicts: Vec<ContradictionVerdict> = body
+        .verdicts
+        .iter()
+        .map(|v| ContradictionVerdict {
+            pending_id: v.pending_id.clone(),
+            verdict: v.verdict.clone(),
+            confidence: v.confidence,
+            reasoning: v.reasoning.clone(),
+        })
+        .collect();
+
+    let engine = state.engine.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        engine.contradiction_commit_for_tenant(&tenant, &verdicts)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(output)) => {
+            let resp = ContradictionCommitJson {
+                contradictions_confirmed: output.contradictions_confirmed,
+                revisions_created: output.revisions_created,
+                dismissed: output.dismissed,
             };
             (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
         }

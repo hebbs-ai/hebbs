@@ -76,6 +76,7 @@ pub enum ColumnFamilyName {
     Meta,
     VectorsAssociative,
     QueryLog,
+    Pending,
 }
 
 impl ColumnFamilyName {
@@ -88,6 +89,7 @@ impl ColumnFamilyName {
             Self::Meta => "meta",
             Self::VectorsAssociative => "vectors_associative",
             Self::QueryLog => "query_log",
+            Self::Pending => "pending",
         }
     }
 
@@ -101,6 +103,7 @@ impl ColumnFamilyName {
             Self::Meta,
             Self::VectorsAssociative,
             Self::QueryLog,
+            Self::Pending,
         ]
     }
 
@@ -114,6 +117,7 @@ impl ColumnFamilyName {
             Self::Meta,
             Self::VectorsAssociative,
             Self::QueryLog,
+            Self::Pending,
         ]
     }
 }

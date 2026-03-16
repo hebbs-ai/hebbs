@@ -49,6 +49,9 @@ import type {
   ReflectPrepareResult,
   ReflectPrepareParams,
   ReflectCommitParams,
+  PendingContradiction,
+  ContradictionVerdictInput,
+  ContradictionCommitResult,
 } from './types.js';
 
 export interface HebbsClientOptions {
@@ -319,6 +322,18 @@ export class HebbsClient {
       params.sessionId,
       params.insights,
     );
+  }
+
+  async contradictionPrepare(): Promise<PendingContradiction[]> {
+    this.ensureConnected();
+    return this.reflectService!.contradictionPrepare();
+  }
+
+  async contradictionCommit(
+    verdicts: ContradictionVerdictInput[],
+  ): Promise<ContradictionCommitResult> {
+    this.ensureConnected();
+    return this.reflectService!.contradictionCommit(verdicts);
   }
 
   // ── HealthService ──────────────────────────────────────────────────
