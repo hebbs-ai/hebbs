@@ -139,10 +139,7 @@ pub async fn start_panel_server_from_daemon(
     event_tx: broadcast::Sender<PanelEvent>,
 ) -> Result<SocketAddr, String> {
     let state = Arc::new(PanelState {
-        active_vault: RwLock::new(ActiveVault {
-            engine,
-            vault_root,
-        }),
+        active_vault: RwLock::new(ActiveVault { engine, vault_root }),
         embedder,
         projection_cache: Mutex::new(None),
         vault_manager: Some(vault_manager),

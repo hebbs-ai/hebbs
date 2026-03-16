@@ -547,10 +547,7 @@ pub fn commit_contradictions(
         })?;
         if id_bytes.len() != 16 {
             return Err(HebbsError::Serialization {
-                message: format!(
-                    "pending_id must be 16 bytes, got {}",
-                    id_bytes.len()
-                ),
+                message: format!("pending_id must be 16 bytes, got {}", id_bytes.len()),
             });
         }
         let mut pending_id = [0u8; 16];
@@ -561,10 +558,7 @@ pub fn commit_contradictions(
         let pending_bytes = storage
             .get(ColumnFamilyName::Pending, &pending_key)?
             .ok_or_else(|| HebbsError::Serialization {
-                message: format!(
-                    "pending contradiction {} not found",
-                    verdict.pending_id
-                ),
+                message: format!("pending contradiction {} not found", verdict.pending_id),
             })?;
         let record = PendingContradiction::from_bytes(&pending_bytes)?;
 

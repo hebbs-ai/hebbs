@@ -154,7 +154,10 @@ async fn switch_vault(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let vault_manager = state.vault_manager.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let vault_manager = state
+        .vault_manager
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let (engine, _embedder) = vault_manager
         .lock()
@@ -174,7 +177,9 @@ async fn switch_vault(
         *cache = None;
     }
 
-    Ok(Json(serde_json::json!({"switched": true, "vault_path": body.path})))
+    Ok(Json(
+        serde_json::json!({"switched": true, "vault_path": body.path}),
+    ))
 }
 
 // ── Vault status ───────────────────────────────────────────────────────
@@ -943,9 +948,7 @@ async fn memory_detail(
     let (engine, vault_root) = state.vault_snapshot().await;
     let id_bytes = parse_memory_id(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    let mem = engine
-        .get(&id_bytes)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let mem = engine.get(&id_bytes).map_err(|_| StatusCode::NOT_FOUND)?;
 
     let now_us = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1458,9 +1461,7 @@ async fn health_action(
         }
         "reinforce" => {
             // Retrieve the memory, then re-remember it to increment access_count.
-            let mem = engine
-                .get(&id_bytes)
-                .map_err(|_| StatusCode::NOT_FOUND)?;
+            let mem = engine.get(&id_bytes).map_err(|_| StatusCode::NOT_FOUND)?;
             let input = hebbs_core::engine::RememberInput {
                 content: mem.content.clone(),
                 importance: Some(mem.importance),

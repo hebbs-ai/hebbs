@@ -431,19 +431,17 @@ fn render_memory_with_context() {
 
 fn make_test_contradiction_prepare_response() -> pb::ContradictionPrepareResponse {
     pb::ContradictionPrepareResponse {
-        candidates: vec![
-            pb::PendingContradictionProto {
-                pending_id: "abc123def456".to_string(),
-                memory_id_a: "mem_a_001".to_string(),
-                memory_id_b: "mem_b_002".to_string(),
-                content_a_snippet: "The system is reliable".to_string(),
-                content_b_snippet: "The system is unreliable".to_string(),
-                classifier_score: 0.65,
-                classifier_method: "heuristic".to_string(),
-                similarity: 0.82,
-                created_at: 1_700_000_000_000_000,
-            },
-        ],
+        candidates: vec![pb::PendingContradictionProto {
+            pending_id: "abc123def456".to_string(),
+            memory_id_a: "mem_a_001".to_string(),
+            memory_id_b: "mem_b_002".to_string(),
+            content_a_snippet: "The system is reliable".to_string(),
+            content_b_snippet: "The system is unreliable".to_string(),
+            classifier_score: 0.65,
+            classifier_method: "heuristic".to_string(),
+            similarity: 0.82,
+            created_at: 1_700_000_000_000_000,
+        }],
     }
 }
 

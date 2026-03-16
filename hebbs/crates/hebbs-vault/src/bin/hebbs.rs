@@ -1499,7 +1499,10 @@ async fn run_local(cli: Cli) -> i32 {
                                 .unwrap_or_default()
                             );
                         } else {
-                            println!("Found {} pending contradiction candidate(s)", candidates.len());
+                            println!(
+                                "Found {} pending contradiction candidate(s)",
+                                candidates.len()
+                            );
                             for (i, c) in candidates.iter().enumerate() {
                                 println!(
                                     "\n--- Candidate {} (score: {:.3}) ---",
@@ -1508,14 +1511,8 @@ async fn run_local(cli: Cli) -> i32 {
                                 );
                                 println!("  Memory A: {}", hex::encode(c.memory_id_a));
                                 println!("  Memory B: {}", hex::encode(c.memory_id_b));
-                                println!(
-                                    "  Snippet A: {}",
-                                    truncate(&c.content_a_snippet, 120)
-                                );
-                                println!(
-                                    "  Snippet B: {}",
-                                    truncate(&c.content_b_snippet, 120)
-                                );
+                                println!("  Snippet A: {}", truncate(&c.content_a_snippet, 120));
+                                println!("  Snippet B: {}", truncate(&c.content_b_snippet, 120));
                             }
                         }
                         0
@@ -1789,7 +1786,8 @@ async fn run_local(cli: Cli) -> i32 {
                     if let Some(vp) = vault_path.as_ref().or(cli.vault.as_ref()) {
                         let abs_path = std::fs::canonicalize(vp).unwrap_or_else(|_| vp.clone());
                         if abs_path.join(".hebbs").exists() {
-                            let body = serde_json::json!({"path": abs_path.display().to_string()}).to_string();
+                            let body = serde_json::json!({"path": abs_path.display().to_string()})
+                                .to_string();
                             let req = format!(
                                 "POST /api/panel/vaults/switch HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                 port, body.len(), body
@@ -1798,7 +1796,10 @@ async fn run_local(cli: Cli) -> i32 {
                                 if attempt > 0 {
                                     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
                                 }
-                                if let Ok(mut stream) = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+                                if let Ok(mut stream) =
+                                    tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port))
+                                        .await
+                                {
                                     use tokio::io::{AsyncReadExt, AsyncWriteExt};
                                     if stream.write_all(req.as_bytes()).await.is_ok() {
                                         let mut buf = vec![0u8; 256];
@@ -2127,11 +2128,9 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
             insights: insights.clone(),
         }),
         Commands::ContradictionPrepare {} => Some(DaemonCommand::ContradictionPrepare {}),
-        Commands::ContradictionCommit { results } => {
-            Some(DaemonCommand::ContradictionCommit {
-                results: results.clone(),
-            })
-        }
+        Commands::ContradictionCommit { results } => Some(DaemonCommand::ContradictionCommit {
+            results: results.clone(),
+        }),
         Commands::Insights {
             entity_id,
             min_confidence,
@@ -2394,14 +2393,8 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 let count = candidates.len();
                 println!("Found {} pending contradiction candidate(s)", count);
                 for (i, c) in candidates.iter().enumerate() {
-                    let id_a = c
-                        .get("memory_id_a")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("?");
-                    let id_b = c
-                        .get("memory_id_b")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("?");
+                    let id_a = c.get("memory_id_a").and_then(|v| v.as_str()).unwrap_or("?");
+                    let id_b = c.get("memory_id_b").and_then(|v| v.as_str()).unwrap_or("?");
                     let snippet_a = c
                         .get("content_a_snippet")
                         .and_then(|v| v.as_str())
@@ -2431,10 +2424,7 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 .get("revisions_created")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
-            let dismissed = data
-                .get("dismissed")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let dismissed = data.get("dismissed").and_then(|v| v.as_u64()).unwrap_or(0);
             println!(
                 "Committed: {} confirmed, {} revised, {} dismissed",
                 confirmed, revised, dismissed

@@ -617,12 +617,8 @@ fn contradiction_prepare_returns_empty_when_no_pending() {
     let (engine, _storage) = test_engine();
 
     // Store some compatible memories -- no contradictions
-    engine
-        .remember(simple_input("The sky is blue."))
-        .unwrap();
-    engine
-        .remember(simple_input("Water is wet."))
-        .unwrap();
+    engine.remember(simple_input("The sky is blue.")).unwrap();
+    engine.remember(simple_input("Water is wet.")).unwrap();
 
     let pending = engine.contradiction_prepare().unwrap();
     assert!(
@@ -849,7 +845,13 @@ fn contradiction_prepare_returns_classifier_fields() {
             "heuristic classifier_score should be capped at 0.75: {}",
             p.classifier_score
         );
-        assert!(!p.content_a_snippet.is_empty(), "content_a_snippet should not be empty");
-        assert!(!p.content_b_snippet.is_empty(), "content_b_snippet should not be empty");
+        assert!(
+            !p.content_a_snippet.is_empty(),
+            "content_a_snippet should not be empty"
+        );
+        assert!(
+            !p.content_b_snippet.is_empty(),
+            "content_b_snippet should not be empty"
+        );
     }
 }

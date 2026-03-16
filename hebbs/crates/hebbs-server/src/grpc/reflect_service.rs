@@ -240,11 +240,10 @@ impl ReflectService for ReflectServiceImpl {
         let tenant = middleware::resolve_tenant(auth_tenant, req.tenant_id.as_deref())?;
 
         let engine = self.engine.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            engine.contradiction_prepare_for_tenant(&tenant)
-        })
-        .await
-        .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
+        let result =
+            tokio::task::spawn_blocking(move || engine.contradiction_prepare_for_tenant(&tenant))
+                .await
+                .map_err(|e| Status::internal(format!("task join error: {}", e)))?;
 
         match result {
             Ok(pending) => {

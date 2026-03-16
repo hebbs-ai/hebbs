@@ -82,8 +82,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/v1/insights", get(insights_handler))
         .route("/v1/reflect/prepare", post(reflect_prepare_handler))
         .route("/v1/reflect/commit", post(reflect_commit_handler))
-        .route("/v1/contradictions/prepare", post(contradiction_prepare_handler))
-        .route("/v1/contradictions/commit", post(contradiction_commit_handler))
+        .route(
+            "/v1/contradictions/prepare",
+            post(contradiction_prepare_handler),
+        )
+        .route(
+            "/v1/contradictions/commit",
+            post(contradiction_commit_handler),
+        )
         .route("/v1/health/live", get(liveness_handler))
         .route("/v1/health/ready", get(readiness_handler))
         .route("/v1/metrics", get(metrics_handler))
@@ -1109,10 +1115,8 @@ async fn contradiction_prepare_handler(
     TenantExtractor(tenant): TenantExtractor,
 ) -> impl IntoResponse {
     let engine = state.engine.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        engine.contradiction_prepare_for_tenant(&tenant)
-    })
-    .await;
+    let result =
+        tokio::task::spawn_blocking(move || engine.contradiction_prepare_for_tenant(&tenant)).await;
 
     match result {
         Ok(Ok(pending)) => {

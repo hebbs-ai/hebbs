@@ -1150,10 +1150,7 @@ async fn dispatch_command(
                 match serde_json::from_str(&results) {
                     Ok(v) => v,
                     Err(e) => {
-                        return DaemonResponse::err(format!(
-                            "failed to parse verdicts JSON: {}",
-                            e
-                        ))
+                        return DaemonResponse::err(format!("failed to parse verdicts JSON: {}", e))
                     }
                 };
 
@@ -1165,9 +1162,8 @@ async fn dispatch_command(
                         let config_res = VaultConfig::load(&hebbs_dir);
                         let manifest_res = Manifest::load(&hebbs_dir);
                         if let (Ok(config), Ok(manifest)) = (config_res, manifest_res) {
-                            let mut outputs: Vec<
-                                crate::contradiction_writer::ContradictionOutput,
-                            > = Vec::new();
+                            let mut outputs: Vec<crate::contradiction_writer::ContradictionOutput> =
+                                Vec::new();
                             for c in &result.confirmed {
                                 let content_a = engine
                                     .get(&c.memory_id_a)
@@ -1177,16 +1173,14 @@ async fn dispatch_command(
                                     .get(&c.memory_id_b)
                                     .map(|m| m.content.clone())
                                     .unwrap_or_default();
-                                outputs.push(
-                                    crate::contradiction_writer::ContradictionOutput {
-                                        content_a,
-                                        content_b,
-                                        memory_id_a: c.memory_id_a,
-                                        memory_id_b: c.memory_id_b,
-                                        confidence: c.confidence,
-                                        method: c.method,
-                                    },
-                                );
+                                outputs.push(crate::contradiction_writer::ContradictionOutput {
+                                    content_a,
+                                    content_b,
+                                    memory_id_a: c.memory_id_a,
+                                    memory_id_b: c.memory_id_b,
+                                    confidence: c.confidence,
+                                    method: c.method,
+                                });
                             }
                             let writer = crate::contradiction_writer::ContradictionWriter::new(
                                 &vault_path,
