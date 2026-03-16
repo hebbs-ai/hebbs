@@ -1,31 +1,28 @@
 class Hebbs < Formula
   desc "Cognitive memory engine: store, recall, reflect, and forget knowledge"
   homepage "https://hebbs.dev"
-  version "0.2.0"
+  version "0.3.0"
   license "BSL-1.1"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.2.0/hebbs-macos-arm64.tar.gz"
-      sha256 "f668e491d96c8f33da442c24251fca0ea24f8525873d543745ff8817c9954ff8"
+      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.3.0/hebbs-macos-arm64.tar.gz"
+      sha256 "d6f79cba1ca8d81eb1f2903649ca384a08e5b8bbf8b5f4cf9ecd9d477eed024f"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.2.0/hebbs-linux-x86_64.tar.gz"
-      sha256 "d20b064a8ef239dc67158d0f0d29274be46fca3dd5ad02791c34e1ba0d390317"
+      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.3.0/hebbs-linux-x86_64.tar.gz"
+      sha256 "50c727e67cd8dd35ce1372ed194725c2eec597211047e9528de730e345a81efe"
     elsif Hardware::CPU.arm?
-      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.2.0/hebbs-linux-aarch64.tar.gz"
-      sha256 "48cadeb0a194dedafa0a0e470734800797008c0ffe670626f845aa2e7eb3d5a1"
+      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.3.0/hebbs-linux-aarch64.tar.gz"
+      sha256 "11858223d63a1881f057954ace894ce6ca0ee4c2f004248e459d7d33beb03328"
     end
   end
 
   def install
     bin.install "hebbs"
-    # Backward-compat symlinks (removed in v0.3.0)
-    bin.install_symlink "hebbs" => "hebbs-cli"
-    bin.install_symlink "hebbs" => "hebbs-vault"
     bin.install "hebbs-bench" if File.exist?("hebbs-bench")
   end
 
@@ -39,9 +36,6 @@ class Hebbs < Formula
         hebbs recall "hello" --format json
 
       Data is stored in .hebbs/ (project) or ~/.hebbs/ (global fallback).
-
-      Note: hebbs-cli and hebbs-vault are symlinks to hebbs for backward
-      compatibility. They will be removed in v0.3.0.
     EOS
   end
 
