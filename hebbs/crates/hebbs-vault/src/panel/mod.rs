@@ -148,7 +148,11 @@ async fn bind_and_serve(state: Arc<PanelState>, port: u16) -> Result<SocketAddr,
         ))
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let bind_ip: std::net::Ipv4Addr = std::env::var("HEBBS_PANEL_BIND_ADDRESS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(std::net::Ipv4Addr::LOCALHOST);
+    let addr = SocketAddr::from((bind_ip, port));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .map_err(|e| format!("failed to bind {}: {}", addr, e))?;
