@@ -1,15 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0C0F14;
-  --color-surface: #141820;
-  --color-border: #1E2330;
-  --color-text: #E8EAED;
-  --color-muted: #8B8FA0;
-  --color-accent: #F59E0B;
-  --color-cyan: #22D3EE;
-  --color-green: #34D399;
-  --color-red: #EF4444;
+  /* ── Light palette ── */
+  --color-bg: #F0EDE8;
+  --color-bg-warm: #EAE6DF;
+  --color-surface: #F7F5F1;
+  --color-surface-raised: #FDFCFA;
+  --color-border: #D5CFC5;
+  --color-border-subtle: #E0DBD2;
+  --color-text: #1C1917;
+  --color-text-secondary: #44403C;
+  --color-muted: #78716C;
+  --color-accent: #B45309;
+  --color-accent-light: #D97706;
+  --color-cyan: #0E7490;
+  --color-green: #047857;
+  --color-red: #B91C1C;
+  --color-navy: #1E293B;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
@@ -30,4 +37,110 @@
     background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
     color: var(--color-text);
   }
+}
+
+/* ── Dot grid background ── */
+.dot-grid {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(120,113,108,0.10) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ── Neural mesh canvas ── */
+#neural-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Ambient gradient orbs ── */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: 0;
+  pointer-events: none;
+  animation: orb-drift 20s ease-in-out infinite;
+}
+.orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(180,83,9,0.10) 0%, rgba(180,83,9,0.03) 50%, transparent 70%);
+  top: -150px; left: 5%;
+  animation-duration: 28s;
+}
+.orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(14,116,144,0.08) 0%, rgba(14,116,144,0.02) 50%, transparent 70%);
+  top: 35%; right: -5%;
+  animation-delay: -10s;
+  animation-duration: 32s;
+}
+.orb-3 {
+  width: 450px; height: 450px;
+  background: radial-gradient(circle, rgba(4,120,87,0.06) 0%, rgba(4,120,87,0.02) 50%, transparent 70%);
+  bottom: 5%; left: 15%;
+  animation-delay: -18s;
+  animation-duration: 24s;
+}
+.orb-4 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(30,41,59,0.05) 0%, transparent 60%);
+  top: 15%; right: 25%;
+  animation-delay: -5s;
+  animation-duration: 35s;
+}
+
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(40px, -25px) scale(1.05); }
+  50% { transform: translate(-30px, 35px) scale(0.95); }
+  75% { transform: translate(20px, 20px) scale(1.03); }
+}
+
+/* ── Color bands for scroll variety ── */
+.band-amber {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(180,83,9,0.06) 0%, rgba(180,83,9,0.12) 50%, rgba(180,83,9,0.06) 100%);
+}
+
+.band-dark {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, #1E293B 0%, #0F172A 100%);
+  color: #E2E8F0;
+}
+
+/* Dark band overrides for semantic tokens */
+.band-dark .text-text { color: #F1F5F9; }
+.band-dark .text-muted { color: #94A3B8; }
+.band-dark .text-accent { color: #F59E0B; }
+.band-dark .text-cyan { color: #67E8F9; }
+.band-dark .text-green { color: #6EE7B7; }
+.band-dark .text-red { color: #FCA5A5; }
+.band-dark .bg-surface\/40 { background-color: rgba(255,255,255,0.04); }
+.band-dark .bg-surface\/60 { background-color: rgba(255,255,255,0.06); }
+.band-dark .bg-bg { background-color: #0F172A; }
+.band-dark .bg-bg\/60 { background-color: rgba(15,23,42,0.6); }
+.band-dark .bg-bg\/80 { background-color: rgba(15,23,42,0.8); }
+.band-dark .border-border { border-color: rgba(255,255,255,0.08); }
+.band-dark .border-border\/50 { border-color: rgba(255,255,255,0.06); }
+.band-dark .border-border\/40 { border-color: rgba(255,255,255,0.05); }
+.band-dark .border-border\/60 { border-color: rgba(255,255,255,0.07); }
+.band-dark .bg-accent\/\[0\.04\] { background-color: rgba(245,158,11,0.06); }
+.band-dark .bg-accent\/\[0\.03\] { background-color: rgba(245,158,11,0.05); }
+.band-dark h1, .band-dark h2, .band-dark h3 { color: #F8FAFC; }
+.band-dark p { color: #CBD5E1; }
+
+/* ── Section divider gradient ── */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent 5%, var(--color-border) 30%, var(--color-accent-light) 50%, var(--color-border) 70%, transparent 95%);
+  opacity: 0.4;
 }

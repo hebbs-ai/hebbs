@@ -23,22 +23,55 @@ import Footer from "../components/Footer.astro";
 <Layout title="HEBBS - The memory engine for AI agents">
   <Nav />
   <main>
+    <!-- Warm parchment base -->
     <Hero />
-    <Problem />
-    <OutOfTheBox />
+
+    <!-- Amber band: problem/solution -->
+    <div class="band-amber">
+      <div class="section-divider"></div>
+      <Problem />
+      <OutOfTheBox />
+    </div>
+
+    <!-- Base: agent control + vault -->
+    <div class="section-divider"></div>
     <AgentControl />
     <Vault />
-    <MemoryPalaceDemo />
-    <RecallStrategies />
-    <Consolidation />
-    <ScoringWeights />
-    <Operations />
-    <Benchmarks />
+
+    <!-- Dark band: memory palace + recall -->
+    <div class="band-dark">
+      <MemoryPalaceDemo />
+      <RecallStrategies />
+    </div>
+
+    <!-- Amber band: consolidation + scoring -->
+    <div class="band-amber">
+      <Consolidation />
+      <ScoringWeights />
+    </div>
+
+    <!-- Dark band: operations + benchmarks -->
+    <div class="band-dark">
+      <Operations />
+      <Benchmarks />
+    </div>
+
+    <!-- Base: architecture + comparison -->
+    <div class="section-divider"></div>
     <Architecture />
     <Comparison />
-    <CodeExample />
-    <Deployment />
-    <Cta />
+
+    <!-- Amber band: code examples + deployment -->
+    <div class="band-amber">
+      <div class="section-divider"></div>
+      <CodeExample />
+      <Deployment />
+    </div>
+
+    <!-- Dark band: CTA -->
+    <div class="band-dark">
+      <Cta />
+    </div>
   </main>
   <Footer />
 </Layout>

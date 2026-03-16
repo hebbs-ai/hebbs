@@ -15,7 +15,7 @@ const { title, description = "The memory engine for AI agents. Four recall strat
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#0A0A0B" />
+    <meta name="theme-color" content="#F0EDE8" />
 
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -47,6 +47,152 @@ const { title, description = "The memory engine for AI agents. Four recall strat
     <title>{title}</title>
   </head>
   <body class="bg-bg text-text min-h-screen">
-    <slot />
+    <!-- Background layers -->
+    <div class="dot-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <canvas id="neural-bg"></canvas>
+
+    <!-- Page content -->
+    <div class="relative z-1">
+      <slot />
+    </div>
+
+    <!-- Neural mesh animation -->
+    <script is:inline>
+      const canvas = document.getElementById('neural-bg');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        let W, H;
+
+        function resize() {
+          W = canvas.width = window.innerWidth;
+          H = canvas.height = window.innerHeight;
+        }
+        resize();
+
+        let mouse = { x: W / 2, y: H / 2 };
+        document.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+        const NODE_TYPES = [
+          { color: '180,83,9' },
+          { color: '14,116,144' },
+          { color: '4,120,87' },
+          { color: '30,41,59' },
+          { color: '120,113,108' },
+        ];
+
+        class Node {
+          constructor() {
+            this.x = Math.random() * W;
+            this.y = Math.random() * H;
+            this.vx = (Math.random() - 0.5) * 0.25;
+            this.vy = (Math.random() - 0.5) * 0.25;
+            this.radius = Math.random() * 2.5 + 1.5;
+            this.type = NODE_TYPES[Math.floor(Math.random() * NODE_TYPES.length)];
+            this.pulsePhase = Math.random() * Math.PI * 2;
+            this.pulseSpeed = 0.003 + Math.random() * 0.008;
+          }
+          update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            const dx = this.x - mouse.x;
+            const dy = this.y - mouse.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 200 && dist > 0) {
+              const force = (200 - dist) / 200 * 0.015;
+              this.vx += (dx / dist) * force;
+              this.vy += (dy / dist) * force;
+            }
+            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+            if (speed > 0.4) { this.vx *= 0.4 / speed; this.vy *= 0.4 / speed; }
+            if (this.x < -50) this.x = W + 50;
+            if (this.x > W + 50) this.x = -50;
+            if (this.y < -50) this.y = H + 50;
+            if (this.y > H + 50) this.y = -50;
+            this.pulsePhase += this.pulseSpeed;
+          }
+          draw() {
+            const pulse = 0.5 + 0.5 * Math.sin(this.pulsePhase);
+            const alpha = 0.08 + pulse * 0.07;
+            const r = this.radius + pulse * 0.3;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r * 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + this.type.color + ',' + (alpha * 0.1) + ')';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + this.type.color + ',' + alpha + ')';
+            ctx.fill();
+          }
+        }
+
+        const nodes = Array.from({ length: 35 }, () => new Node());
+        let pulses = [];
+        let lastPulseTime = 0;
+
+        class Pulse {
+          constructor(from, to) {
+            this.from = from; this.to = to; this.t = 0;
+            this.speed = 0.012 + Math.random() * 0.008;
+            this.color = from.type.color;
+          }
+          update() { this.t += this.speed; return this.t < 1; }
+          draw() {
+            const x = this.from.x + (this.to.x - this.from.x) * this.t;
+            const y = this.from.y + (this.to.y - this.from.y) * this.t;
+            const alpha = Math.sin(this.t * Math.PI) * 0.2;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + this.color + ',' + (alpha * 0.15) + ')';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + this.color + ',' + alpha + ')';
+            ctx.fill();
+          }
+        }
+
+        function animate(time) {
+          ctx.clearRect(0, 0, W, H);
+          const maxDist = 160;
+          for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+              const dx = nodes[i].x - nodes[j].x;
+              const dy = nodes[i].y - nodes[j].y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < maxDist) {
+                const alpha = (1 - dist / maxDist) * 0.04;
+                ctx.beginPath();
+                ctx.moveTo(nodes[i].x, nodes[i].y);
+                ctx.lineTo(nodes[j].x, nodes[j].y);
+                ctx.strokeStyle = 'rgba(' + nodes[i].type.color + ',' + alpha + ')';
+                ctx.lineWidth = 0.6;
+                ctx.stroke();
+              }
+            }
+          }
+          for (const node of nodes) { node.update(); node.draw(); }
+          if (time - lastPulseTime > 1200) {
+            const i = Math.floor(Math.random() * nodes.length);
+            let closest = null, closestDist = 160;
+            for (let j = 0; j < nodes.length; j++) {
+              if (j === i) continue;
+              const dx = nodes[i].x - nodes[j].x;
+              const dy = nodes[i].y - nodes[j].y;
+              const d = Math.sqrt(dx * dx + dy * dy);
+              if (d < closestDist) { closestDist = d; closest = j; }
+            }
+            if (closest !== null) { pulses.push(new Pulse(nodes[i], nodes[closest])); lastPulseTime = time; }
+          }
+          pulses = pulses.filter(p => { const alive = p.update(); if (alive) p.draw(); return alive; });
+          requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+        window.addEventListener('resize', resize);
+      }
+    </script>
   </body>
 </html>
