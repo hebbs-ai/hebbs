@@ -1284,6 +1284,7 @@ dependencies = [
  "crossbeam-channel",
  "hebbs-embed",
  "hebbs-index",
+ "hebbs-llm",
  "hebbs-reflect",
  "hebbs-storage",
  "hex",
@@ -1304,6 +1305,7 @@ name = "hebbs-embed"
 version = "0.3.0"
 dependencies = [
  "criterion",
+ "dirs",
  "hex",
  "ndarray",
  "ort",
@@ -1350,6 +1352,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hebbs-llm"
+version = "0.3.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "ureq",
+]
+
+[[package]]
 name = "hebbs-proto"
 version = "0.3.0"
 dependencies = [
@@ -1381,6 +1394,7 @@ version = "0.3.0"
 dependencies = [
  "criterion",
  "hebbs-embed",
+ "hebbs-llm",
  "hex",
  "proptest",
  "rand 0.8.5",
@@ -1449,6 +1463,7 @@ dependencies = [
  "hebbs-core",
  "hebbs-embed",
  "hebbs-index",
+ "hebbs-llm",
  "hebbs-reflect",
  "hebbs-storage",
  "hex",

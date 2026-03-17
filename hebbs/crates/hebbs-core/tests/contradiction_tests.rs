@@ -34,7 +34,8 @@ fn simple_input(content: &str) -> RememberInput {
         context: None,
         entity_id: None,
         edges: vec![],
-    }
+            kind: None,
+        }
 }
 
 // ── Heuristic Classifier: Comprehensive Edge Cases ──────────────────
@@ -220,7 +221,7 @@ fn check_contradictions_disabled_returns_empty() {
     };
     let result = engine.check_contradictions(&id, &config, None).unwrap();
     assert!(
-        result.is_empty(),
+        result.pending.is_empty(),
         "disabled config should return no contradictions"
     );
 }
@@ -235,7 +236,7 @@ fn check_contradictions_empty_corpus_returns_empty() {
     let config = ContradictionConfig::default();
     let result = engine.check_contradictions(&id, &config, None).unwrap();
     assert!(
-        result.is_empty(),
+        result.pending.is_empty(),
         "single memory should have no contradictions"
     );
 }
@@ -273,7 +274,7 @@ fn check_contradictions_with_candidates_but_no_contradiction() {
     let result = engine.check_contradictions(&id, &config, None).unwrap();
     // Compatible content, so heuristic shouldn't find contradictions
     assert!(
-        result.is_empty(),
+        result.pending.is_empty(),
         "compatible memories should not contradict"
     );
 }
@@ -312,7 +313,7 @@ fn check_contradictions_finds_contradiction_in_pipeline() {
     // The heuristic should detect: "reliable" vs "unreliable" (antonym),
     // negation asymmetry ("failed", "missing" vs none in A)
     assert!(
-        !result.is_empty(),
+        !result.pending.is_empty(),
         "should detect contradiction between affirmative and negative vendor statements"
     );
 
@@ -441,9 +442,10 @@ fn check_contradictions_creates_bidirectional_edges() {
     };
 
     let result = engine.check_contradictions(&id_b, &config, None).unwrap();
-    if !result.is_empty() {
+    if !result.pending.is_empty() {
         // Commit the pending contradictions as confirmed
         let verdicts: Vec<ContradictionVerdict> = result
+            .pending
             .iter()
             .map(|p| ContradictionVerdict {
                 pending_id: hex::encode(p.id),
@@ -499,8 +501,9 @@ fn check_contradictions_skips_already_classified_pairs() {
     let first = engine.check_contradictions(&id_b, &config, None).unwrap();
 
     // Commit the first batch to create graph edges
-    if !first.is_empty() {
+    if !first.pending.is_empty() {
         let verdicts: Vec<ContradictionVerdict> = first
+            .pending
             .iter()
             .map(|p| ContradictionVerdict {
                 pending_id: hex::encode(p.id),
@@ -515,13 +518,13 @@ fn check_contradictions_skips_already_classified_pairs() {
     // Second check should skip already-classified pair (edges exist now)
     let second = engine.check_contradictions(&id_b, &config, None).unwrap();
     assert!(
-        second.is_empty(),
+        second.pending.is_empty(),
         "second check should skip already-classified pair, got {} results",
-        second.len()
+        second.pending.len()
     );
 
     // Edges from first run should still exist
-    if !first.is_empty() {
+    if !first.pending.is_empty() {
         let edges = engine.contradictions(&id_b).unwrap();
         assert!(!edges.is_empty(), "edges from first run should persist");
     }
@@ -555,7 +558,7 @@ fn check_contradictions_respects_min_confidence() {
         .check_contradictions(&id, &config_high, None)
         .unwrap();
     assert!(
-        result_high.is_empty(),
+        result_high.pending.is_empty(),
         "high min_confidence should filter weak contradictions"
     );
 }
@@ -653,12 +656,13 @@ fn contradiction_commit_dismiss_removes_candidate() {
     };
 
     let result = engine.check_contradictions(&id_b, &config, None).unwrap();
-    if result.is_empty() {
+    if result.pending.is_empty() {
         return; // MockEmbedder may not produce candidates
     }
 
     // Dismiss all candidates
     let verdicts: Vec<ContradictionVerdict> = result
+        .pending
         .iter()
         .map(|p| ContradictionVerdict {
             pending_id: hex::encode(p.id),
@@ -721,12 +725,13 @@ fn contradiction_commit_revision_creates_revised_from_edge() {
     };
 
     let result = engine.check_contradictions(&id_b, &config, None).unwrap();
-    if result.is_empty() {
+    if result.pending.is_empty() {
         return; // MockEmbedder may not produce candidates
     }
 
     // Mark as revision instead of contradiction
     let verdicts: Vec<ContradictionVerdict> = result
+        .pending
         .iter()
         .map(|p| ContradictionVerdict {
             pending_id: hex::encode(p.id),
@@ -780,12 +785,13 @@ fn contradiction_commit_with_reasoning() {
     };
 
     let result = engine.check_contradictions(&id_b, &config, None).unwrap();
-    if result.is_empty() {
+    if result.pending.is_empty() {
         return;
     }
 
     // Commit with detailed reasoning
     let verdicts: Vec<ContradictionVerdict> = result
+        .pending
         .iter()
         .map(|p| ContradictionVerdict {
             pending_id: hex::encode(p.id),

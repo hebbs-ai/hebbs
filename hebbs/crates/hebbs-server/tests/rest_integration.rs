@@ -533,6 +533,7 @@ async fn rest_insights_include_source_memory_ids() {
                 context: None,
                 entity_id: Some("lineage-entity".into()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }

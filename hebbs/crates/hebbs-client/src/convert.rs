@@ -55,6 +55,7 @@ pub fn remember_options_to_proto(
         entity_id: opts.entity_id.clone(),
         edges: opts.edges.iter().map(edge_to_proto).collect(),
         tenant_id: tenant_id.map(str::to_string),
+        kind: None,
     }
 }
 
@@ -324,6 +325,9 @@ fn edge_type_to_proto_i32(et: EdgeType) -> i32 {
         EdgeType::RevisedFrom => pb::EdgeType::RevisedFrom as i32,
         EdgeType::InsightFrom => pb::EdgeType::InsightFrom as i32,
         EdgeType::Contradicts => pb::EdgeType::Contradicts as i32,
+        EdgeType::HasEntity => pb::EdgeType::HasEntity as i32,
+        EdgeType::EntityRelation => pb::EdgeType::EntityRelation as i32,
+        EdgeType::PropositionOf => pb::EdgeType::PropositionOf as i32,
     }
 }
 
@@ -335,6 +339,9 @@ fn proto_to_edge_type(v: i32) -> EdgeType {
         Ok(pb::EdgeType::RevisedFrom) => EdgeType::RevisedFrom,
         Ok(pb::EdgeType::InsightFrom) => EdgeType::InsightFrom,
         Ok(pb::EdgeType::Contradicts) => EdgeType::Contradicts,
+        Ok(pb::EdgeType::HasEntity) => EdgeType::HasEntity,
+        Ok(pb::EdgeType::EntityRelation) => EdgeType::EntityRelation,
+        Ok(pb::EdgeType::PropositionOf) => EdgeType::PropositionOf,
         _ => EdgeType::CausedBy,
     }
 }
@@ -343,6 +350,8 @@ fn proto_to_memory_kind(v: i32) -> MemoryKind {
     match pb::MemoryKind::try_from(v) {
         Ok(pb::MemoryKind::Insight) => MemoryKind::Insight,
         Ok(pb::MemoryKind::Revision) => MemoryKind::Revision,
+        Ok(pb::MemoryKind::Document) => MemoryKind::Document,
+        Ok(pb::MemoryKind::Proposition) => MemoryKind::Proposition,
         _ => MemoryKind::Episode,
     }
 }
@@ -352,6 +361,8 @@ fn memory_kind_to_proto_i32(k: MemoryKind) -> i32 {
         MemoryKind::Episode => pb::MemoryKind::Episode as i32,
         MemoryKind::Insight => pb::MemoryKind::Insight as i32,
         MemoryKind::Revision => pb::MemoryKind::Revision as i32,
+        MemoryKind::Document => pb::MemoryKind::Document as i32,
+        MemoryKind::Proposition => pb::MemoryKind::Proposition as i32,
     }
 }
 

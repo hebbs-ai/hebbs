@@ -15,6 +15,7 @@ path = "src/bin/hebbs.rs"
 hebbs-core = { path = "../hebbs-core" }
 hebbs-embed = { path = "../hebbs-embed" }
 hebbs-index = { path = "../hebbs-index" }
+hebbs-llm = { path = "../hebbs-llm" }
 hebbs-storage = { path = "../hebbs-storage" }
 hebbs-cli = { path = "../hebbs-cli" }
 hebbs-reflect = { path = "../hebbs-reflect" }

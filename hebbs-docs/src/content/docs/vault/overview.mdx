@@ -5,7 +5,7 @@ description: "File-first cognitive memory: HEBBS indexes your markdown files loc
 
 HEBBS Vault is the local, file-first mode of HEBBS. Instead of connecting to a remote server, Vault indexes the markdown files in a directory, embeds them locally using an on-device ONNX model, and gives you the full HEBBS recall engine over your own files.
 
-No server. No API key. No network calls. One binary, one command.
+No server required. One binary, one command. LLM configuration is required for autonomous features (reflection, contradiction resolution).
 
 ## Two Modes of HEBBS
 
@@ -13,7 +13,7 @@ No server. No API key. No network calls. One binary, one command.
 |---|---|---|
 | Binary | `hebbs-server` + `hebbs-cli` | `hebbs` (unified) |
 | Storage | Remote RocksDB managed by server | Local `.hebbs/` directory inside your project |
-| Embedding | Server-side (ONNX or remote API) | On-device ONNX (bge-small-en-v1.5) |
+| Embedding | Server-side (ONNX or remote API) | On-device ONNX (EmbeddingGemma-300M) |
 | Auth | API key required | None (local filesystem) |
 | Use case | Multi-tenant production workloads | Personal knowledge, project notes, coding agents |
 | File sync | Not applicable | Watches markdown files, auto-indexes on change |

@@ -27,6 +27,7 @@
 
     <nav id="tab-bar" class="tab-bar">
       <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="notes">Notes</button>
       <button class="tab-btn" data-tab="explorer">Explorer</button>
       <button class="tab-btn" data-tab="recall">Recall</button>
       <button class="tab-btn active" data-tab="graph">Graph</button>
@@ -46,6 +47,42 @@
           <button class="detail-drawer-close">&times;</button>
         </div>
         <div class="detail-drawer-content"></div>
+      </div>
+    </div>
+
+    <!-- ── Notes Tab ────────────────────────────────────────────── -->
+    <div id="tab-notes" class="tab-pane" style="display:none">
+      <div class="notes-layout">
+        <aside class="notes-sidebar">
+          <div class="notes-sidebar-header">
+            <input id="notes-file-search" type="text" placeholder="Filter files..." class="search-input notes-search-input">
+          </div>
+          <div id="notes-file-list" class="notes-file-list"></div>
+        </aside>
+        <div class="notes-main">
+          <div id="notes-empty" class="notes-empty-state">
+            <div class="notes-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <p>Select a file to view its contents and linked memories</p>
+          </div>
+          <div id="notes-content" class="notes-content" style="display:none">
+            <div id="notes-file-header" class="notes-file-header"></div>
+            <div id="notes-rendered" class="notes-rendered markdown-body"></div>
+          </div>
+        </div>
+        <div id="notes-memory-panel" class="notes-memory-panel" style="display:none">
+          <div class="notes-memory-panel-header">
+            <span id="notes-memory-title">Memory Details</span>
+            <button id="notes-memory-close" class="detail-drawer-close">&times;</button>
+          </div>
+          <div id="notes-memory-content" class="notes-memory-content"></div>
+        </div>
       </div>
     </div>
 

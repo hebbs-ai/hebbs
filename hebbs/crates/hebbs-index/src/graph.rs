@@ -31,6 +31,12 @@ pub enum EdgeType {
     InsightFrom = 0x05,
     /// Contradiction detection edge.
     Contradicts = 0x06,
+    /// Memory references an entity.
+    HasEntity = 0x07,
+    /// Directed relationship between two entities.
+    EntityRelation = 0x08,
+    /// Proposition extracted from a document.
+    PropositionOf = 0x09,
 }
 
 impl EdgeType {
@@ -42,6 +48,9 @@ impl EdgeType {
             0x04 => Ok(EdgeType::RevisedFrom),
             0x05 => Ok(EdgeType::InsightFrom),
             0x06 => Ok(EdgeType::Contradicts),
+            0x07 => Ok(EdgeType::HasEntity),
+            0x08 => Ok(EdgeType::EntityRelation),
+            0x09 => Ok(EdgeType::PropositionOf),
             _ => Err(IndexError::InvalidEdgeType { value: byte }),
         }
     }

@@ -69,6 +69,8 @@ impl SubscribeService for SubscribeServiceImpl {
                 Ok(pb::MemoryKind::Episode) => Some(MemoryKind::Episode),
                 Ok(pb::MemoryKind::Insight) => Some(MemoryKind::Insight),
                 Ok(pb::MemoryKind::Revision) => Some(MemoryKind::Revision),
+                Ok(pb::MemoryKind::Document) => Some(MemoryKind::Document),
+                Ok(pb::MemoryKind::Proposition) => Some(MemoryKind::Proposition),
                 _ => None,
             })
             .collect();

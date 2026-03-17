@@ -3,12 +3,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Utc;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
+use hebbs_core::contradict::ClassifierMethod;
 use hebbs_core::engine::Engine;
 use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
+use crate::contradiction_writer::{ContradictionOutput, ContradictionWriter};
 use crate::error::{Result, VaultError};
 use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
 use crate::parser::parse_markdown_file;
@@ -175,6 +177,8 @@ pub fn phase1_ingest(
                 last_parsed: Utc::now(),
                 last_embedded: manifest.files.get(&rel_path).and_then(|e| e.last_embedded),
                 sections: new_sections,
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
 
@@ -231,12 +235,28 @@ pub async fn phase2_ingest(
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
 ) -> Result<Phase2Stats> {
+    // Create LLM provider from vault config when available for autonomous
+    // contradiction resolution. Falls back to heuristic path on failure.
+    let llm_provider: Option<Arc<dyn hebbs_llm::LlmProvider>> =
+        if config.llm.is_configured() {
+            match config.llm.create_provider() {
+                Ok(p) => Some(Arc::from(p)),
+                Err(e) => {
+                    debug!("LLM provider not available for contradiction detection: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
     let mut stats = Phase2Stats::default();
 
     // Collect work items
     let mut new_items: Vec<(String, String, String, SectionWorkItem)> = Vec::new(); // (rel_path, memory_id, content, work)
     let mut modified_items: Vec<(String, String, String, SectionWorkItem)> = Vec::new();
     let mut delete_ids: Vec<(String, String)> = Vec::new(); // (rel_path, memory_id)
+    // Heading-only sections with no body content: mark synced without embedding
+    let mut empty_content_ids: Vec<(String, String)> = Vec::new();
 
     for (rel_path, file_entry) in &manifest.files {
         for section in &file_entry.sections {
@@ -256,6 +276,12 @@ pub async fn phase2_ingest(
                             continue;
                         }
                     };
+
+                    // Skip heading-only sections with no body content
+                    if content.is_empty() {
+                        empty_content_ids.push((rel_path.clone(), section.memory_id.clone()));
+                        continue;
+                    }
 
                     // Determine if this is new (no memory in engine) or modified
                     let memory_id_bytes = parse_ulid_to_bytes(&section.memory_id);
@@ -292,6 +318,15 @@ pub async fn phase2_ingest(
         }
     }
 
+    let total_work = new_items.len() + modified_items.len();
+    let total_delete = delete_ids.len();
+    info!(
+        "phase2: {} new, {} modified, {} orphaned section(s) to process",
+        new_items.len(),
+        modified_items.len(),
+        total_delete
+    );
+
     // Batch embed all new + modified sections
     let all_texts: Vec<String> = new_items
         .iter()
@@ -301,8 +336,15 @@ pub async fn phase2_ingest(
 
     let mut all_embeddings: Vec<Vec<f32>> = Vec::new();
     if !all_texts.is_empty() {
+        info!("phase2: embedding {} section(s)...", all_texts.len());
         let batch_size = config.embedding.batch_size;
-        for chunk in all_texts.chunks(batch_size) {
+        for (batch_i, chunk) in all_texts.chunks(batch_size).enumerate() {
+            info!(
+                "phase2: embedding batch {}/{} ({} sections)",
+                batch_i + 1,
+                (all_texts.len() + batch_size - 1) / batch_size,
+                chunk.len()
+            );
             let text_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
             match embedder.embed_batch(&text_refs) {
                 Ok(embeddings) => {
@@ -318,6 +360,7 @@ pub async fn phase2_ingest(
             }
         }
         stats.sections_embedded = all_embeddings.iter().filter(|e| !e.is_empty()).count();
+        info!("phase2: embedding complete ({} sections embedded)", stats.sections_embedded);
     }
 
     // Track successfully processed sections by their ORIGINAL memory_id
@@ -326,7 +369,14 @@ pub async fn phase2_ingest(
 
     // Process new items (remember)
     let mut embed_idx = 0;
-    for (rel_path, memory_id, content, work) in &new_items {
+    for (item_i, (rel_path, memory_id, content, work)) in new_items.iter().enumerate() {
+        info!(
+            "phase2: storing [{}/{}] {} ({})",
+            item_i + 1,
+            total_work,
+            rel_path,
+            work.heading_path.last().unwrap_or(&"root".to_string()),
+        );
         let embedding = all_embeddings.get(embed_idx).cloned().unwrap_or_default();
         embed_idx += 1;
 
@@ -354,6 +404,7 @@ pub async fn phase2_ingest(
             context: Some(context),
             entity_id: None,
             edges: Vec::new(),
+            kind: None,
         };
 
         match engine.remember(input) {
@@ -367,15 +418,70 @@ pub async fn phase2_ingest(
                     // Run contradiction detection on the new memory
                     if config.contradiction.enabled {
                         let core_config = config.contradiction.to_core_config();
-                        match engine.check_contradictions(&arr, &core_config, None) {
-                            Ok(pending) => {
-                                if !pending.is_empty() {
+                        match engine.check_contradictions(&arr, &core_config, llm_provider.as_deref()) {
+                            Ok(check_output) => {
+                                let pending_count = check_output.pending.len();
+                                let resolved_count =
+                                    check_output.resolved_contradictions.len();
+
+                                if pending_count > 0 {
                                     debug!(
-                                        "found {} contradiction candidate(s) for memory {}",
-                                        pending.len(),
+                                        "found {} pending contradiction candidate(s) for memory {}",
+                                        pending_count,
                                         hex::encode(arr),
                                     );
-                                    stats.contradictions_found += pending.len();
+                                    stats.contradictions_found += pending_count;
+                                }
+
+                                if resolved_count > 0 {
+                                    debug!(
+                                        "resolved {} contradiction(s) via LLM for memory {}",
+                                        resolved_count,
+                                        hex::encode(arr),
+                                    );
+                                    stats.contradictions_found += resolved_count;
+
+                                    // Write contradiction files for resolved contradictions
+                                    let outputs: Vec<ContradictionOutput> = check_output
+                                        .resolved_contradictions
+                                        .iter()
+                                        .map(|rc| ContradictionOutput {
+                                            content_a: rc.content_a.clone(),
+                                            content_b: rc.content_b.clone(),
+                                            memory_id_a: rc.memory_id_a,
+                                            memory_id_b: rc.memory_id_b,
+                                            confidence: rc.confidence,
+                                            method: ClassifierMethod::Llm,
+                                        })
+                                        .collect();
+
+                                    let writer = ContradictionWriter::new(
+                                        vault_root, manifest, config,
+                                    );
+                                    match writer.write_contradictions(&outputs) {
+                                        Ok(paths) => {
+                                            for p in &paths {
+                                                info!(
+                                                    "auto-wrote contradiction file: {}",
+                                                    p.display()
+                                                );
+                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                "failed to write contradiction files: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+
+                                if check_output.revisions_resolved > 0 {
+                                    debug!(
+                                        "resolved {} revision(s) via LLM for memory {}",
+                                        check_output.revisions_resolved,
+                                        hex::encode(arr),
+                                    );
                                 }
                             }
                             Err(e) => {
@@ -415,7 +521,14 @@ pub async fn phase2_ingest(
     }
 
     // Process modified items (revise)
-    for (rel_path, memory_id, content, work) in &modified_items {
+    for (item_i, (rel_path, memory_id, content, work)) in modified_items.iter().enumerate() {
+        info!(
+            "phase2: revising [{}/{}] {} ({})",
+            new_items.len() + item_i + 1,
+            total_work,
+            rel_path,
+            work.heading_path.last().unwrap_or(&"root".to_string()),
+        );
         let embedding = all_embeddings.get(embed_idx).cloned().unwrap_or_default();
         embed_idx += 1;
 
@@ -467,6 +580,9 @@ pub async fn phase2_ingest(
     }
 
     // Process deletions (forget)
+    if !delete_ids.is_empty() {
+        info!("phase2: forgetting {} orphaned section(s)...", delete_ids.len());
+    }
     for (rel_path, memory_id) in &delete_ids {
         let memory_id_bytes = match parse_ulid_to_bytes(memory_id) {
             Some(id) => id,
@@ -487,6 +603,69 @@ pub async fn phase2_ingest(
         }
     }
 
+    // Triple-layer extraction: when LLM is available, extract propositions and entities
+    // from files that were newly processed. Only runs for files that had new sections.
+    if let Some(ref provider) = llm_provider {
+        // Collect unique file paths that had new items processed
+        let mut extraction_files: HashSet<String> = HashSet::new();
+        for (rel_path, _, _, _) in &new_items {
+            if processed_ids.iter().any(|(rp, _)| rp == rel_path) {
+                extraction_files.insert(rel_path.clone());
+            }
+        }
+
+        for rel_path in &extraction_files {
+            let file_path = vault_root.join(rel_path);
+            let file_content = match std::fs::read_to_string(&file_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    debug!("skipping extraction for {}: {}", rel_path, e);
+                    continue;
+                }
+            };
+
+            // Get parsed sections for large-file chunking
+            let split_level = config.split_level();
+            let parsed_sections = match crate::parser::parse_markdown_file(&file_path, split_level)
+            {
+                Ok(parsed) => parsed.sections,
+                Err(_) => Vec::new(),
+            };
+
+            let extraction_result = crate::extract::extract_and_store_file(
+                engine,
+                provider.as_ref(),
+                &file_content,
+                rel_path,
+                &parsed_sections,
+                &config.extraction,
+            );
+
+            // Update manifest with document and proposition IDs
+            if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
+                if let Some(doc_id) = extraction_result.document_memory_id {
+                    let ulid = ulid::Ulid::from_bytes(doc_id).to_string();
+                    file_entry.document_memory_id = Some(ulid);
+                }
+                file_entry.proposition_memory_ids = extraction_result
+                    .proposition_memory_ids
+                    .iter()
+                    .map(|id| ulid::Ulid::from_bytes(*id).to_string())
+                    .collect();
+            }
+
+            if !extraction_result.proposition_memory_ids.is_empty() {
+                info!(
+                    "extracted {} propositions from {}",
+                    extraction_result.proposition_memory_ids.len(),
+                    rel_path
+                );
+            }
+
+            stats.errors += extraction_result.errors;
+        }
+    }
+
     // Update manifest: mark processed sections as Synced, remove fully-orphaned files
     for (rel_path, file_entry) in manifest.files.iter_mut() {
         let now = Utc::now();
@@ -497,9 +676,14 @@ pub async fn phase2_ingest(
                 // Check if we successfully processed it
                 let was_processed =
                     processed_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
-                if was_processed {
+                // Also mark heading-only sections (empty content) as synced
+                let is_empty_heading =
+                    empty_content_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
+                if was_processed || is_empty_heading {
                     section.state = SectionState::Synced;
-                    any_embedded = true;
+                    if was_processed {
+                        any_embedded = true;
+                    }
                 }
             }
         }

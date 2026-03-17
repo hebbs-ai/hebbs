@@ -39,10 +39,11 @@ This page covers commands for both the **unified `hebbs` binary** (local vault m
 
 ### init
 
-Initialize a new vault (`.hebbs/` directory).
+Initialize a new vault (`.hebbs/` directory). LLM configuration is required for new vaults and can be provided via flags or interactively.
 
 ```bash
 hebbs init [PATH]
+hebbs init --provider anthropic --model claude-sonnet-4-20250514 --api-key-env ANTHROPIC_API_KEY
 hebbs init --force          # Reinitialize even if .hebbs/ exists
 ```
 
@@ -50,6 +51,11 @@ hebbs init --force          # Reinitialize even if .hebbs/ exists
 |---|---|
 | `PATH` (positional) | Vault directory (default: current directory) |
 | `--force` | Reinitialize even if `.hebbs/` already exists |
+| `--provider` | LLM provider: `anthropic`, `openai`, `gemini`, `ollama` |
+| `--model` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o-mini`) |
+| `--api-key-env` | Environment variable holding the API key (e.g. `ANTHROPIC_API_KEY`) |
+| `--api-key` | API key (prefer `--api-key-env` for security) |
+| `--base-url` | Base URL override for self-hosted providers |
 
 ### index
 
@@ -378,9 +384,10 @@ hebbs-cli prime customer-42 --max-memories 20 --similarity-cue "account history"
 
 ## reflect
 
-Trigger a full server-side reflection cycle: clustering → LLM proposal → validation → commit in a single command. Requires an LLM provider configured on the server (e.g. OpenAI API key). This is the simplest way to run reflection when an LLM is available.
+Trigger a reflection cycle: clustering, LLM-driven insight generation, validation, and commit. This is the primary way to run reflection in both vault and server modes. Requires LLM configuration in the vault config or on the server.
 
 ```bash
+hebbs reflect --entity-id customer-42
 hebbs-cli reflect --entity-id customer-42
 ```
 
@@ -389,129 +396,22 @@ hebbs-cli reflect --entity-id customer-42
 | `--entity-id` | `-e` | No | — | Entity scope (omit for global) |
 | `--since-us` | — | No | — | Only process memories created after this timestamp (microseconds) |
 
-If no server-side LLM is configured, or you want the agent to control the reasoning step, use [`reflect-prepare`](#reflect-prepare) + [`reflect-commit`](#reflect-commit) instead.
-
 ---
 
-## reflect-prepare
+## config
 
-Agent-driven alternative to [`reflect`](#reflect). Use this when no server-side LLM is configured and the agent wants full control over the reasoning step — the agent acts as the LLM. If you have an LLM provider configured on the server, prefer `reflect` instead for a simpler single-command workflow.
-
-No LLM is called — HEBBS clusters memories and builds prompts for the agent to reason over.
+View and modify vault configuration using dot-notation keys.
 
 ```bash
-hebbs-cli reflect-prepare --entity-id customer-42 --format json
+hebbs config show                          # Print full config
+hebbs config get llm.provider              # Get a single value
+hebbs config set llm.provider anthropic    # Set a single value
+hebbs config set llm.model claude-sonnet-4-20250514
+hebbs config set embedding.model embeddinggemma-300m
+hebbs config set embedding.dimensions 768
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--entity-id` | `-e` | No | — | Entity scope (omit for global) |
-| `--since-us` | — | No | — | Only process memories created after this timestamp (microseconds) |
-
-Output (JSON format):
-
-```json
-{
-  "session_id": "01JQXYZ...",
-  "memories_processed": 47,
-  "clusters": [
-    {
-      "cluster_id": 0,
-      "member_count": 8,
-      "proposal_system_prompt": "...",
-      "proposal_user_prompt": "...",
-      "memory_ids": ["aabb1122...", "ccdd3344..."],
-      "validation_context": { ... },
-      "memories": [
-        {
-          "memory_id": "aabb1122...",
-          "content": "The user prefers dark mode in all applications",
-          "importance": 0.8,
-          "entity_id": "user_prefs",
-          "created_at": 1720000000000000
-        }
-      ]
-    }
-  ],
-  "existing_insight_count": 3
-}
-```
-
-Use `--format json` for machine-readable output. Each cluster includes full `memories` with content so the agent can reason about them directly. The `proposal_system_prompt` and `proposal_user_prompt` are ready to send to any LLM. The session expires after 10 minutes.
-
----
-
-## reflect-commit
-
-Commit agent-produced insights from a previous [`reflect-prepare`](#reflect-prepare) session. Part of the agent-driven two-step reflect flow.
-
-```bash
-hebbs-cli reflect-commit \
-  --session-id "01JQXYZ..." \
-  --insights '[{"content":"Customer prefers dark mode","confidence":0.9,"source_memory_ids":["aabb1122..."],"tags":["preference"]}]'
-```
-
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--session-id` | `-s` | Yes | — | Session ID from `reflect-prepare` output |
-| `--insights` | `-i` | Yes | — | JSON array of insight objects |
-
-Each insight object requires `content` (string), `confidence` (float), and `source_memory_ids` (array of hex-encoded IDs from the cluster). Optional: `tags` (string array), `cluster_id` (integer).
-
----
-
-## contradiction-prepare
-
-Retrieve pending contradiction candidates for agent review. HEBBS flags potential contradictions during ingest using a heuristic classifier, but has no LLM. The agent reviews candidates and commits verdicts.
-
-```bash
-hebbs contradiction-prepare --format json
-```
-
-Output (JSON format):
-
-```json
-[
-  {
-    "pending_id": "abc123def456...",
-    "memory_id_a": "aabb1122...",
-    "memory_id_b": "ccdd3344...",
-    "content_a_snippet": "The system is reliable and stable",
-    "content_b_snippet": "The system is unreliable and unstable",
-    "classifier_score": 0.65,
-    "classifier_method": "heuristic",
-    "similarity": 0.82,
-    "created_at": 1720000000000000
-  }
-]
-```
-
-Returns an empty array when no pending candidates exist.
-
----
-
-## contradiction-commit
-
-Commit agent-reviewed verdicts for pending contradiction candidates from a previous [`contradiction-prepare`](#contradiction-prepare) call.
-
-```bash
-hebbs contradiction-commit --verdicts '[
-  {"pending_id": "abc123...", "verdict": "contradiction", "confidence": 0.9, "reasoning": "Direct conflict"},
-  {"pending_id": "def456...", "verdict": "revision", "confidence": 0.85, "reasoning": "Updated timeline"},
-  {"pending_id": "ghi789...", "verdict": "dismiss", "confidence": 0.95, "reasoning": "Different topics"}
-]' --format json
-```
-
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--verdicts` | `-v` | Yes | -- | JSON array of verdict objects |
-
-Each verdict object requires `pending_id` (string), `verdict` (`"contradiction"`, `"revision"`, or `"dismiss"`), and `confidence` (float). Optional: `reasoning` (string).
-
-**Verdict effects:**
-- `contradiction`: Creates bidirectional `CONTRADICTS` edges
-- `revision`: Creates a `REVISED_FROM` edge (B supersedes A)
-- `dismiss`: Removes the candidate without creating edges
+Supported dot-notation keys include `llm.provider`, `llm.model`, `llm.api_key_env`, `llm.base_url`, `embedding.model`, `embedding.dimensions`, and any other field in `config.toml`. Changes take effect on the next command or watch cycle.
 
 ---
 

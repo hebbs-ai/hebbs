@@ -66,6 +66,8 @@ pub struct DaemonConfig {
     pub foreground: bool,
     /// HTTP port for the Memory Palace control panel. `0` disables panel.
     pub panel_port: u16,
+    /// Embedding model name (e.g. "bge-small-en-v1.5", "embeddinggemma-300m").
+    pub embedding_model: String,
 }
 
 impl DaemonConfig {
@@ -79,6 +81,7 @@ impl DaemonConfig {
             idle_timeout_secs: DEFAULT_IDLE_SHUTDOWN_SECS,
             foreground: false,
             panel_port: DEFAULT_PANEL_PORT,
+            embedding_model: "bge-small-en-v1.5".to_string(),
         })
     }
 }
@@ -100,12 +103,12 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     std::fs::write(&config.pid_path, pid.to_string())
         .map_err(|e| format!("failed to write PID file: {}", e))?;
 
-    // Load ONNX embedder once
+    // Load ONNX embedder once from OS cache dir (survives vault/daemon cleanup).
     info!("loading embedding model...");
-    let model_dir = runtime_dir.join("index");
-    std::fs::create_dir_all(&model_dir)
+    let embed_config =
+        hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
+    std::fs::create_dir_all(&embed_config.model_dir)
         .map_err(|e| format!("failed to create model directory: {}", e))?;
-    let embed_config = hebbs_embed::EmbedderConfig::default_bge_small(&model_dir);
     let embedder: Arc<dyn Embedder> = Arc::new(
         hebbs_embed::OnnxEmbedder::new(embed_config)
             .map_err(|e| format!("failed to load embedder: {}", e))?,
@@ -458,7 +461,7 @@ async fn handle_connection(
             return Ok(());
         }
 
-        let response = dispatch_command(request, &vault_manager).await;
+        let response = dispatch_command(request, &vault_manager, &mut writer).await;
 
         write_message(&mut writer, &response)
             .await
@@ -467,9 +470,13 @@ async fn handle_connection(
 }
 
 /// Dispatch a single command to the appropriate handler.
+///
+/// The writer is passed so that long-running commands (e.g. Index) can stream
+/// `Progress` messages to the client before sending the final response.
 async fn dispatch_command(
     request: DaemonRequest,
     vault_manager: &Arc<Mutex<VaultManager>>,
+    writer: &mut tokio::io::WriteHalf<tokio::net::UnixStream>,
 ) -> DaemonResponse {
     let extra_vault_paths = request.vault_paths.clone();
     match request.command {
@@ -511,7 +518,8 @@ async fn dispatch_command(
                 context: ctx,
                 entity_id,
                 edges: parsed_edges,
-            };
+            kind: None,
+        };
 
             match engine.remember(input) {
                 Ok(memory) => DaemonResponse::ok(memory_to_json(&memory)),
@@ -952,24 +960,71 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
+
+            // Helper: send a progress message (ignore write errors — client may have disconnected)
+            macro_rules! send_progress {
+                ($msg:expr) => {
+                    let _ = write_message(writer, &DaemonResponse::progress($msg)).await;
+                };
+            }
+
+            send_progress!("Opening vault...");
             let (engine, embedder) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(pair) => pair,
                 Err(e) => return DaemonResponse::err(e),
             };
 
-            // Use index_no_progress to avoid the non-Send &dyn Fn callback
-            match crate::index_no_progress(&vault_path, &engine, &embedder).await {
-                Ok(result) => DaemonResponse::ok(serde_json::json!({
-                    "total_files": result.total_files,
-                    "sections_new": result.phase1.sections_new,
-                    "sections_modified": result.phase1.sections_modified,
-                    "sections_embedded": result.phase2.sections_embedded,
-                    "sections_remembered": result.phase2.sections_remembered,
-                    "sections_revised": result.phase2.sections_revised,
-                    "sections_forgotten": result.phase2.sections_forgotten,
-                })),
-                Err(e) => DaemonResponse::err(format!("{}", e)),
-            }
+            let hebbs_dir = vault_path.join(".hebbs");
+            let config = match crate::config::VaultConfig::load(&hebbs_dir) {
+                Ok(c) => c,
+                Err(e) => return DaemonResponse::err(format!("failed to load config: {}", e)),
+            };
+            let mut manifest = match crate::manifest::Manifest::load(&hebbs_dir) {
+                Ok(m) => m,
+                Err(e) => return DaemonResponse::err(format!("failed to load manifest: {}", e)),
+            };
+
+            // Collect files
+            let all_files = match crate::watcher::collect_md_files(&vault_path, &config) {
+                Ok(f) => f,
+                Err(e) => return DaemonResponse::err(format!("failed to collect files: {}", e)),
+            };
+            let total_files = all_files.len();
+            send_progress!(format!("Phase 1/2 — Parsing {} file(s)...", total_files));
+
+            // Phase 1: parse
+            let p1_stats = match crate::ingest::phase1_ingest(&all_files, &vault_path, &mut manifest, &config) {
+                Ok(s) => s,
+                Err(e) => return DaemonResponse::err(format!("phase1 failed: {}", e)),
+            };
+            manifest.save(&hebbs_dir).ok();
+            send_progress!(format!(
+                "Phase 1/2 complete — {} new, {} modified section(s). Starting embedding...",
+                p1_stats.sections_new, p1_stats.sections_modified
+            ));
+
+            let (_, stale, orphaned) = manifest.section_counts();
+            send_progress!(format!(
+                "Phase 2/2 — Embedding & storing {} section(s) via LLM + vector index...",
+                stale + orphaned
+            ));
+
+            // Phase 2: embed + store
+            let p2_stats = match crate::ingest::phase2_ingest(&vault_path, &mut manifest, &engine, &embedder, &config).await {
+                Ok(s) => s,
+                Err(e) => return DaemonResponse::err(format!("phase2 failed: {}", e)),
+            };
+            manifest.save(&hebbs_dir).ok();
+
+            DaemonResponse::ok(serde_json::json!({
+                "total_files": total_files,
+                "sections_new": p1_stats.sections_new,
+                "sections_modified": p1_stats.sections_modified,
+                "sections_embedded": p2_stats.sections_embedded,
+                "sections_remembered": p2_stats.sections_remembered,
+                "sections_revised": p2_stats.sections_revised,
+                "sections_forgotten": p2_stats.sections_forgotten,
+            }))
         }
 
         Command::List { sections } => {
@@ -1498,6 +1553,22 @@ async fn run_watch_loop(
                         Ok(_) => {}
                         Err(e) => warn!("[watch] catch-up error for {}: {}", state.vault_root.display(), e),
                     }
+
+                    // Also check for stale sections left by interrupted phase2
+                    if !state.has_stale_sections {
+                        let (_, stale, _) = state.manifest.section_counts();
+                        if stale > 0 {
+                            info!(
+                                "[watch] catch-up: {} stale sections from interrupted phase2, arming re-embed",
+                                stale
+                            );
+                            let phase2_ms = state.config.watch.phase2_debounce_ms;
+                            state.phase2_deadline = Some(
+                                tokio::time::Instant::now() + Duration::from_millis(phase2_ms),
+                            );
+                            state.has_stale_sections = true;
+                        }
+                    }
                 }
 
                 // Filter and accumulate events
@@ -1616,6 +1687,18 @@ async fn run_watch_loop(
                                                     p2.sections_embedded, p2.sections_remembered,
                                                     p2.sections_revised, p2.sections_forgotten
                                                 );
+                                                // Run auto-forget after phase2 to clean up decayed memories
+                                                match engine.auto_forget() {
+                                                    Ok(fg) if fg.forgotten_count > 0 => {
+                                                        info!(
+                                                            "[watch:{}] auto-forget: {} forgotten, {} cascaded",
+                                                            state.vault_root.file_name().unwrap_or_default().to_string_lossy(),
+                                                            fg.forgotten_count, fg.cascade_count
+                                                        );
+                                                    }
+                                                    Ok(_) => {} // nothing to forget
+                                                    Err(e) => warn!("[watch] auto-forget error: {}", e),
+                                                }
                                                 // Notify panel WebSocket clients.
                                                 let _ = panel_event_tx.send(PanelEvent::IngestComplete {
                                                     remembered: p2.sections_remembered,

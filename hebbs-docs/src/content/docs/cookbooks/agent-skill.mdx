@@ -7,13 +7,14 @@ description: How to use the HEBBS skill with any AI agent framework.
 
 HEBBS ships a universal **SKILL.md** file that teaches any AI agent how to use HEBBS as a cognitive memory backend. The skill works with OpenClaw, Cursor, Claude Code, Codex, or any agent that can run shell commands.
 
-The agent uses the `hebbs` CLI directly — no plugin, SDK, or custom integration needed.
+The agent uses the `hebbs` CLI directly -- no plugin, SDK, or custom integration needed.
 
 ## Installation
 
 1. Install the HEBBS CLI: `cargo install hebbs-cli`
-2. Start the HEBBS server: `hebbs-server` (default port 50051 for gRPC, 6381 for REST)
-3. Copy `hebbs/skills/hebbs/SKILL.md` into your agent's skill directory
+2. Initialize a vault: `hebbs init --provider <provider> --model <model>` (LLM is required for reflection and contradiction detection)
+3. Start the HEBBS server: `hebbs-server` (default port 50051 for gRPC, 6381 for REST)
+4. Copy `hebbs/skills/hebbs/SKILL.md` into your agent's skill directory
 
 For OpenClaw:
 ```bash
@@ -23,71 +24,61 @@ openclaw skills list  # verify it appears
 
 ## How It Works
 
-The skill teaches the agent six core operations:
+The skill teaches the agent five core operations:
 
 | Operation | Purpose | When to use |
 |---|---|---|
 | `remember` | Store a memory | User shares a fact, preference, decision |
 | `recall` | Retrieve relevant memories | Before answering questions |
-| `reflect-prepare` + `reflect-commit` | Consolidate memories into insights | After 20+ new memories accumulate |
 | `insights` | Retrieve consolidated knowledge | Before recall, for distilled answers |
 | `forget` | Remove outdated memories | User corrects or retracts information |
 | `prime` | Load entity context | Start of a conversation |
 
-## Agent-Driven Reflection
+HEBBS handles reflection and contradiction detection autonomously using its configured LLM. The agent can optionally trigger reflection manually:
 
-The two-step reflect flow is the key innovation for agent integration. Unlike server-side reflect (which requires LLM API keys on the server), agent-driven reflect uses the agent's own LLM:
-
-### Step 1: Prepare
-
-```bash
-hebbs-cli reflect-prepare --entity-id user_prefs --format json
-```
-
-HEBBS clusters the memories and returns:
-- **Memories** — full content of each memory in every cluster (id, content, importance, entity, timestamp) so the agent can reason about them directly
-- **Proposal prompts** — pre-built system/user prompts ready to send to any LLM for insight generation
-- **Memory IDs** — source memory IDs per cluster (hex-encoded)
-- **Validation context** — existing insights and source data for cross-checking
-- **Session ID** — handle for the commit step
-
-### Step 2: Agent reasons
-
-The agent sends the proposal prompts to its LLM (which could be OpenAI, Anthropic, a local model, or the agent itself). The LLM proposes insights. The agent optionally validates them using the validation context.
-
-### Step 3: Commit
-
-```bash
-hebbs-cli reflect-commit \
-  --session-id "01JQXYZ..." \
-  --insights '[{"content":"...","confidence":0.9,"source_memory_ids":["..."],"tags":["..."]}]'
-```
-
-HEBBS embeds, indexes, and stores the insights. No LLM is called by HEBBS.
+| Operation | Purpose | When to use |
+|---|---|---|
+| `reflect` | Trigger reflection for an entity | Optional one-shot trigger when the agent wants immediate consolidation |
 
 ## Example: OpenClaw Agent Loop
 
 A typical agent conversation flow with HEBBS:
 
-1. **User opens chat** → Agent runs `hebbs-cli prime <entity>` to load context
-2. **User sends message** → Agent runs `hebbs-cli recall "<message>" --format json` to find relevant memories
+1. **User opens chat** -- Agent runs `hebbs prime <entity>` to load context
+2. **User sends message** -- Agent runs `hebbs recall "<message>" --format json` to find relevant memories
 3. **Agent responds** using recalled context
-4. **After response** → Agent runs `hebbs-cli remember "<key fact from conversation>" --importance 0.7 --entity-id <entity>`
-5. **Periodically** → Agent checks memory count and runs the two-step reflect flow
-6. **Before deep questions** → Agent runs `hebbs-cli insights --entity-id <entity>` to check consolidated knowledge
+4. **After response** -- Agent runs `hebbs remember "<key fact from conversation>" --importance 0.7 --entity-id <entity>`
+5. **Before deep questions** -- Agent runs `hebbs insights --entity-id <entity>` to check consolidated knowledge
+
+Periodically, HEBBS automatically consolidates memories into insights using the configured LLM (threshold: 20+ memories per entity, or 1 hour interval). The agent can trigger this manually with `hebbs reflect --entity-id <id>` if immediate consolidation is needed.
 
 ## Configuration
 
 The agent connects to the HEBBS server at `localhost:50051` by default. Override with:
 
 ```bash
-hebbs-cli --endpoint myhost:50051 recall "query"
+hebbs --endpoint myhost:50051 recall "query"
 ```
 
 For authenticated deployments, set the API key:
 
 ```bash
-hebbs-cli --api-key $HEBBS_API_KEY recall "query"
+hebbs --api-key $HEBBS_API_KEY recall "query"
+```
+
+HEBBS requires an LLM provider for autonomous reflection and contradiction detection. Configure during initialization:
+
+```bash
+hebbs init --provider anthropic --model claude-sonnet-4-20250514
+```
+
+Or set in `.hebbs/config.toml`:
+
+```toml
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
 ```
 
 ## Tips
@@ -95,5 +86,5 @@ hebbs-cli --api-key $HEBBS_API_KEY recall "query"
 - Always use `--format json` when the agent parses output
 - Set importance based on content type: 0.9 for corrections, 0.8 for preferences, 0.5 for observations, 0.3 for transient context
 - Use entity IDs to scope memories per user, project, or domain
-- Reflect sessions expire after 10 minutes — don't delay between prepare and commit
-- Check insights before raw recall — insights are higher-quality, distilled knowledge
+- Check insights before raw recall -- insights are higher-quality, distilled knowledge
+- HEBBS requires `--provider` and `--model` flags during `hebbs init` to configure the LLM backend

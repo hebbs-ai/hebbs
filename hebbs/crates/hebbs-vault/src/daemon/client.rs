@@ -13,8 +13,9 @@ use tracing::{debug, info};
 use super::protocol::*;
 
 /// Maximum time to wait for the daemon to start (backoff polling).
-/// Set high enough to cover first-run ONNX model download (~30s).
-const DAEMON_START_TIMEOUT: Duration = Duration::from_secs(60);
+/// Model files are pre-downloaded during `hebbs init`, so the daemon
+/// only needs to load the ONNX session (~2-5s).
+const DAEMON_START_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Backoff steps for polling the socket after daemon launch.
 /// After exhausting these steps, continues polling at the last interval
@@ -42,7 +43,10 @@ impl DaemonClient {
         Ok(Self { stream })
     }
 
-    /// Send a request and receive the response.
+    /// Send a request and receive the final response.
+    ///
+    /// Any `Progress` responses received before the final response are printed
+    /// to stderr so the user sees live status updates.
     pub async fn send(&mut self, request: &DaemonRequest) -> Result<DaemonResponse, String> {
         let (mut reader, mut writer) = self.stream.split();
 
@@ -50,12 +54,25 @@ impl DaemonClient {
             .await
             .map_err(|e| format!("failed to send request: {}", e))?;
 
-        let response: DaemonResponse = read_message(&mut reader)
-            .await
-            .map_err(|e| format!("failed to read response: {}", e))?
-            .ok_or_else(|| "daemon closed connection unexpectedly".to_string())?;
+        loop {
+            let response: DaemonResponse = read_message(&mut reader)
+                .await
+                .map_err(|e| format!("failed to read response: {}", e))?
+                .ok_or_else(|| "daemon closed connection unexpectedly".to_string())?;
 
-        Ok(response)
+            if response.status == ResponseStatus::Progress {
+                if let Some(msg) = response.data
+                    .as_ref()
+                    .and_then(|d| d.get("message"))
+                    .and_then(|v| v.as_str())
+                {
+                    eprintln!("  {}", msg);
+                }
+                continue;
+            }
+
+            return Ok(response);
+        }
     }
 }
 

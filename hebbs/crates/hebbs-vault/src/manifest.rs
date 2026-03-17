@@ -27,6 +27,12 @@ pub struct FileEntry {
     pub last_embedded: Option<DateTime<Utc>>,
     /// Sections extracted from this file.
     pub sections: Vec<SectionEntry>,
+    /// ULID of the Document-kind memory for this file (Layer 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_memory_id: Option<String>,
+    /// ULIDs of Proposition-kind memories extracted from this file (Layer 2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proposition_memory_ids: Vec<String>,
 }
 
 /// Tracking state for a single section within a file.
@@ -176,6 +182,8 @@ mod tests {
                     state: SectionState::ContentStale,
                     content_checksum: sha256_checksum(b"content"),
                 }],
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
 
@@ -207,6 +215,8 @@ mod tests {
                 last_parsed: Utc::now(),
                 last_embedded: None,
                 sections: Vec::new(),
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
         m2.save(dir.path()).unwrap();
@@ -245,6 +255,8 @@ mod tests {
                         content_checksum: "sha256:yyy".to_string(),
                     },
                 ],
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
 
@@ -288,6 +300,8 @@ mod tests {
                         content_checksum: "sha256:z".into(),
                     },
                 ],
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
         let (synced, stale, orphaned) = m.section_counts();

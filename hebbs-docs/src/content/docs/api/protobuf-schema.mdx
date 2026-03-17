@@ -46,22 +46,28 @@ The same `tenant_id` field appears in `GetRequest`, `RecallRequest`, `PrimeReque
 
 (Placeholder: Full schema listing will be generated from `hebbs.proto` or linked to the source file. Key message types include: `Memory`, `RememberRequest`, `RememberResponse`, `RecallRequest`, `RecallResponse`, `ReviseRequest`, `ForgetRequest`, `ForgetResponse`, `PrimeRequest`, `PrimeResponse`, `SubscribeRequest`, `SubscribePush`, `ReflectRequest`, `ReflectResponse`, `GetInsightsRequest`, `GetInsightsResponse`, `ReflectPrepareRequest`, `ReflectPrepareResponse`, `ReflectCommitRequest`, `ReflectCommitResponse`, `ClusterPrompt`, `ProducedInsightInput`, and health-related messages.)
 
-## Agent-Driven Reflect RPCs
+## Agent-Driven Reflect RPCs (Deprecated)
 
-The `ReflectService` includes two additional RPCs for agent-driven two-step reflection:
+:::caution[Deprecated]
+The two-step prepare/commit RPCs below are **deprecated**. HEBBS now handles reflection and contradiction resolution autonomously using its built-in LLM integration. These RPCs are retained for backward compatibility but will be removed in a future release. Use `Reflect` for manual triggers instead.
+:::
+
+The `ReflectService` includes additional RPCs that were previously used for agent-driven two-step reflection:
 
 ```protobuf
 service ReflectService {
   rpc Reflect(ReflectRequest) returns (ReflectResponse);
   rpc GetInsights(GetInsightsRequest) returns (GetInsightsResponse);
+  // Deprecated: HEBBS now handles reflection internally.
   rpc ReflectPrepare(ReflectPrepareRequest) returns (ReflectPrepareResponse);
   rpc ReflectCommit(ReflectCommitRequest) returns (ReflectCommitResponse);
+  // Deprecated: HEBBS now handles contradiction resolution internally.
   rpc ContradictionPrepare(ContradictionPrepareRequest) returns (ContradictionPrepareResponse);
   rpc ContradictionCommit(ContradictionCommitRequest) returns (ContradictionCommitResponse);
 }
 ```
 
-### ReflectPrepare
+### ReflectPrepare (Deprecated)
 
 Gathers memories, clusters them, and builds LLM prompts without calling any LLM.
 
@@ -97,7 +103,7 @@ message ReflectPrepareResponse {
 }
 ```
 
-### ReflectCommit
+### ReflectCommit (Deprecated)
 
 Stores agent-produced insights from a previous `ReflectPrepare` call. No LLM is called.
 
@@ -123,9 +129,9 @@ message ReflectCommitResponse {
 
 Sessions are ephemeral (10-minute TTL). Source memory IDs in `ProducedInsightInput` must be a subset of the IDs returned in the corresponding `ReflectPrepareResponse` cluster.
 
-### ContradictionPrepare
+### ContradictionPrepare (Deprecated)
 
-Retrieve pending contradiction candidates flagged by the heuristic classifier during ingest. HEBBS has no LLM -- the calling agent reviews candidates and commits verdicts.
+Retrieve pending contradiction candidates. In the previous architecture, these were flagged by a heuristic classifier and required external agent review. HEBBS now resolves contradictions autonomously using its built-in LLM.
 
 ```protobuf
 message ContradictionPrepareRequest {
@@ -149,7 +155,7 @@ message ContradictionPrepareResponse {
 }
 ```
 
-### ContradictionCommit
+### ContradictionCommit (Deprecated)
 
 Commit agent-reviewed verdicts for pending contradiction candidates.
 

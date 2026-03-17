@@ -101,6 +101,14 @@ impl OnnxEmbedder {
             .map_err(|e| EmbedError::ModelLoad {
                 message: format!("failed to set optimization level: {}", e),
             })?
+            .with_intra_threads(
+                std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(4),
+            )
+            .map_err(|e| EmbedError::ModelLoad {
+                message: format!("failed to set intra-op threads: {}", e),
+            })?
             .commit_from_file(model_path)
             .map_err(|e| EmbedError::ModelLoad {
                 message: format!(
@@ -145,6 +153,8 @@ impl OnnxEmbedder {
     ///
     /// Returns `(input_ids, attention_mask, token_type_ids)` as 2D arrays
     /// of shape `[batch_size, max_seq_len_in_batch]`.
+    /// `token_type_ids` is all zeros when the model doesn't use them (but
+    /// is still returned for uniform handling; callers check `uses_token_type_ids`).
     fn prepare_inputs(&self, texts: &[&str]) -> Result<(Array2<i64>, Array2<i64>, Array2<i64>)> {
         let encodings = self
             .tokenizer
@@ -206,30 +216,51 @@ impl OnnxEmbedder {
             TensorRef::from_array_view(&attention_mask).map_err(|e| EmbedError::Inference {
                 message: format!("failed to create attention_mask tensor: {}", e),
             })?;
-        let token_type_ids_ref =
-            TensorRef::from_array_view(&token_type_ids).map_err(|e| EmbedError::Inference {
-                message: format!("failed to create token_type_ids tensor: {}", e),
-            })?;
 
         // Run inference and extract output inside the Mutex scope.
         // We copy the result to an owned ndarray so the session lock
         // is released before the CPU-bound pooling step.
         let output_owned = {
             let mut session = self.session.lock();
-            let outputs = session
-                .run(ort::inputs![
-                    "input_ids" => input_ids_ref,
-                    "attention_mask" => attention_mask_ref,
-                    "token_type_ids" => token_type_ids_ref,
-                ])
-                .map_err(|e| EmbedError::Inference {
-                    message: format!("ONNX inference failed: {}", e),
-                })?;
 
-            // Extract output view and copy to owned array so we can
-            // release the borrow on `outputs` (and thus `session`).
+            let outputs = if self.config.uses_token_type_ids {
+                let token_type_ids_ref = TensorRef::from_array_view(&token_type_ids)
+                    .map_err(|e| EmbedError::Inference {
+                        message: format!("failed to create token_type_ids tensor: {}", e),
+                    })?;
+                session
+                    .run(ort::inputs![
+                        "input_ids" => input_ids_ref,
+                        "attention_mask" => attention_mask_ref,
+                        "token_type_ids" => token_type_ids_ref,
+                    ])
+                    .map_err(|e| EmbedError::Inference {
+                        message: format!("ONNX inference failed: {}", e),
+                    })?
+            } else {
+                session
+                    .run(ort::inputs![
+                        "input_ids" => input_ids_ref,
+                        "attention_mask" => attention_mask_ref,
+                    ])
+                    .map_err(|e| EmbedError::Inference {
+                        message: format!("ONNX inference failed: {}", e),
+                    })?
+            };
+
+            // Extract the right output tensor.
+            // Pre-pooled models (EmbeddingGemma) have a "sentence_embedding" output
+            // at index 1. BERT-family models have "last_hidden_state" at index 0.
+            let output_idx = if self.config.pooling_strategy == PoolingStrategy::None
+                && outputs.len() > 1
+            {
+                1 // sentence_embedding (2D)
+            } else {
+                0 // last_hidden_state (3D) or only output
+            };
+
             let output_dyn: ArrayViewD<f32> =
-                outputs[0]
+                outputs[output_idx]
                     .try_extract_array::<f32>()
                     .map_err(|e| EmbedError::Inference {
                         message: format!("failed to extract output array: {}", e),
@@ -238,22 +269,33 @@ impl OnnxEmbedder {
             output_dyn.to_owned()
         };
 
-        // Convert to statically-dimensioned array for efficient indexing
-        let output_3d =
-            output_owned
-                .into_dimensionality::<Ix3>()
-                .map_err(|e| EmbedError::Inference {
-                    message: format!("output tensor is not 3-dimensional: {}", e),
-                })?;
+        let batch_size = texts.len();
+        let ndim = output_owned.ndim();
 
-        // Pool token-level representations → sentence embeddings
-        let pooled = match self.config.pooling_strategy {
-            PoolingStrategy::Mean => mean_pool(&output_3d.view(), &attention_mask),
-            PoolingStrategy::Cls => cls_pool(&output_3d.view()),
+        // Models like EmbeddingGemma output pre-pooled 2D [batch, hidden].
+        // BERT-family models output 3D [batch, seq_len, hidden] needing pooling.
+        let pooled = if ndim == 2 || self.config.pooling_strategy == PoolingStrategy::None {
+            output_owned
+                .into_dimensionality::<ndarray::Ix2>()
+                .map_err(|e| EmbedError::Inference {
+                    message: format!("expected 2D output from pre-pooled model: {}", e),
+                })?
+        } else {
+            let output_3d =
+                output_owned
+                    .into_dimensionality::<Ix3>()
+                    .map_err(|e| EmbedError::Inference {
+                        message: format!("output tensor is not 3-dimensional: {}", e),
+                    })?;
+
+            match self.config.pooling_strategy {
+                PoolingStrategy::Mean => mean_pool(&output_3d.view(), &attention_mask),
+                PoolingStrategy::Cls => cls_pool(&output_3d.view()),
+                PoolingStrategy::None => unreachable!(),
+            }
         };
 
         // L2-normalize each embedding
-        let batch_size = texts.len();
         let mut results = Vec::with_capacity(batch_size);
         for i in 0..batch_size {
             let mut vec = pooled.row(i).to_vec();

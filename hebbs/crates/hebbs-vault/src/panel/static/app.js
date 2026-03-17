@@ -62,6 +62,12 @@ const state = {
   recallResults: null,
   recallLatency: null,
 
+  // Notes tab
+  notesFiles: null,
+  notesActiveFile: null,
+  notesFileContent: null,
+  notesActiveMemory: null,
+
   // Queries tab (query audit log)
   queriesData: null,
   queriesStats: null,
@@ -342,6 +348,7 @@ function switchTab(tabName) {
     state.tabsLoaded[tabName] = true;
     switch (tabName) {
       case 'dashboard': loadDashboard(); break;
+      case 'notes': loadNotesTab(); break;
       case 'explorer': loadExplorer(); break;
       case 'recall': setupRecallTab(); break;
       case 'queries': loadQueriesTab(); break;
@@ -414,6 +421,7 @@ function renderDashboard() {
         <span>${d.synced} synced</span>
         <span>${d.stale} stale</span>
         <span>${d.orphaned} orphaned</span>
+        ${d.stale > 0 ? `<button class="resync-btn" id="resync-btn">Re-sync ${d.stale} stale</button>` : ''}
       </div>
     </div>
 
@@ -469,6 +477,407 @@ function renderDashboard() {
   `;
 
   el.innerHTML = html;
+
+  const resyncBtn = document.getElementById('resync-btn');
+  if (resyncBtn) {
+    resyncBtn.addEventListener('click', async () => {
+      resyncBtn.disabled = true;
+      resyncBtn.textContent = 'Re-syncing...';
+      try {
+        const result = await api('/api/panel/resync', { method: 'POST' });
+        if (result.status === 'ok') {
+          resyncBtn.textContent = `Done: ${result.sections_embedded} embedded`;
+          setTimeout(() => loadDashboard(), 1000);
+        } else {
+          resyncBtn.textContent = 'Failed: ' + (result.message || 'unknown error');
+          resyncBtn.disabled = false;
+        }
+      } catch (err) {
+        resyncBtn.textContent = 'Re-sync failed';
+        resyncBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Notes Tab
+// ═══════════════════════════════════════════════════════════════════════
+
+async function loadNotesTab() {
+  // Load file list
+  try {
+    const data = await api('/api/panel/files');
+    state.notesFiles = data.files;
+    renderNotesFileList();
+    setupNotesControls();
+  } catch (err) {
+    console.error('Notes tab load failed:', err);
+  }
+}
+
+function setupNotesControls() {
+  const searchInput = document.getElementById('notes-file-search');
+  const debouncedFilter = debounce(() => {
+    renderNotesFileList(searchInput.value.toLowerCase());
+  }, 200);
+  searchInput.addEventListener('input', debouncedFilter);
+
+  document.getElementById('notes-memory-close').addEventListener('click', () => {
+    state.notesActiveMemory = null;
+    document.getElementById('notes-memory-panel').style.display = 'none';
+    // Remove active state from memory list items
+    document.querySelectorAll('.notes-memlist-item.active').forEach(el => el.classList.remove('active'));
+  });
+}
+
+function renderNotesFileList(filter) {
+  const listEl = document.getElementById('notes-file-list');
+  const files = state.notesFiles || [];
+  const filtered = filter
+    ? files.filter(f => f.name.toLowerCase().includes(filter) || f.path.toLowerCase().includes(filter))
+    : files;
+
+  let html = '';
+  for (const f of filtered) {
+    const isActive = state.notesActiveFile === f.path;
+    const staleIndicator = f.stale > 0 ? ` <span style="color:var(--error)">+${f.stale} stale</span>` : '';
+    html += `
+      <div class="notes-file-item${isActive ? ' active' : ''}" data-path="${escapeHtml(f.path)}">
+        <div style="min-width:0;flex:1">
+          <div class="notes-file-name">${escapeHtml(f.name)}</div>
+          ${f.path.includes('/') ? `<div class="notes-file-path">${escapeHtml(f.path)}</div>` : ''}
+        </div>
+        <span class="notes-file-badge">${f.memory_count}${staleIndicator}</span>
+      </div>
+    `;
+  }
+
+  if (filtered.length === 0) {
+    html = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">No files found</div>';
+  }
+
+  listEl.innerHTML = html;
+
+  // Attach click handlers
+  listEl.querySelectorAll('.notes-file-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const path = el.dataset.path;
+      openNoteFile(path);
+    });
+  });
+}
+
+async function openNoteFile(filePath) {
+  state.notesActiveFile = filePath;
+  state.notesActiveMemory = null;
+
+  // Update sidebar active state
+  document.querySelectorAll('.notes-file-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.path === filePath);
+  });
+
+  // Hide memory panel
+  document.getElementById('notes-memory-panel').style.display = 'none';
+
+  try {
+    state.notesFileContent = await api(`/api/panel/files/${filePath}`);
+    renderNoteContent();
+  } catch (err) {
+    console.error('Failed to load file:', err);
+    document.getElementById('notes-empty').style.display = 'flex';
+    document.getElementById('notes-content').style.display = 'none';
+  }
+}
+
+function renderNoteContent() {
+  const fc = state.notesFileContent;
+  if (!fc) return;
+
+  document.getElementById('notes-empty').style.display = 'none';
+  document.getElementById('notes-content').style.display = 'flex';
+
+  // File header with memory list
+  const headerEl = document.getElementById('notes-file-header');
+  const fileName = fc.path.split('/').pop();
+  const syncedCount = fc.sections.filter(s => s.state === 'synced').length;
+  const staleCount = fc.sections.filter(s => s.state !== 'synced').length;
+
+  let memListHtml = '';
+  if (fc.sections.length > 0) {
+    memListHtml = `<div class="notes-memory-list">
+      <div class="notes-memory-list-header" id="notes-memlist-toggle">
+        <span>Memories in this file (${fc.sections.length})</span>
+        <span class="notes-memlist-arrow">&#9660;</span>
+      </div>
+      <div class="notes-memory-list-items" id="notes-memlist-items">
+        ${fc.sections.map(s => {
+          const dotClass = s.state === 'synced' ? 'synced' : 'stale';
+          const headingDisplay = s.heading_path.length > 0
+            ? s.heading_path.join(' > ')
+            : fileName.replace('.md', '');
+          return `<div class="notes-memlist-item" data-memory-id="${s.memory_id}" data-heading-path="${escapeHtml(s.heading_path.join('/'))}">
+            <span class="notes-memlist-dot ${dotClass}"></span>
+            <span class="notes-memlist-label">${escapeHtml(headingDisplay)}</span>
+            <span class="notes-memlist-score">${s.importance.toFixed(2)}</span>
+            <span class="notes-memlist-state ${s.state}">${s.state}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  headerEl.innerHTML = `
+    <h2>${escapeHtml(fileName)}</h2>
+    <div class="notes-file-meta">
+      <span>${escapeHtml(fc.path)}</span>
+      <span>${fc.sections.length} memories (${syncedCount} synced${staleCount > 0 ? `, ${staleCount} stale` : ''})</span>
+    </div>
+    ${memListHtml}
+  `;
+
+  // Toggle memory list collapse
+  const toggleBtn = document.getElementById('notes-memlist-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const items = document.getElementById('notes-memlist-items');
+      const arrow = toggleBtn.querySelector('.notes-memlist-arrow');
+      items.classList.toggle('collapsed');
+      arrow.classList.toggle('collapsed');
+    });
+  }
+
+  // Attach memory list item click handlers
+  headerEl.querySelectorAll('.notes-memlist-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const memId = el.dataset.memoryId;
+
+      // Highlight this item
+      headerEl.querySelectorAll('.notes-memlist-item.active').forEach(m => m.classList.remove('active'));
+      el.classList.add('active');
+
+      // Scroll to the corresponding heading in the rendered markdown
+      const headingPath = el.dataset.headingPath;
+      if (headingPath) {
+        const renderedEl = document.getElementById('notes-rendered');
+        const headings = renderedEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        const target = headingPath.split('/').pop();
+        for (const h of headings) {
+          if (h.textContent.trim() === target) {
+            h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            h.classList.add('notes-heading-highlight');
+            setTimeout(() => h.classList.remove('notes-heading-highlight'), 2000);
+            break;
+          }
+        }
+      }
+
+      // Open the memory detail panel
+      openNoteMemory(memId);
+    });
+  });
+
+  // Render clean markdown (no injected markers)
+  const renderedEl = document.getElementById('notes-rendered');
+  renderedEl.innerHTML = renderMarkdown(fc.content);
+  renderedEl.scrollTop = 0;
+}
+
+// Minimal markdown renderer (no external deps)
+function renderMarkdown(text) {
+  let html = text;
+
+  // Escape HTML entities
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Fenced code blocks (``` ... ```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre><code class="language-${lang}">${code}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  // Headings
+  html = html.replace(/^#{6}\s+(.+)$/gm, '<h6>$1</h6>');
+  html = html.replace(/^#{5}\s+(.+)$/gm, '<h5>$1</h5>');
+  html = html.replace(/^#{4}\s+(.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^#{3}\s+(.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^#{2}\s+(.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^#{1}\s+(.+)$/gm, '<h1>$1</h1>');
+
+  // Horizontal rules
+  html = html.replace(/^---+$/gm, '<hr>');
+  html = html.replace(/^\*\*\*+$/gm, '<hr>');
+
+  // Blockquotes
+  html = html.replace(/^&gt;\s?(.*)$/gm, '<blockquote><p>$1</p></blockquote>');
+  // Merge adjacent blockquotes
+  html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
+
+  // Bold + italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+
+  // Wiki-links [[...]]
+  html = html.replace(/\[\[([^\]]+)\]\]/g, '<a class="wiki-link">$1</a>');
+
+  // Task lists
+  html = html.replace(/^(\s*)- \[x\]\s+(.+)$/gm, '$1<li class="task-list-item"><input type="checkbox" checked disabled> $2</li>');
+  html = html.replace(/^(\s*)- \[\s?\]\s+(.+)$/gm, '$1<li class="task-list-item"><input type="checkbox" disabled> $2</li>');
+
+  // Unordered lists
+  html = html.replace(/^(\s*)[-*+]\s+(.+)$/gm, '$1<li>$2</li>');
+
+  // Ordered lists
+  html = html.replace(/^(\s*)\d+\.\s+(.+)$/gm, '$1<li>$2</li>');
+
+  // Wrap consecutive <li> in <ul>
+  html = html.replace(/((?:<li[^>]*>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+  // Tables
+  html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+)/gm, (_, headerRow, sepRow, bodyRows) => {
+    const headers = headerRow.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+    const rows = bodyRows.trim().split('\n').map(row => {
+      const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+  });
+
+  // Paragraphs: wrap remaining bare lines
+  html = html.replace(/^(?!<[a-z/]|$)(.+)$/gm, '<p>$1</p>');
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+
+  return html;
+}
+
+async function openNoteMemory(memoryId) {
+  state.notesActiveMemory = memoryId;
+  const panel = document.getElementById('notes-memory-panel');
+  const contentEl = document.getElementById('notes-memory-content');
+  const titleEl = document.getElementById('notes-memory-title');
+
+  panel.style.display = 'flex';
+  contentEl.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading...</div>';
+
+  try {
+    const detail = await api(`/api/panel/memories/${memoryId}`);
+    const heading = detail.heading_path.length > 0
+      ? detail.heading_path[detail.heading_path.length - 1]
+      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : memoryId.slice(0, 12));
+
+    titleEl.textContent = heading;
+
+    let html = '';
+
+    // Content
+    html += `<div class="notes-mem-section">
+      <div class="notes-mem-section-title">Content</div>
+      <div class="notes-mem-text">${escapeHtml(detail.content)}</div>
+    </div>`;
+
+    // Scores
+    html += `<div class="notes-mem-section">
+      <div class="notes-mem-section-title">Scores</div>
+      <div class="notes-mem-scores">
+        <div class="notes-mem-score-item">
+          <div class="notes-mem-score-value">${detail.importance.toFixed(2)}</div>
+          <div class="notes-mem-score-label">Importance</div>
+        </div>
+        <div class="notes-mem-score-item">
+          <div class="notes-mem-score-value">${detail.decay_score.toFixed(3)}</div>
+          <div class="notes-mem-score-label">Decay Score</div>
+        </div>
+        <div class="notes-mem-score-item">
+          <div class="notes-mem-score-value">${detail.access_count}</div>
+          <div class="notes-mem-score-label">Accesses</div>
+        </div>
+        <div class="notes-mem-score-item">
+          <div class="notes-mem-score-value">${formatTimestamp(detail.created_at)}</div>
+          <div class="notes-mem-score-label">Created</div>
+        </div>
+      </div>
+    </div>`;
+
+    // Edges
+    if (detail.edges && detail.edges.length > 0) {
+      html += `<div class="notes-mem-section">
+        <div class="notes-mem-section-title">Edges (${detail.edges.length})</div>
+        <div class="notes-related-list">`;
+      for (const edge of detail.edges) {
+        html += `<div class="notes-related-item" data-nav-id="${edge.target_id}">
+          <div class="notes-related-item-label">${edge.type} &rarr; ${edge.target_id.slice(0, 12)}</div>
+          <div class="notes-related-item-meta"><span>confidence: ${edge.confidence.toFixed(2)}</span></div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    // Similar memories (neighbors)
+    if (detail.neighbors && detail.neighbors.length > 0) {
+      html += `<div class="notes-mem-section">
+        <div class="notes-mem-section-title">Related Memories (${detail.neighbors.length})</div>
+        <div class="notes-related-list">`;
+      for (const n of detail.neighbors) {
+        html += `<div class="notes-related-item" data-nav-id="${n.id}">
+          <div class="notes-related-item-label">${escapeHtml(n.label)}</div>
+          <div class="notes-related-item-meta">
+            <span>similarity: ${n.similarity.toFixed(3)}</span>
+          </div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    // Heading path / file info
+    if (detail.file_path) {
+      html += `<div class="notes-mem-section">
+        <div class="notes-mem-section-title">Source</div>
+        <div class="notes-mem-text" style="font-size:12px;">
+          <div>${escapeHtml(detail.file_path)}</div>
+          ${detail.heading_path.length > 0 ? `<div style="color:var(--text-muted)">${detail.heading_path.map(h => escapeHtml(h)).join(' > ')}</div>` : ''}
+          <div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">${memoryId}</div>
+        </div>
+      </div>`;
+    }
+
+    contentEl.innerHTML = html;
+
+    // Wire up related memory clicks
+    contentEl.querySelectorAll('[data-nav-id]').forEach(el => {
+      el.addEventListener('click', async () => {
+        const targetId = el.dataset.navId;
+        // Check if this memory belongs to a file we know about
+        const targetDetail = await api(`/api/panel/memories/${targetId}`);
+        if (targetDetail.file_path && targetDetail.file_path !== state.notesActiveFile) {
+          // Navigate to that file, then open the memory
+          await openNoteFile(targetDetail.file_path);
+          // Highlight the memory list item
+          setTimeout(() => {
+            const listItem = document.querySelector(`.notes-memlist-item[data-memory-id="${targetId}"]`);
+            if (listItem) {
+              listItem.classList.add('active');
+              listItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
+        openNoteMemory(targetId);
+      });
+    });
+  } catch (err) {
+    console.error('Failed to load memory detail:', err);
+    contentEl.innerHTML = '<div style="padding:24px;color:var(--error)">Failed to load memory</div>';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2046,6 +2455,7 @@ function connectWebSocket() {
           await loadGraph();
           await loadStatus();
           if (state.activeTab === 'dashboard') await loadDashboard();
+          if (state.activeTab === 'notes' && state.notesActiveFile) await openNoteFile(state.notesActiveFile);
           if (state.activeTab === 'explorer') await loadExplorer();
         }, 500);
         break;

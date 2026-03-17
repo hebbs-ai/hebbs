@@ -46,6 +46,8 @@ pub enum MemoryKind {
     Episode,
     Insight,
     Revision,
+    Document,
+    Proposition,
 }
 
 impl fmt::Display for MemoryKind {
@@ -54,6 +56,8 @@ impl fmt::Display for MemoryKind {
             MemoryKind::Episode => write!(f, "Episode"),
             MemoryKind::Insight => write!(f, "Insight"),
             MemoryKind::Revision => write!(f, "Revision"),
+            MemoryKind::Document => write!(f, "Document"),
+            MemoryKind::Proposition => write!(f, "Proposition"),
         }
     }
 }
@@ -66,6 +70,9 @@ pub enum EdgeType {
     RevisedFrom,
     InsightFrom,
     Contradicts,
+    HasEntity,
+    EntityRelation,
+    PropositionOf,
 }
 
 impl fmt::Display for EdgeType {
@@ -77,6 +84,9 @@ impl fmt::Display for EdgeType {
             EdgeType::RevisedFrom => write!(f, "revised_from"),
             EdgeType::InsightFrom => write!(f, "insight_from"),
             EdgeType::Contradicts => write!(f, "contradicts"),
+            EdgeType::HasEntity => write!(f, "has_entity"),
+            EdgeType::EntityRelation => write!(f, "entity_relation"),
+            EdgeType::PropositionOf => write!(f, "proposition_of"),
         }
     }
 }

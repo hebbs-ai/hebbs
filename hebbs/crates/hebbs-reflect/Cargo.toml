@@ -8,6 +8,7 @@ description = "Reflection pipeline for HEBBS — clustering, LLM-driven insight 
 
 [dependencies]
 hebbs-embed = { path = "../hebbs-embed" }
+hebbs-llm = { path = "../hebbs-llm" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true

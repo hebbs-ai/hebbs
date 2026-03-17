@@ -12,7 +12,7 @@ When you run `hebbs index`, HEBBS:
 1. **Scans** the vault directory for `.md` files, respecting ignore patterns from `config.toml`.
 2. **Splits** each file by heading level (default: `##` headings). Sections shorter than `min_section_length` merge with their parent.
 3. **Hashes** each section's content (SHA-256) and compares against the manifest to detect changes.
-4. **Embeds** new or changed sections using the on-device ONNX model (bge-small-en-v1.5, 384 dimensions).
+4. **Embeds** new or changed sections using the on-device ONNX model (EmbeddingGemma-300M, 768 dimensions).
 5. **Stores** each section as a HEBBS memory in RocksDB with the file path and heading as metadata.
 6. **Detects contradictions** against existing memories if contradiction detection is enabled.
 

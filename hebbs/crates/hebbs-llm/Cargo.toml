@@ -1,0 +1,16 @@
+[package]
+name = "hebbs-llm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "BSL-1.1"
+description = "Unified LLM provider abstraction for HEBBS subsystems"
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

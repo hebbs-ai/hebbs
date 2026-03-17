@@ -67,6 +67,7 @@ async fn grpc_remember_basic() {
         entity_id: Some("user-1".to_string()),
         edges: vec![],
         tenant_id: None,
+        kind: None,
     });
 
     let resp = svc.remember(req).await.unwrap();
@@ -90,6 +91,7 @@ async fn grpc_remember_empty_content_fails() {
         entity_id: None,
         edges: vec![],
         tenant_id: None,
+        kind: None,
     });
 
     let err = svc.remember(req).await.unwrap_err();
@@ -107,6 +109,7 @@ async fn grpc_remember_default_importance() {
         entity_id: None,
         edges: vec![],
         tenant_id: None,
+        kind: None,
     });
 
     let resp = svc.remember(req).await.unwrap();
@@ -135,6 +138,7 @@ async fn grpc_remember_with_context() {
     let req = Request::new(pb::RememberRequest {
         content: "Water boils at 100C.".to_string(),
         importance: None,
+            kind: None,
         context: Some(prost_types::Struct { fields }),
         entity_id: None,
         edges: vec![],
@@ -158,6 +162,7 @@ async fn grpc_remember_invalid_importance() {
         entity_id: None,
         edges: vec![],
         tenant_id: None,
+        kind: None,
     });
 
     let err = svc.remember(req).await.unwrap_err();
@@ -181,6 +186,7 @@ async fn grpc_get_after_remember() {
             entity_id: None,
             edges: vec![],
             tenant_id: None,
+            kind: None,
         }))
         .await
         .unwrap();
@@ -234,6 +240,7 @@ async fn grpc_recall_similarity() {
 
     for i in 0..5 {
         svc.remember(Request::new(pb::RememberRequest {
+                kind: None,
             content: format!("fact number {} about the world", i),
             importance: None,
             context: None,
@@ -274,6 +281,7 @@ async fn grpc_recall_temporal() {
 
     for i in 0..3 {
         svc.remember(Request::new(pb::RememberRequest {
+                kind: None,
             content: format!("temporal event {}", i),
             importance: None,
             context: None,
@@ -351,6 +359,7 @@ async fn grpc_prime_basic() {
 
     for i in 0..5 {
         svc.remember(Request::new(pb::RememberRequest {
+                kind: None,
             content: format!("prime memory {} about cooking", i),
             importance: None,
             context: None,
@@ -413,6 +422,7 @@ async fn grpc_revise_content() {
             entity_id: None,
             edges: vec![],
             tenant_id: None,
+            kind: None,
         }))
         .await
         .unwrap()
@@ -455,6 +465,7 @@ async fn grpc_revise_importance() {
             entity_id: None,
             edges: vec![],
             tenant_id: None,
+            kind: None,
         }))
         .await
         .unwrap()
@@ -516,6 +527,7 @@ async fn grpc_forget_by_id() {
             entity_id: None,
             edges: vec![],
             tenant_id: None,
+            kind: None,
         }))
         .await
         .unwrap()
@@ -609,6 +621,7 @@ async fn grpc_health_reflects_memory_count() {
     for i in 0..3 {
         mem_svc
             .remember(Request::new(pb::RememberRequest {
+                    kind: None,
                 content: format!("health count test {}", i),
                 importance: None,
                 context: None,
@@ -687,6 +700,7 @@ async fn grpc_remember_recall_revise_forget_lifecycle() {
             entity_id: Some("lifecycle".to_string()),
             edges: vec![],
             tenant_id: None,
+            kind: None,
         }))
         .await
         .unwrap()
@@ -765,6 +779,7 @@ async fn grpc_bulk_remember_and_recall() {
 
     for i in 0..20 {
         svc.remember(Request::new(pb::RememberRequest {
+                kind: None,
             content: format!("bulk memory item {} about various topics", i),
             importance: Some(0.5 + (i as f32 * 0.02)),
             context: None,
@@ -822,6 +837,7 @@ async fn grpc_metrics_increment_on_operations() {
         entity_id: None,
         edges: vec![],
         tenant_id: None,
+        kind: None,
     }))
     .await
     .unwrap();

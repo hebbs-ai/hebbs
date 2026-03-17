@@ -17,6 +17,7 @@ ndarray.workspace = true
 sha2.workspace = true
 ureq.workspace = true
 parking_lot.workspace = true
+dirs.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

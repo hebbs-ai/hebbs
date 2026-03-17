@@ -332,6 +332,8 @@ fn memory_to_json_with_lineage(
             MemoryKind::Episode => "episode".to_string(),
             MemoryKind::Insight => "insight".to_string(),
             MemoryKind::Revision => "revision".to_string(),
+            MemoryKind::Document => "document".to_string(),
+            MemoryKind::Proposition => "proposition".to_string(),
         },
         logical_clock: m.logical_clock,
         source_memory_ids: source_ids.iter().map(hex::encode).collect(),
@@ -454,7 +456,8 @@ async fn remember_handler(
         context,
         entity_id: body.entity_id,
         edges: Vec::new(),
-    };
+            kind: None,
+        };
 
     let engine = state.engine.clone();
     let result =

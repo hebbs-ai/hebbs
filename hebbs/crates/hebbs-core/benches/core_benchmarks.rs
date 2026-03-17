@@ -40,6 +40,7 @@ fn create_engine_with_memories(n: usize) -> Engine {
                 context: None,
                 entity_id: Some(format!("entity_{}", i % 20)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -59,7 +60,8 @@ fn bench_remember_single(c: &mut Criterion) {
                     context: None,
                     entity_id: Some("bench_entity".to_string()),
                     edges: vec![],
-                }))
+            kind: None,
+        }))
                 .unwrap();
         });
     });
@@ -86,7 +88,8 @@ fn bench_remember_with_context(c: &mut Criterion) {
                     context: Some(ctx.clone()),
                     entity_id: Some("customer_bench".to_string()),
                     edges: vec![],
-                }))
+            kind: None,
+        }))
                 .unwrap();
         });
     });
@@ -101,6 +104,7 @@ fn bench_get_single(c: &mut Criterion) {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let id = memory.memory_id.clone();
@@ -123,6 +127,7 @@ fn bench_get_miss(c: &mut Criterion) {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -147,6 +152,7 @@ fn bench_remember_batch(c: &mut Criterion) {
                         context: None,
                         entity_id: Some("batch_entity".to_string()),
                         edges: vec![],
+                        kind: None,
                     })
                     .unwrap();
             }
@@ -206,7 +212,8 @@ fn bench_delete(c: &mut Criterion) {
                         context: None,
                         entity_id: None,
                         edges: vec![],
-                    })
+            kind: None,
+        })
                     .unwrap();
                 let start = std::time::Instant::now();
                 engine.delete(&mem.memory_id).unwrap();
@@ -452,6 +459,7 @@ fn bench_revise_content(c: &mut Criterion) {
                         context: None,
                         entity_id: Some("revise_bench".to_string()),
                         edges: vec![],
+                        kind: None,
                     })
                     .unwrap();
                 let start = std::time::Instant::now();
@@ -482,6 +490,7 @@ fn bench_forget_by_id(c: &mut Criterion) {
                         context: None,
                         entity_id: Some("forget_bench".to_string()),
                         edges: vec![],
+                        kind: None,
                     })
                     .unwrap();
                 let start = std::time::Instant::now();
@@ -510,6 +519,7 @@ fn bench_forget_by_entity(c: &mut Criterion) {
                             context: None,
                             entity_id: Some(entity.clone()),
                             edges: vec![],
+                            kind: None,
                         })
                         .unwrap();
                 }
@@ -580,6 +590,7 @@ fn bench_revise_at_scale(c: &mut Criterion) {
                     context: None,
                     entity_id: Some("revise_scale".to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
             targets.push(mem.memory_id);
@@ -636,6 +647,7 @@ fn bench_subscribe_pipeline_match(c: &mut Criterion) {
                 context: None,
                 entity_id: Some("bench".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -684,6 +696,7 @@ fn bench_subscribe_pipeline_bloom_reject(c: &mut Criterion) {
                 context: None,
                 entity_id: Some("bloom_bench".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -739,6 +752,7 @@ fn bench_subscribe_notification_fanout(c: &mut Criterion) {
                             context: None,
                             entity_id: Some("fanout".to_string()),
                             edges: vec![],
+                            kind: None,
                         })
                         .unwrap();
                 }
@@ -757,7 +771,8 @@ fn bench_subscribe_notification_fanout(c: &mut Criterion) {
                             context: None,
                             entity_id: Some("fanout".to_string()),
                             edges: vec![],
-                        }))
+            kind: None,
+        }))
                         .unwrap();
                 });
 
@@ -821,6 +836,7 @@ fn create_engine_for_reflect(n: usize) -> Engine {
                 context: None,
                 entity_id: Some("bench_entity".into()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }

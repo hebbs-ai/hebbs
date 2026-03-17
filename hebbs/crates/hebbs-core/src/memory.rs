@@ -57,6 +57,10 @@ pub enum MemoryKind {
     Episode,
     Insight,
     Revision,
+    /// Whole-file or LLM-summarized document memory (Layer 1).
+    Document,
+    /// Atomic fact extracted by LLM (Layer 2).
+    Proposition,
 }
 
 /// The canonical HEBBS memory record.

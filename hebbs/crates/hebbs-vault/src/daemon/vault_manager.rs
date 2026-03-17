@@ -18,8 +18,12 @@ use notify::{Event, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+use hebbs_core::decay::DecayConfig as CoreDecayConfig;
 use hebbs_core::engine::Engine;
+use hebbs_core::reflect::ReflectConfig;
 use hebbs_embed::Embedder;
+
+use crate::config::VaultConfig;
 
 /// Default idle timeout before a vault handle is closed: 5 minutes.
 const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
@@ -131,6 +135,42 @@ impl VaultManager {
             Engine::new(storage, self.embedder.clone())
                 .map_err(|e| format!("failed to create engine: {}", e))?,
         );
+
+        // Start decay worker if vault config enables it
+        match VaultConfig::load(&hebbs_dir) {
+            Ok(vault_config) => {
+                let half_life_us =
+                    (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0)
+                        as u64;
+                let core_decay = CoreDecayConfig {
+                    half_life_us,
+                    auto_forget_threshold: vault_config.decay.auto_forget_threshold,
+                    reinforcement_cap: vault_config.decay.reinforcement_cap,
+                    ..CoreDecayConfig::default()
+                };
+                engine.start_decay(core_decay);
+                info!("decay worker started for {}", canonical.display());
+
+                // Start reflect worker if LLM is configured
+                if vault_config.llm.is_configured() {
+                    let provider_config = vault_config.llm.to_provider_config();
+                    let reflect_config = ReflectConfig {
+                        proposal_provider_config: provider_config.clone(),
+                        validation_provider_config: provider_config,
+                        ..ReflectConfig::default()
+                    };
+                    engine.start_reflect(reflect_config);
+                    info!("reflect worker started for {}", canonical.display());
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "failed to load vault config for decay: {}, using defaults",
+                    e
+                );
+                engine.start_decay(CoreDecayConfig::default());
+            }
+        }
 
         // Start file watcher for this vault
         let watcher = self.start_watcher(&canonical);

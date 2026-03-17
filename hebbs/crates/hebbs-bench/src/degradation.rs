@@ -337,6 +337,7 @@ pub fn run(
                     context: inp.context.clone(),
                     entity_id: inp.entity_id.clone(),
                     edges,
+                    kind: None,
                 })
                 .unwrap();
 
@@ -373,7 +374,8 @@ pub fn run(
                 context: inp.context.clone(),
                 entity_id: inp.entity_id.clone(),
                 edges: Vec::new(),
-            }) {
+            kind: None,
+        }) {
                 Ok(_) => remember_timings.push(start.elapsed().as_micros() as u64),
                 Err(_) => remember_errors += 1,
             }

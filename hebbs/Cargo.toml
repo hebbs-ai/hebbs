@@ -4,6 +4,7 @@ members = [
     "crates/hebbs-storage",
     "crates/hebbs-embed",
     "crates/hebbs-index",
+    "crates/hebbs-llm",
     "crates/hebbs-reflect",
     "crates/hebbs-core",
     "crates/hebbs-proto",

@@ -10,6 +10,7 @@ pub mod config;
 pub mod contradiction_writer;
 pub mod daemon;
 pub mod error;
+pub mod extract;
 pub mod ingest;
 pub mod insight_writer;
 pub mod manifest;
@@ -41,8 +42,21 @@ pub use parser::{ParsedFile, ParsedSection, WikiLink};
 
 /// Initialize a new vault: create `.hebbs/` directory with default config and empty manifest.
 ///
-/// Analogous to `git init`.
+/// Analogous to `git init`. If `llm_config` is `Some`, it is written into the config
+/// and validated before init completes. If validation fails, `.hebbs/` is removed.
 pub fn init(vault_root: &Path, force: bool) -> Result<()> {
+    init_with_llm(vault_root, force, None)
+}
+
+/// Initialize a vault with explicit LLM configuration.
+///
+/// When `llm_config` is provided, the LLM key is validated by making a test call.
+/// If validation fails, the `.hebbs/` directory is cleaned up and an error is returned.
+pub fn init_with_llm(
+    vault_root: &Path,
+    force: bool,
+    llm_config: Option<config::LlmConfig>,
+) -> Result<()> {
     if !vault_root.exists() || !vault_root.is_dir() {
         return Err(VaultError::InvalidPath {
             reason: format!(
@@ -63,9 +77,34 @@ pub fn init(vault_root: &Path, force: bool) -> Result<()> {
     // Create directory structure
     std::fs::create_dir_all(hebbs_dir.join("index"))?;
 
-    // Write default config
-    let config = VaultConfig::default();
-    config.save(&hebbs_dir)?;
+    // Build config with LLM section if provided
+    let mut vault_config = VaultConfig::default();
+    if let Some(llm) = llm_config {
+        vault_config.llm = llm;
+    }
+    vault_config.save(&hebbs_dir)?;
+
+    // Validate LLM configuration if present
+    if vault_config.llm.is_configured() {
+        match vault_config.llm.create_provider() {
+            Ok(provider) => {
+                if let Err(e) = hebbs_llm::validate_provider(provider.as_ref()) {
+                    // Validation failed: clean up and return error
+                    let _ = std::fs::remove_dir_all(&hebbs_dir);
+                    return Err(VaultError::Config {
+                        reason: format!("LLM validation failed: {e}"),
+                    });
+                }
+                info!("LLM provider validated successfully");
+            }
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&hebbs_dir);
+                return Err(VaultError::Config {
+                    reason: format!("failed to create LLM provider: {e}"),
+                });
+            }
+        }
+    }
 
     // Write empty manifest
     let manifest = Manifest::new();
@@ -226,6 +265,7 @@ pub fn status(vault_root: &Path) -> Result<VaultStatus> {
         });
     }
 
+    let vault_config = VaultConfig::load(&hebbs_dir)?;
     let manifest = Manifest::load(&hebbs_dir)?;
     let (synced, stale, orphaned) = manifest.section_counts();
     let total_sections = synced + stale + orphaned;
@@ -238,6 +278,17 @@ pub fn status(vault_root: &Path) -> Result<VaultStatus> {
         .filter_map(|e| e.last_embedded)
         .max();
 
+    let llm_provider = if vault_config.llm.is_configured() {
+        Some(vault_config.llm.provider.clone())
+    } else {
+        None
+    };
+    let llm_model = if vault_config.llm.is_configured() {
+        Some(vault_config.llm.model.clone())
+    } else {
+        None
+    };
+
     Ok(VaultStatus {
         vault_root: vault_root.to_path_buf(),
         total_files: manifest.files.len(),
@@ -247,6 +298,8 @@ pub fn status(vault_root: &Path) -> Result<VaultStatus> {
         orphaned,
         last_parsed,
         last_embedded,
+        llm_provider,
+        llm_model,
     })
 }
 
@@ -322,6 +375,8 @@ pub struct VaultStatus {
     pub orphaned: usize,
     pub last_parsed: Option<chrono::DateTime<chrono::Utc>>,
     pub last_embedded: Option<chrono::DateTime<chrono::Utc>>,
+    pub llm_provider: Option<String>,
+    pub llm_model: Option<String>,
 }
 
 #[cfg(test)]

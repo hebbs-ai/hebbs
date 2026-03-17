@@ -34,8 +34,8 @@ To disable auth for local development, start the server with `HEBBS_AUTH_ENABLED
 | POST | `/v1/subscribe/:id/feed` | Feed text to a subscription | `text` | `{}` |
 | DELETE | `/v1/subscribe/:id` | Close a subscription | — | `{}` |
 | GET | `/v1/insights` | Query consolidated insights | Query params: `entity_id`, `min_confidence`, `max_results` | `Memory[]` |
-| POST | `/v1/contradictions/prepare` | Get pending contradiction candidates | — | `PendingContradiction[]` |
-| POST | `/v1/contradictions/commit` | Commit agent-reviewed verdicts | `verdicts` | `ContradictionCommitResponse` |
+| POST | `/v1/contradictions/prepare` | **Deprecated.** Get pending contradiction candidates | — | `PendingContradiction[]` |
+| POST | `/v1/contradictions/commit` | **Deprecated.** Commit agent-reviewed verdicts | `verdicts` | `ContradictionCommitResponse` |
 | GET | `/v1/health/live` | Liveness probe | — | `{"status": "alive"}` |
 | GET | `/v1/health/ready` | Readiness probe | — | `{"status": "ready"}` |
 | GET | `/v1/metrics` | Prometheus metrics | — | Text exposition format |
@@ -166,7 +166,11 @@ curl -s -X DELETE http://localhost:6381/v1/subscribe/1 \
   -H "Authorization: Bearer $HEBBS_API_KEY"
 ```
 
-### Reflect Prepare (agent-driven)
+### Reflect Prepare (Deprecated)
+
+:::caution[Deprecated]
+The reflect prepare/commit and contradiction prepare/commit endpoints are **deprecated**. HEBBS now handles reflection and contradiction resolution autonomously using its built-in LLM integration. These endpoints are retained for backward compatibility but will be removed in a future release. Use `POST /v1/reflect` for manual triggers instead.
+:::
 
 Prepare reflection data without calling any LLM. Returns clustered memories and prompts for agent-driven insight generation.
 
@@ -213,7 +217,7 @@ curl -s -X POST http://localhost:6381/v1/reflect/prepare \
 }
 ```
 
-### Reflect Commit (agent-driven)
+### Reflect Commit (Deprecated)
 
 Commit agent-produced insights from a previous `reflect/prepare` call.
 
@@ -256,9 +260,9 @@ curl -s -X POST http://localhost:6381/v1/reflect/commit \
 
 Sessions expire after 10 minutes. Source memory IDs must be from the original prepare output.
 
-### Contradiction Prepare (agent-driven)
+### Contradiction Prepare (Deprecated)
 
-Retrieve pending contradiction candidates that were flagged by the heuristic classifier during ingest. HEBBS has no LLM -- the agent reviews candidates and commits verdicts.
+Retrieve pending contradiction candidates. In the previous architecture, these were flagged by a heuristic classifier and required external agent review. HEBBS now resolves contradictions autonomously using its built-in LLM.
 
 ```bash
 curl -s -X POST http://localhost:6381/v1/contradictions/prepare \
@@ -285,7 +289,7 @@ curl -s -X POST http://localhost:6381/v1/contradictions/prepare \
 
 Returns an empty array when no pending candidates exist.
 
-### Contradiction Commit (agent-driven)
+### Contradiction Commit (Deprecated)
 
 Commit verdicts for pending contradiction candidates after agent review.
 

@@ -251,6 +251,7 @@ proptest! {
             context: None,
             entity_id: entity_id.clone(),
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         let retrieved = engine.get(&original.memory_id).unwrap();
@@ -275,6 +276,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         prop_assert!(memory.embedding.is_some(), "embedding must be Some after Phase 2");
@@ -297,6 +299,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         let emb = memory.embedding.as_ref().unwrap();
@@ -319,6 +322,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         let m2 = engine.remember(RememberInput {
@@ -327,6 +331,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         prop_assert_eq!(&m1.embedding, &m2.embedding,
@@ -348,6 +353,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         let retrieved = engine.get(&original.memory_id).unwrap();
@@ -375,6 +381,7 @@ proptest! {
                 context: None,
                 entity_id: Some("prop_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -406,6 +413,7 @@ proptest! {
                 context: None,
                 entity_id: Some("bound_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -438,6 +446,7 @@ proptest! {
             context: None,
             entity_id: Some("reinforce".to_string()),
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         for _ in 0..recalls {
@@ -467,6 +476,7 @@ proptest! {
                 context: None,
                 entity_id: Some("union_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -635,6 +645,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         let revised = engine.revise(ReviseInput::new_content(
@@ -661,6 +672,7 @@ proptest! {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }).unwrap();
 
         engine.revise(ReviseInput::new_content(
@@ -689,6 +701,7 @@ proptest! {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             }).unwrap();
             ids.push(mem.memory_id);
         }
@@ -720,6 +733,7 @@ proptest! {
                 context: None,
                 entity_id: Some("target_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -730,6 +744,7 @@ proptest! {
                 context: None,
                 entity_id: Some("other_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -774,6 +789,7 @@ proptest! {
                 context: None,
                 entity_id: Some("prop_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -826,6 +842,7 @@ proptest! {
                 context: None,
                 entity_id: Some("dedup_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -879,6 +896,7 @@ proptest! {
                 context: None,
                 entity_id: Some("bounded_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -959,6 +977,7 @@ proptest! {
                 context: None,
                 entity_id: Some("bloom_entity".to_string()),
                 edges: vec![],
+                kind: None,
             }).unwrap();
         }
 
@@ -1014,6 +1033,7 @@ fn populate_n(engine: &Engine, n: usize) -> Vec<Vec<u8>> {
                     context: None,
                     entity_id: Some("prop_entity".into()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap()
                 .memory_id

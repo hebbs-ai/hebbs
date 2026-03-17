@@ -9,7 +9,9 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
+use hebbs_core::decay::DecayConfig as CoreDecayConfig;
 use hebbs_core::engine::Engine;
+use hebbs_core::reflect::ReflectConfig;
 use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
@@ -47,6 +49,30 @@ pub async fn watch_vault(
     let config = VaultConfig::load(&hebbs_dir)?;
     let mut manifest = Manifest::load(&hebbs_dir)?;
 
+    // Start decay worker
+    let half_life_us =
+        (config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
+    let core_decay = CoreDecayConfig {
+        half_life_us,
+        auto_forget_threshold: config.decay.auto_forget_threshold,
+        reinforcement_cap: config.decay.reinforcement_cap,
+        ..CoreDecayConfig::default()
+    };
+    engine.start_decay(core_decay);
+    info!("decay worker started");
+
+    // Start reflect worker if LLM is configured
+    if config.llm.is_configured() {
+        let provider_config = config.llm.to_provider_config();
+        let reflect_config = ReflectConfig {
+            proposal_provider_config: provider_config.clone(),
+            validation_provider_config: provider_config,
+            ..ReflectConfig::default()
+        };
+        engine.start_reflect(reflect_config);
+        info!("reflect worker started");
+    }
+
     // Build ignore glob set
     let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
 
@@ -72,6 +98,22 @@ pub async fn watch_vault(
             "catch-up phase 2: {} embedded, {} remembered, {} revised",
             p2_stats.sections_embedded, p2_stats.sections_remembered, p2_stats.sections_revised
         );
+    } else {
+        // No file changes, but check for stale sections left by interrupted phase2
+        let (_, stale_count, _) = manifest.section_counts();
+        if stale_count > 0 {
+            info!(
+                "catch-up: {} stale sections from interrupted phase2, re-embedding",
+                stale_count
+            );
+            let p2_stats =
+                phase2_ingest(&vault_root, &mut manifest, &engine, &embedder, &config).await?;
+            manifest.save(&hebbs_dir)?;
+            info!(
+                "catch-up phase 2 (stale recovery): {} embedded, {} remembered, {} revised",
+                p2_stats.sections_embedded, p2_stats.sections_remembered, p2_stats.sections_revised
+            );
+        }
     }
 
     // Set up file watcher
@@ -226,6 +268,17 @@ pub async fn watch_vault(
                             "[phase2] complete: {} embedded, {} remembered, {} revised, {} forgotten",
                             p2.sections_embedded, p2.sections_remembered, p2.sections_revised, p2.sections_forgotten
                         );
+                        // Run auto-forget after phase2 to clean up decayed memories
+                        match engine.auto_forget() {
+                            Ok(fg) if fg.forgotten_count > 0 => {
+                                info!(
+                                    "[auto-forget] {} forgotten, {} cascaded",
+                                    fg.forgotten_count, fg.cascade_count
+                                );
+                            }
+                            Ok(_) => {}
+                            Err(e) => warn!("auto-forget error: {}", e),
+                        }
                         stats.phase2_runs += 1;
                     }
                     Err(e) => warn!("phase 2 error: {}", e),

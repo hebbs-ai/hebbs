@@ -34,13 +34,14 @@ impl NativeEngine {
     /// Args:
     ///     data_dir: Path to the database directory.
     ///     use_mock_embedder: Use deterministic mock embedder (for testing).
-    ///     embedding_dimensions: Embedding vector dimensions (default 384).
+    ///     embedding_dimensions: Embedding vector dimensions (default 768).
+    ///     embedding_model: Embedding model name (default "embeddinggemma-300m").
     ///
     /// Returns:
     ///     NativeEngine instance.
     #[new]
-    #[pyo3(signature = (data_dir, use_mock_embedder=true, embedding_dimensions=384))]
-    fn new(data_dir: &str, use_mock_embedder: bool, embedding_dimensions: usize) -> PyResult<Self> {
+    #[pyo3(signature = (data_dir, use_mock_embedder=true, embedding_dimensions=768, embedding_model="embeddinggemma-300m"))]
+    fn new(data_dir: &str, use_mock_embedder: bool, embedding_dimensions: usize, embedding_model: &str) -> PyResult<Self> {
         let storage: Arc<dyn hebbs_storage::StorageBackend> =
             Arc::new(RocksDbBackend::open(data_dir).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!(
@@ -52,7 +53,7 @@ impl NativeEngine {
         let embedder: Arc<dyn hebbs_embed::Embedder> = if use_mock_embedder {
             Arc::new(MockEmbedder::new(embedding_dimensions))
         } else {
-            let config = EmbedderConfig::default_bge_small(data_dir);
+            let config = EmbedderConfig::from_model_name(embedding_model, data_dir);
             let onnx = OnnxEmbedder::new(config).map_err(|e| {
                 pyo3::exceptions::PyRuntimeError::new_err(format!(
                     "failed to initialize ONNX embedder: {}. \
@@ -96,6 +97,7 @@ impl NativeEngine {
             context: ctx,
             entity_id: eid,
             edges: Vec::new(),
+            kind: None,
         };
 
         let engine = self.engine.clone();

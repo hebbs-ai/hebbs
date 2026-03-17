@@ -121,9 +121,15 @@ Insight (with lineage):
 ### Quick Start (Local)
 
 ```bash
-hebbs init .                          # create .hebbs/ in your project
+# Initialize with LLM (required for autonomous features)
+hebbs init . --provider ollama --model qwen3:4b
+
+# Or with a cloud provider
+hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
+
 hebbs remember "hello world"          # store a memory
 hebbs recall "hello"                  # recall it
+hebbs config show                     # view configuration
 ```
 
 ### Start a Server (Optional, for teams)

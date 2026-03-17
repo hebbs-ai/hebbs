@@ -189,6 +189,8 @@ pub struct DaemonResponse {
 pub enum ResponseStatus {
     Ok,
     Error,
+    /// Intermediate progress event — more messages will follow before the final Ok/Error.
+    Progress,
 }
 
 impl DaemonResponse {
@@ -213,6 +215,14 @@ impl DaemonResponse {
             status: ResponseStatus::Error,
             data: None,
             error: Some(msg.into()),
+        }
+    }
+
+    pub fn progress(msg: impl Into<String>) -> Self {
+        Self {
+            status: ResponseStatus::Progress,
+            data: Some(serde_json::json!({ "message": msg.into() })),
+            error: None,
         }
     }
 }

@@ -42,6 +42,8 @@ enum MemoryKind {
   MEMORY_KIND_EPISODE = 1;
   MEMORY_KIND_INSIGHT = 2;
   MEMORY_KIND_REVISION = 3;
+  MEMORY_KIND_DOCUMENT = 4;
+  MEMORY_KIND_PROPOSITION = 5;
 }
 
 enum EdgeType {
@@ -52,6 +54,9 @@ enum EdgeType {
   EDGE_TYPE_REVISED_FROM = 4;
   EDGE_TYPE_INSIGHT_FROM = 5;
   EDGE_TYPE_CONTRADICTS = 6;
+  EDGE_TYPE_HAS_ENTITY = 7;
+  EDGE_TYPE_ENTITY_RELATION = 8;
+  EDGE_TYPE_PROPOSITION_OF = 9;
 }
 
 enum RecallStrategyType {
@@ -121,6 +126,7 @@ message RememberRequest {
   optional string entity_id = 4;
   repeated Edge edges = 5;
   optional string tenant_id = 6;
+  optional MemoryKind kind = 7;
 }
 
 message RememberResponse {

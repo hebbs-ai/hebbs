@@ -1,13 +1,34 @@
 ---
 title: "Embedding Engine"
-description: "ONNX Runtime-based embedding with BGE-small-en-v1.5."
+description: "ONNX Runtime-based embedding with EmbeddingGemma-300M (default) and BGE-small-en-v1.5."
 ---
 
-HEBBS generates vector embeddings locally using ONNX Runtime — no external API calls on the hot path. The embedding engine converts memory content into 384-dimensional dense vectors used by the HNSW index for similarity search.
+HEBBS generates vector embeddings locally using ONNX Runtime -- no external API calls on the hot path. The embedding engine converts memory content into dense vectors used by the HNSW index for similarity search.
 
-## Model: BGE-small-en-v1.5
+## Model: EmbeddingGemma-300M (default)
 
-HEBBS ships with [BGE-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) as the default embedding model.
+HEBBS ships with [EmbeddingGemma-300M](https://huggingface.co/google/embedding-gemma-300m) as the default embedding model.
+
+| Property | Value |
+|---|---|
+| Dimensions | 768 |
+| Model size | ~600 MB (ONNX format, model.onnx + model.onnx_data) |
+| Max sequence length | 2048 tokens |
+| Language | Multilingual |
+| Pooling | Mean pooling (built into ONNX graph) |
+
+### Why EmbeddingGemma-300M
+
+- **Higher dimensionality** -- 768 dimensions capture richer semantic relationships than smaller models.
+- **Multilingual** -- supports a wide range of languages out of the box.
+- **Longer context** -- 2048 token max sequence length handles larger memory content without truncation.
+- **Mean pooling built in** -- the ONNX graph includes mean pooling, so no post-processing is needed.
+
+EmbeddingGemma requires two files: `model.onnx` (graph definition) and `model.onnx_data` (external weights file). Both are downloaded automatically on first use.
+
+## Model: BGE-small-en-v1.5 (legacy)
+
+[BGE-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) is available as a lightweight alternative.
 
 | Property | Value |
 |---|---|
@@ -19,18 +40,18 @@ HEBBS ships with [BGE-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1
 
 ### Why BGE-small
 
-- **Small footprint** — 33 MB fits comfortably in edge and containerized deployments.
-- **Fast inference** — sub-millisecond per embedding on modern hardware.
-- **Strong quality** — top-tier retrieval quality for its size class on the MTEB benchmark.
-- **Permissive license** — MIT licensed, suitable for commercial use.
+- **Small footprint** -- 33 MB fits comfortably in edge and containerized deployments.
+- **Fast inference** -- sub-millisecond per embedding on modern hardware.
+- **Strong quality** -- top-tier retrieval quality for its size class on the MTEB benchmark.
+- **Permissive license** -- MIT licensed, suitable for commercial use.
 
 ## ONNX Runtime
 
 The embedding model runs via ONNX Runtime, which provides:
 
-- **Cross-platform inference** — same model runs on Linux, macOS, and Windows.
-- **Hardware acceleration** — automatic dispatch to available hardware accelerators.
-- **Optimized kernels** — ONNX Runtime includes optimized BLAS kernels for matrix operations.
+- **Cross-platform inference** -- same model runs on Linux, macOS, and Windows.
+- **Hardware acceleration** -- automatic dispatch to available hardware accelerators.
+- **Optimized kernels** -- ONNX Runtime includes optimized BLAS kernels for matrix operations.
 
 ## Hardware Acceleration
 
@@ -45,7 +66,7 @@ HEBBS automatically detects and uses available hardware accelerators:
 
 ```toml
 [embedding]
-model_path = "/data/models/bge-small-en-v1.5.onnx"
+model = "embeddinggemma-300m"
 acceleration = "auto"
 ```
 
@@ -54,8 +75,8 @@ acceleration = "auto"
 Embedding generation is the most expensive operation on the remember path. HEBBS amortizes this cost through batching:
 
 1. **Incoming memories** are queued in a bounded buffer.
-2. **Batch formation** — when the buffer reaches `batch_size` or a timeout expires (whichever comes first), the batch is sent to the ONNX Runtime session.
-3. **Parallel inference** — the batch is processed as a single padded tensor, amortizing the per-inference overhead.
+2. **Batch formation** -- when the buffer reaches `batch_size` or a timeout expires (whichever comes first), the batch is sent to the ONNX Runtime session.
+3. **Parallel inference** -- the batch is processed as a single padded tensor, amortizing the per-inference overhead.
 
 ```toml
 [embedding]
@@ -67,22 +88,37 @@ batch_timeout_ms = 5
 
 | Scenario | Latency |
 |---|---|
-| Single embedding (CPU) | ~1–2 ms |
-| Batch of 32 (CPU) | ~8–12 ms (~0.3 ms per item) |
+| Single embedding (CPU) | ~1-2 ms |
+| Batch of 32 (CPU) | ~8-12 ms (~0.3 ms per item) |
 | Single embedding (CoreML/Apple Silicon) | ~0.5 ms |
-| Batch of 32 (CUDA) | ~2–4 ms (~0.1 ms per item) |
+| Batch of 32 (CUDA) | ~2-4 ms (~0.1 ms per item) |
 
 ## Tokenization
 
-The BGE tokenizer is bundled with the model. Text is tokenized using the WordPiece tokenizer with the following behavior:
+The tokenizer is bundled with the model. Text is tokenized with the following behavior:
 
-- Text longer than 512 tokens is truncated (with a warning metric emitted).
+- Text longer than the model's max sequence length is truncated (with a warning metric emitted).
 - Empty text produces a zero vector.
 - Unicode text is normalized via NFKC before tokenization.
 
 ## Custom Models
 
-While BGE-small-en-v1.5 is the default, HEBBS supports any ONNX-format embedding model that produces fixed-dimensional output:
+HEBBS supports any ONNX-format embedding model that produces fixed-dimensional output. Switch models with:
+
+```bash
+hebbs config set embedding.model embeddinggemma-300m
+hebbs config set embedding.model bge-small-en-v1.5
+```
+
+Or configure directly in `.hebbs/config.toml`:
+
+```toml
+[embedding]
+model = "embeddinggemma-300m"
+dimensions = 768
+```
+
+For fully custom models:
 
 ```toml
 [embedding]
@@ -91,4 +127,4 @@ dimensions = 768
 tokenizer_path = "/data/models/custom-tokenizer.json"
 ```
 
-Changing the embedding model requires re-embedding all existing memories (via the `hebbs-cli rebuild-embeddings` command).
+Changing the embedding model requires re-embedding all existing memories (via the `hebbs rebuild-embeddings` command).

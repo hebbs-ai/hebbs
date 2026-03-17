@@ -50,6 +50,7 @@ fn recall_latency_scales_sublinearly_with_memory_count() {
                 context: None,
                 entity_id: Some(format!("entity_{}", i % 5)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -71,6 +72,7 @@ fn recall_latency_scales_sublinearly_with_memory_count() {
                 context: None,
                 entity_id: Some(format!("entity_{}", i % 5)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -122,7 +124,8 @@ fn similarity_recall_returns_semantically_close_results() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
     }
 
@@ -161,6 +164,7 @@ fn temporal_recall_returns_chronologically_ordered() {
                 context: None,
                 entity_id: Some(entity.to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -174,6 +178,7 @@ fn temporal_recall_returns_chronologically_ordered() {
                 context: None,
                 entity_id: Some("other_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -225,6 +230,7 @@ fn causal_recall_traverses_edges_correctly() {
             context: None,
             entity_id: Some("incident_1".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -242,6 +248,7 @@ fn causal_recall_traverses_edges_correctly() {
                 edge_type: hebbs_index::EdgeType::CausedBy,
                 confidence: Some(0.95),
             }],
+            kind: None,
         })
         .unwrap();
 
@@ -259,6 +266,7 @@ fn causal_recall_traverses_edges_correctly() {
                 edge_type: hebbs_index::EdgeType::CausedBy,
                 confidence: Some(0.9),
             }],
+            kind: None,
         })
         .unwrap();
 
@@ -327,6 +335,7 @@ fn multi_strategy_deduplicates_correctly() {
                 context: None,
                 entity_id: Some(entity.to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -368,6 +377,7 @@ fn recall_increments_access_count() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -408,6 +418,7 @@ fn forget_removes_from_all_indexes() {
             context: None,
             entity_id: Some(entity.to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -473,6 +484,7 @@ fn revise_updates_in_place() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -524,7 +536,8 @@ fn tenant_isolation_prevents_cross_tenant_reads() {
                 context: None,
                 entity_id: Some("entity_a".to_string()),
                 edges: vec![],
-            },
+            kind: None,
+        },
         )
         .unwrap();
 
@@ -538,7 +551,8 @@ fn tenant_isolation_prevents_cross_tenant_reads() {
                 context: None,
                 entity_id: Some("entity_b".to_string()),
                 edges: vec![],
-            },
+            kind: None,
+        },
         )
         .unwrap();
 
@@ -579,6 +593,7 @@ fn concurrent_remember_and_recall_doesnt_panic() {
                     context: None,
                     entity_id: Some(format!("thread_{}", t)),
                     edges: vec![],
+                    kind: None,
                 });
             }
         }));
@@ -619,6 +634,7 @@ fn subscribe_receives_relevant_pushes() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -707,6 +723,7 @@ fn insights_query_scans_all_memories() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -758,6 +775,7 @@ fn analogical_recall_uses_context_structure() {
             context: Some(ctx1),
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -773,6 +791,7 @@ fn analogical_recall_uses_context_structure() {
             context: Some(ctx2),
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -784,6 +803,7 @@ fn analogical_recall_uses_context_structure() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -833,6 +853,7 @@ fn prime_combines_strategies() {
                 context: None,
                 entity_id: Some(entity.to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -869,7 +890,8 @@ fn rejects_oversized_content() {
         context: None,
         entity_id: None,
         edges: vec![],
-    });
+            kind: None,
+        });
 
     assert!(result.is_err(), "Should reject content > 64KB");
 }
@@ -884,7 +906,8 @@ fn rejects_invalid_importance() {
         context: None,
         entity_id: None,
         edges: vec![],
-    });
+            kind: None,
+        });
 
     assert!(result.is_err(), "Should reject importance > 1.0");
 
@@ -894,7 +917,8 @@ fn rejects_invalid_importance() {
         context: None,
         entity_id: None,
         edges: vec![],
-    });
+            kind: None,
+        });
 
     assert!(result2.is_err(), "Should reject importance < 0.0");
 }
@@ -920,7 +944,8 @@ fn tenant_hnsw_isolation_test() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            },
+            kind: None,
+        },
         )
         .unwrap();
 

@@ -10,6 +10,7 @@ description = "Core cognitive memory engine for HEBBS"
 hebbs-storage = { path = "../hebbs-storage" }
 hebbs-embed = { path = "../hebbs-embed" }
 hebbs-index = { path = "../hebbs-index" }
+hebbs-llm = { path = "../hebbs-llm" }
 hebbs-reflect = { path = "../hebbs-reflect" }
 thiserror.workspace = true
 serde.workspace = true

@@ -71,7 +71,8 @@ pub unsafe extern "C" fn hebbs_remember(
         context: None,
         entity_id: None,
         edges: Vec::new(),
-    };
+            kind: None,
+        };
 
     match engine.remember(input) {
         Ok(memory) => write_memory_result(&memory, result_out, result_len_out),

@@ -100,6 +100,8 @@ fn memory_kind_to_proto(k: MemoryKind) -> pb::MemoryKind {
         MemoryKind::Episode => pb::MemoryKind::Episode,
         MemoryKind::Insight => pb::MemoryKind::Insight,
         MemoryKind::Revision => pb::MemoryKind::Revision,
+        MemoryKind::Document => pb::MemoryKind::Document,
+        MemoryKind::Proposition => pb::MemoryKind::Proposition,
     }
 }
 
@@ -108,6 +110,8 @@ fn proto_to_memory_kind(k: i32) -> Option<MemoryKind> {
         Ok(pb::MemoryKind::Episode) => Some(MemoryKind::Episode),
         Ok(pb::MemoryKind::Insight) => Some(MemoryKind::Insight),
         Ok(pb::MemoryKind::Revision) => Some(MemoryKind::Revision),
+        Ok(pb::MemoryKind::Document) => Some(MemoryKind::Document),
+        Ok(pb::MemoryKind::Proposition) => Some(MemoryKind::Proposition),
         _ => None,
     }
 }
@@ -206,6 +210,7 @@ pub fn proto_to_remember_input(req: pb::RememberRequest) -> Result<RememberInput
         context,
         entity_id: req.entity_id,
         edges,
+        kind: None,
     })
 }
 
@@ -234,6 +239,9 @@ fn proto_to_edge_type(v: i32) -> Result<EdgeType, String> {
         Ok(pb::EdgeType::RevisedFrom) => Ok(EdgeType::RevisedFrom),
         Ok(pb::EdgeType::InsightFrom) => Ok(EdgeType::InsightFrom),
         Ok(pb::EdgeType::Contradicts) => Ok(EdgeType::Contradicts),
+        Ok(pb::EdgeType::HasEntity) => Ok(EdgeType::HasEntity),
+        Ok(pb::EdgeType::EntityRelation) => Ok(EdgeType::EntityRelation),
+        Ok(pb::EdgeType::PropositionOf) => Ok(EdgeType::PropositionOf),
         _ => Err(format!("invalid edge type: {}", v)),
     }
 }
@@ -246,6 +254,9 @@ fn edge_type_to_proto(e: EdgeType) -> pb::EdgeType {
         EdgeType::RevisedFrom => pb::EdgeType::RevisedFrom,
         EdgeType::InsightFrom => pb::EdgeType::InsightFrom,
         EdgeType::Contradicts => pb::EdgeType::Contradicts,
+        EdgeType::HasEntity => pb::EdgeType::HasEntity,
+        EdgeType::EntityRelation => pb::EdgeType::EntityRelation,
+        EdgeType::PropositionOf => pb::EdgeType::PropositionOf,
     }
 }
 

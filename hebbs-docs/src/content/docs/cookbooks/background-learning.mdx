@@ -41,32 +41,18 @@ async def ingest_sales_data(client, entity):
     print(f"Ingested {count} memories")
 ```
 
-## Configure Reflection Policy
+## Autonomous Reflection
 
-Set the reflection policy for the entity:
+HEBBS runs reflection autonomously in the background. The server's LLM integration handles clustering, insight generation, and contradiction resolution without external agent involvement. Reflection triggers automatically based on server-side configuration.
 
-```python
-async def configure_learning(client, entity):
-    await client.set_policy(
-        entity,
-        reflect_enabled=True,
-        reflect_interval=60,        # Reflect at most every 60 seconds
-        reflect_min_memories=5,     # Need at least 5 memories to reflect
-    )
-    print(f"Reflection policy configured for {entity}")
-```
-
-## Trigger Reflection
-
-Trigger an immediate reflection cycle:
+To manually trigger a reflection cycle (e.g., after a bulk ingest):
 
 ```python
 async def trigger_learning(client, entity):
-    result = await client.reflect(entity)
+    result = await client.reflect(entity_id=entity)
     print(f"Reflection complete:")
     print(f"  Memories processed: {result.memories_processed}")
     print(f"  Insights created: {result.insights_created}")
-    print(f"  Latency: {result.latency_ms:.0f}ms")
     return result
 ```
 
@@ -120,8 +106,7 @@ async def main():
         # Ingest raw data
         await ingest_sales_data(client, entity)
 
-        # Configure and trigger reflection
-        await configure_learning(client, entity)
+        # Trigger reflection (runs autonomously on the server)
         await trigger_learning(client, entity)
 
         # Query insights

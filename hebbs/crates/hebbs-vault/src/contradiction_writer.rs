@@ -269,6 +269,8 @@ mod tests {
                     state: SectionState::Synced,
                     content_checksum: "sha256:def".to_string(),
                 }],
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
 
@@ -362,6 +364,8 @@ mod tests {
                     state: SectionState::Synced,
                     content_checksum: "sha256:def".to_string(),
                 }],
+                document_memory_id: None,
+                proposition_memory_ids: Vec::new(),
             },
         );
 

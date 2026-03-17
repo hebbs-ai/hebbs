@@ -57,6 +57,7 @@ fn remember_for(engine: &Engine, tenant: &TenantContext, content: &str) -> Vec<u
                 context: None,
                 entity_id: Some(format!("{}_entity", tenant.tenant_id())),
                 edges: vec![],
+                kind: None,
             },
         )
         .unwrap()
@@ -359,6 +360,7 @@ fn engine_entity_data_isolation_via_count_and_get() {
                     context: None,
                     entity_id: Some("shared_entity".to_string()),
                     edges: vec![],
+                    kind: None,
                 },
             )
             .unwrap();
@@ -376,6 +378,7 @@ fn engine_entity_data_isolation_via_count_and_get() {
                     context: None,
                     entity_id: Some("shared_entity".to_string()),
                     edges: vec![],
+                    kind: None,
                 },
             )
             .unwrap();
@@ -791,6 +794,7 @@ fn concurrent_multi_tenant_isolation() {
                                 context: None,
                                 entity_id: Some(format!("{}_entity", tenant_id)),
                                 edges: vec![],
+                                kind: None,
                             },
                         )
                         .unwrap();
@@ -916,6 +920,7 @@ fn concurrent_multi_tenant_no_deadlock() {
                                 context: None,
                                 entity_id: Some(tenant_id.clone()),
                                 edges: vec![],
+                                kind: None,
                             },
                         )
                         .unwrap();

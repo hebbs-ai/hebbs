@@ -91,6 +91,36 @@ pub struct ContradictionScanOutput {
     pub revisions_detected: usize,
 }
 
+/// Output of `check_memory_contradictions`.
+///
+/// When an LLM provider is available, contradictions and revisions are resolved
+/// immediately (edges created in the graph). The `resolved_contradictions` field
+/// contains the confirmed contradictions for downstream use (e.g. file writing).
+///
+/// When no LLM provider is available, the heuristic classifier creates pending
+/// records in the `Pending` CF for later AI review via `prepare_contradictions`
+/// / `commit_contradictions`.
+#[derive(Debug, Clone, Default)]
+pub struct ContradictionCheckOutput {
+    /// Pending contradiction candidates (heuristic path only).
+    pub pending: Vec<PendingContradiction>,
+    /// Contradictions resolved immediately by the LLM path.
+    /// Each entry contains (memory_id_a, memory_id_b, confidence, content_a, content_b).
+    pub resolved_contradictions: Vec<ResolvedContradiction>,
+    /// Number of revisions resolved immediately by the LLM path.
+    pub revisions_resolved: usize,
+}
+
+/// A contradiction resolved immediately by the LLM classifier.
+#[derive(Debug, Clone)]
+pub struct ResolvedContradiction {
+    pub memory_id_a: [u8; 16],
+    pub memory_id_b: [u8; 16],
+    pub confidence: f32,
+    pub content_a: String,
+    pub content_b: String,
+}
+
 /// A pending contradiction candidate awaiting AI review.
 ///
 /// Created during Phase 1 (detect) by either the heuristic or LLM classifier.
@@ -345,17 +375,23 @@ fn has_numeric_disagreement(text_a: &str, text_b: &str) -> bool {
 
 /// Check a single memory against its nearest neighbors for contradictions.
 ///
-/// Two-phase design: this function is Phase 1 (detect). It writes
-/// `PendingContradiction` records to `ColumnFamilyName::Pending` instead
-/// of creating graph edges. Phase 2 (commit) happens via
-/// `prepare_contradictions` + `commit_contradictions` after AI review.
+/// Two paths depending on whether an LLM provider is available:
 ///
-/// 1. HNSW search for top-K similar memories (O(log n))
+/// **LLM path** (primary): Uses `hebbs_llm::contradiction::llm_classify_contradiction`
+/// for high-quality classification. Contradiction and Revision verdicts create graph
+/// edges immediately (no pending queue). Dismiss verdicts are skipped.
+///
+/// **Heuristic path** (fallback): When no LLM provider is given, uses the heuristic
+/// classifier and writes `PendingContradiction` records to `ColumnFamilyName::Pending`
+/// for later AI review via `prepare_contradictions` / `commit_contradictions`.
+///
+/// Both paths share:
+/// 1. HNSW search for top-K similar memories -- O(log n)
 /// 2. Filter out pairs that already have CONTRADICTS or REVISED_FROM edges
-/// 3. Classify each candidate pair with the heuristic classifier
-/// 4. Store passing candidates as pending records
+/// 3. Classify each candidate pair -- O(K) calls
 ///
-/// Returns the pending contradiction candidates created.
+/// Returns a `ContradictionCheckOutput` containing pending records (heuristic path)
+/// or resolved contradictions (LLM path).
 pub fn check_memory_contradictions(
     memory_id: &[u8; 16],
     storage: Arc<dyn StorageBackend>,
@@ -363,9 +399,9 @@ pub fn check_memory_contradictions(
     tenant: &TenantContext,
     config: &ContradictionConfig,
     llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-) -> Result<Vec<PendingContradiction>> {
+) -> Result<ContradictionCheckOutput> {
     if !config.enabled {
-        return Ok(Vec::new());
+        return Ok(ContradictionCheckOutput::default());
     }
 
     // Load the memory
@@ -373,16 +409,16 @@ pub fn check_memory_contradictions(
     let content_a = &memory.content;
 
     if content_a.trim().is_empty() {
-        return Ok(Vec::new());
+        return Ok(ContradictionCheckOutput::default());
     }
 
     // Get embedding for HNSW search
     let embedding = match &memory.embedding {
         Some(e) => e,
-        None => return Ok(Vec::new()),
+        None => return Ok(ContradictionCheckOutput::default()),
     };
 
-    // Find top-K similar memories
+    // Find top-K similar memories -- O(log n)
     let candidates = index_manager.search_vector_for_tenant(
         tenant.tenant_id(),
         embedding,
@@ -390,7 +426,7 @@ pub fn check_memory_contradictions(
         Some(64),
     )?;
 
-    // Load existing edges to skip already-classified pairs
+    // Load existing edges to skip already-classified pairs -- O(K)
     let graph = GraphIndex::new(storage.clone());
     let existing_edges = graph.outgoing_edges(memory_id).unwrap_or_default();
     let existing_targets: HashSet<[u8; 16]> = existing_edges
@@ -404,7 +440,7 @@ pub fn check_memory_contradictions(
         .unwrap_or_default()
         .as_micros() as u64;
 
-    let mut pending = Vec::new();
+    let mut output = ContradictionCheckOutput::default();
     let mut batch_ops = Vec::new();
 
     for (candidate_id, distance) in &candidates {
@@ -433,64 +469,160 @@ pub fn check_memory_contradictions(
             continue;
         }
 
-        // Classify using heuristic (or LLM if provided, though two-phase
-        // mode primarily uses heuristic as the candidate finder)
-        let result = if let Some(provider) = llm_provider {
-            llm_classify(provider, content_a, &candidate.content)
-        } else {
-            heuristic_classify(content_a, &candidate.content)
-        };
+        if let Some(provider) = llm_provider {
+            // LLM path: classify with hebbs_llm and create edges immediately
+            let classification = match hebbs_llm::contradiction::llm_classify_contradiction(
+                provider,
+                content_a,
+                &candidate.content,
+            ) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
 
-        match result {
-            EntailmentResult::Contradiction { confidence }
-                if confidence >= config.min_confidence =>
-            {
-                // Generate a ULID for the pending record
-                let pending_id = ulid::Ulid::new().to_bytes();
+            match classification.verdict {
+                hebbs_llm::contradiction::ContradictionVerdict::Contradiction => {
+                    if classification.confidence < config.min_confidence {
+                        continue;
+                    }
 
-                // Truncate content to snippet (bounded at 200 chars)
-                let snippet_a = truncate_snippet(content_a, 200);
-                let snippet_b = truncate_snippet(&candidate.content, 200);
+                    let metadata = EdgeMetadata::new(classification.confidence, now_us);
+                    let meta_bytes = metadata.to_bytes();
 
-                let method = if llm_provider.is_some() {
-                    ClassifierMethod::Llm
-                } else {
-                    ClassifierMethod::Heuristic
-                };
+                    // Bidirectional CONTRADICTS edges: A->B and B->A
+                    let fwd_ab = GraphIndex::encode_forward_key(
+                        memory_id,
+                        EdgeType::Contradicts,
+                        candidate_id,
+                    );
+                    let rev_ab = GraphIndex::encode_reverse_key(
+                        memory_id,
+                        EdgeType::Contradicts,
+                        candidate_id,
+                    );
+                    let fwd_ba = GraphIndex::encode_forward_key(
+                        candidate_id,
+                        EdgeType::Contradicts,
+                        memory_id,
+                    );
+                    let rev_ba = GraphIndex::encode_reverse_key(
+                        candidate_id,
+                        EdgeType::Contradicts,
+                        memory_id,
+                    );
 
-                let record = PendingContradiction {
-                    id: pending_id,
-                    memory_id_a: *memory_id,
-                    memory_id_b: *candidate_id,
-                    content_a_snippet: snippet_a,
-                    content_b_snippet: snippet_b,
-                    classifier_score: confidence,
-                    classifier_method: method,
-                    similarity,
-                    created_at: now_us,
-                };
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: fwd_ab,
+                        value: meta_bytes.clone(),
+                    });
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: rev_ab,
+                        value: meta_bytes.clone(),
+                    });
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: fwd_ba,
+                        value: meta_bytes.clone(),
+                    });
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: rev_ba,
+                        value: meta_bytes,
+                    });
 
-                let key = keys::encode_pending_contradiction_key(&pending_id);
-                let value = record.to_bytes()?;
+                    output.resolved_contradictions.push(ResolvedContradiction {
+                        memory_id_a: *memory_id,
+                        memory_id_b: *candidate_id,
+                        confidence: classification.confidence,
+                        content_a: content_a.clone(),
+                        content_b: candidate.content.clone(),
+                    });
+                }
+                hebbs_llm::contradiction::ContradictionVerdict::Revision => {
+                    if classification.confidence < config.min_confidence {
+                        continue;
+                    }
 
-                batch_ops.push(BatchOperation::Put {
-                    cf: ColumnFamilyName::Pending,
-                    key,
-                    value,
-                });
+                    let metadata = EdgeMetadata::new(classification.confidence, now_us);
+                    let meta_bytes = metadata.to_bytes();
 
-                pending.push(record);
+                    // REVISED_FROM edge: B revised from A (B supersedes A)
+                    let fwd_key = GraphIndex::encode_forward_key(
+                        candidate_id,
+                        EdgeType::RevisedFrom,
+                        memory_id,
+                    );
+                    let rev_key = GraphIndex::encode_reverse_key(
+                        candidate_id,
+                        EdgeType::RevisedFrom,
+                        memory_id,
+                    );
+
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: fwd_key,
+                        value: meta_bytes.clone(),
+                    });
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Graph,
+                        key: rev_key,
+                        value: meta_bytes,
+                    });
+
+                    output.revisions_resolved += 1;
+                }
+                hebbs_llm::contradiction::ContradictionVerdict::Dismiss => {
+                    // Skip dismissed pairs
+                }
             }
-            _ => {}
+        } else {
+            // Heuristic fallback: classify and create pending records
+            let result = heuristic_classify(content_a, &candidate.content);
+
+            match result {
+                EntailmentResult::Contradiction { confidence }
+                    if confidence >= config.min_confidence =>
+                {
+                    let pending_id = ulid::Ulid::new().to_bytes();
+                    let snippet_a = truncate_snippet(content_a, 200);
+                    let snippet_b = truncate_snippet(&candidate.content, 200);
+
+                    let record = PendingContradiction {
+                        id: pending_id,
+                        memory_id_a: *memory_id,
+                        memory_id_b: *candidate_id,
+                        content_a_snippet: snippet_a,
+                        content_b_snippet: snippet_b,
+                        classifier_score: confidence,
+                        classifier_method: ClassifierMethod::Heuristic,
+                        similarity,
+                        created_at: now_us,
+                    };
+
+                    let key = keys::encode_pending_contradiction_key(&pending_id);
+                    let value = record.to_bytes()?;
+
+                    batch_ops.push(BatchOperation::Put {
+                        cf: ColumnFamilyName::Pending,
+                        key,
+                        value,
+                    });
+
+                    output.pending.push(record);
+                }
+                _ => {}
+            }
         }
     }
 
-    // Write all pending records atomically
+    // Write all graph edges or pending records atomically
     if !batch_ops.is_empty() {
         storage.write_batch(&batch_ops)?;
     }
 
-    Ok(pending)
+    Ok(output)
 }
 
 // ── Two-Phase Commit API ──────────────────────────────────────────────
@@ -692,74 +824,6 @@ fn truncate_snippet(content: &str, max_len: usize) -> String {
     }
 }
 
-/// LLM-based entailment classification.
-fn llm_classify(
-    provider: &dyn hebbs_reflect::LlmProvider,
-    content_a: &str,
-    content_b: &str,
-) -> EntailmentResult {
-    // Truncate to avoid excessive token usage
-    let max_chars = 2000;
-    let a = if content_a.len() > max_chars {
-        &content_a[..max_chars]
-    } else {
-        content_a
-    };
-    let b = if content_b.len() > max_chars {
-        &content_b[..max_chars]
-    } else {
-        content_b
-    };
-
-    let request = hebbs_reflect::LlmRequest {
-        system_message: "You are an entailment classifier. Analyze two statements and classify their relationship. Output valid JSON only.".to_string(),
-        user_message: format!(
-            "Statement A: \"{}\"\n\nStatement B: \"{}\"\n\nClassify as one of:\n- CONTRADICTION: opposing or incompatible facts\n- REVISION: Statement B updates or supersedes Statement A\n- NEUTRAL: compatible or unrelated\n\nConsider temporal context. \"I used to think X\" or \"updated:\" suggests revision, not contradiction.\n\nOutput JSON: {{\"result\": \"CONTRADICTION|REVISION|NEUTRAL\", \"confidence\": 0.0-1.0}}",
-            a, b
-        ),
-        max_tokens: 150,
-        temperature: 0.0,
-        response_format: hebbs_reflect::ResponseFormat::Json,
-        metadata: std::collections::HashMap::new(),
-    };
-
-    let response = match provider.complete(request) {
-        Ok(r) => r,
-        Err(_) => return EntailmentResult::Neutral,
-    };
-
-    parse_llm_response(&response.content)
-}
-
-/// Parse LLM JSON response into EntailmentResult.
-fn parse_llm_response(content: &str) -> EntailmentResult {
-    // Simple JSON parsing without serde dependency
-    let lower = content.to_lowercase();
-    let confidence = extract_confidence(&lower).unwrap_or(0.5);
-
-    if lower.contains("\"contradiction\"") {
-        EntailmentResult::Contradiction { confidence }
-    } else if lower.contains("\"revision\"") {
-        EntailmentResult::Revision { confidence }
-    } else {
-        EntailmentResult::Neutral
-    }
-}
-
-/// Extract confidence value from JSON string.
-fn extract_confidence(json: &str) -> Option<f32> {
-    // Find "confidence": and parse the number after it
-    let idx = json.find("\"confidence\"")?;
-    let rest = &json[idx + "\"confidence\"".len()..];
-    let colon = rest.find(':')?;
-    let after_colon = rest[colon + 1..].trim_start();
-
-    let end = after_colon
-        .find(|c: char| !c.is_ascii_digit() && c != '.')
-        .unwrap_or(after_colon.len());
-    after_colon[..end].parse::<f32>().ok()
-}
-
 /// Load a memory from storage by ID.
 fn load_memory(storage: &dyn StorageBackend, memory_id: &[u8; 16]) -> Result<Memory> {
     let key = keys::encode_memory_key(memory_id);
@@ -832,45 +896,6 @@ mod tests {
         let b = "The server runs on Linux with 16GB of RAM.";
         let result = heuristic_classify(a, b);
         assert_eq!(result, EntailmentResult::Neutral);
-    }
-
-    #[test]
-    fn parse_llm_contradiction_response() {
-        let json = r#"{"result": "CONTRADICTION", "confidence": 0.85}"#;
-        match parse_llm_response(json) {
-            EntailmentResult::Contradiction { confidence } => {
-                assert!((confidence - 0.85).abs() < 0.01);
-            }
-            other => panic!("expected Contradiction, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn parse_llm_revision_response() {
-        let json = r#"{"result": "REVISION", "confidence": 0.72}"#;
-        match parse_llm_response(json) {
-            EntailmentResult::Revision { confidence } => {
-                assert!((confidence - 0.72).abs() < 0.01);
-            }
-            other => panic!("expected Revision, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn parse_llm_neutral_response() {
-        let json = r#"{"result": "NEUTRAL", "confidence": 0.9}"#;
-        assert_eq!(parse_llm_response(json), EntailmentResult::Neutral);
-    }
-
-    #[test]
-    fn extract_confidence_valid() {
-        assert!((extract_confidence(r#""confidence": 0.85"#).unwrap() - 0.85).abs() < 0.01);
-        assert!((extract_confidence(r#""confidence":0.5}"#).unwrap() - 0.5).abs() < 0.01);
-    }
-
-    #[test]
-    fn extract_confidence_missing() {
-        assert!(extract_confidence("no confidence here").is_none());
     }
 
     #[test]

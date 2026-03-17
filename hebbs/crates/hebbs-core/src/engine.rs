@@ -92,6 +92,8 @@ pub struct RememberInput {
     /// Graph edges to create. Each edge connects this new memory to an existing memory.
     /// Added in Phase 3 for causal/relational context.
     pub edges: Vec<RememberEdge>,
+    /// Memory kind. Defaults to Episode if None.
+    pub kind: Option<MemoryKind>,
 }
 
 /// An edge to create during remember().
@@ -406,7 +408,7 @@ impl Engine {
             last_accessed_at: now_us,
             access_count: 0,
             decay_score: importance,
-            kind: MemoryKind::Episode,
+            kind: input.kind.unwrap_or(MemoryKind::Episode),
             device_id: None,
             logical_clock: 0,
             associative_embedding: Some(assoc_embedding.clone()),
@@ -499,12 +501,16 @@ impl Engine {
     /// AI review (two-phase contradiction detection).
     ///
     /// Auto-selects LLM or heuristic mode based on `llm_provider`.
+    ///
+    /// When an LLM provider is given, contradictions and revisions are resolved
+    /// immediately (graph edges created). When no provider is given, heuristic
+    /// candidates are stored as pending records for later AI review.
     pub fn check_contradictions(
         &self,
         memory_id: &[u8; 16],
         config: &contradict::ContradictionConfig,
         llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-    ) -> Result<Vec<contradict::PendingContradiction>> {
+    ) -> Result<contradict::ContradictionCheckOutput> {
         self.check_contradictions_for_tenant(
             &TenantContext::default(),
             memory_id,
@@ -520,7 +526,7 @@ impl Engine {
         memory_id: &[u8; 16],
         config: &contradict::ContradictionConfig,
         llm_provider: Option<&dyn hebbs_reflect::LlmProvider>,
-    ) -> Result<Vec<contradict::PendingContradiction>> {
+    ) -> Result<contradict::ContradictionCheckOutput> {
         let storage = self.scoped_storage(tenant);
         contradict::check_memory_contradictions(
             memory_id,
@@ -3154,6 +3160,8 @@ fn compute_structural_similarity(
                 MemoryKind::Episode => "episode",
                 MemoryKind::Insight => "insight",
                 MemoryKind::Revision => "revision",
+                MemoryKind::Document => "document",
+                MemoryKind::Proposition => "proposition",
             };
             if cue_kind == mem_kind_str {
                 1.0
@@ -3233,6 +3241,7 @@ mod tests {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         }
     }
 
@@ -3243,6 +3252,7 @@ mod tests {
             context: None,
             entity_id: Some(entity.to_string()),
             edges: vec![],
+            kind: None,
         }
     }
 
@@ -3254,6 +3264,7 @@ mod tests {
             context: None,
             entity_id: Some(entity.to_string()),
             edges: vec![],
+            kind: None,
         }
     }
 
@@ -3267,7 +3278,8 @@ mod tests {
                 context: None,
                 entity_id: Some("customer_1".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         assert_eq!(memory.content, "test memory content");
@@ -3300,7 +3312,8 @@ mod tests {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let retrieved = engine.get(&original.memory_id).unwrap();
@@ -3323,7 +3336,8 @@ mod tests {
                 context: None,
                 entity_id: Some("entity_1".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         // Verify default CF
@@ -3366,6 +3380,7 @@ mod tests {
                     edge_type: EdgeType::CausedBy,
                     confidence: Some(0.9),
                 }],
+                kind: None,
             })
             .unwrap();
 
@@ -3390,7 +3405,8 @@ mod tests {
                 context: None,
                 entity_id: Some("entity_del".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let embedding = memory.embedding.clone().unwrap();
@@ -3447,7 +3463,8 @@ mod tests {
                     context: None,
                     entity_id: None,
                     edges: vec![],
-                })
+            kind: None,
+        })
                 .unwrap_err();
             assert!(
                 matches!(err, HebbsError::InvalidInput { .. }),
@@ -3475,6 +3492,7 @@ mod tests {
                     context: None,
                     entity_id: Some("alice".to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3486,6 +3504,7 @@ mod tests {
                     context: None,
                     entity_id: Some("bob".to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3508,6 +3527,7 @@ mod tests {
                     context: None,
                     entity_id: Some("entity".to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3557,7 +3577,8 @@ mod tests {
                 context: Some(ctx.clone()),
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let retrieved = engine.get(&memory.memory_id).unwrap();
@@ -3627,6 +3648,7 @@ mod tests {
                     context: None,
                     entity_id: Some("entity_t".to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3810,6 +3832,7 @@ mod tests {
                     edge_type: EdgeType::CausedBy,
                     confidence: Some(0.9),
                 }],
+                kind: None,
             })
             .unwrap();
 
@@ -3842,6 +3865,7 @@ mod tests {
                     edge_type: EdgeType::CausedBy,
                     confidence: Some(0.9),
                 }],
+                kind: None,
             })
             .unwrap();
 
@@ -3893,6 +3917,7 @@ mod tests {
                     context: Some(ctx1.clone()),
                     entity_id: Some(format!("customer_{}", i)),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3929,6 +3954,7 @@ mod tests {
                     context: Some(ctx_discovery.clone()),
                     entity_id: Some(format!("cust_{}", i)),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -3941,6 +3967,7 @@ mod tests {
                     context: Some(ctx_negotiation.clone()),
                     entity_id: Some(format!("cust_{}", i + 100)),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -4682,7 +4709,8 @@ mod tests {
                 context: Some(ctx),
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let mut new_ctx = HashMap::new();
@@ -4720,7 +4748,8 @@ mod tests {
                 context: Some(ctx),
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let mut new_ctx = HashMap::new();
@@ -4753,7 +4782,8 @@ mod tests {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
 
         let revised = engine
@@ -5267,6 +5297,7 @@ mod tests {
                     edge_type: EdgeType::CausedBy,
                     confidence: None,
                 }],
+                kind: None,
             })
             .unwrap();
 
@@ -5281,6 +5312,7 @@ mod tests {
                     edge_type: EdgeType::CausedBy,
                     confidence: None,
                 }],
+                kind: None,
             })
             .unwrap();
 

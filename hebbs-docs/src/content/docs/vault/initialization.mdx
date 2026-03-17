@@ -5,18 +5,20 @@ description: "Create a HEBBS vault, understand the .hebbs/ directory structure, 
 
 ## Creating a Vault
 
-Initialize a vault in any directory:
+Initialize a vault in any directory. LLM configuration is required for new vaults:
 
 ```bash
 cd ~/projects/my-notes
-hebbs init
+hebbs init --provider anthropic --model claude-sonnet-4-20250514 --api-key-env ANTHROPIC_API_KEY
 ```
 
 Or specify a path:
 
 ```bash
-hebbs init ~/projects/my-notes
+hebbs init ~/projects/my-notes --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
 ```
+
+The `init` command validates LLM connectivity before completing. If the provider is unreachable or the API key is invalid, initialization fails with a descriptive error.
 
 This creates a `.hebbs/` directory containing:
 
@@ -27,7 +29,7 @@ This creates a `.hebbs/` directory containing:
   index/
     db/                # RocksDB database (memories, edges, metadata)
     models/
-      bge-small-en-v1.5/   # ONNX embedding model (~90 MB, downloaded once)
+      embeddinggemma-300m/   # ONNX embedding model (~600 MB, downloaded once)
         config.json
         tokenizer.json
 ```

@@ -3,7 +3,7 @@ title: "Reflection Pipeline"
 description: "Four-stage background pipeline: cluster, propose, validate, consolidate."
 ---
 
-The reflection pipeline is HEBBS's mechanism for generating higher-order knowledge from raw memories. It runs in the background — never on the hot path — and produces insight memories that capture patterns, trends, and generalizations across an entity's memory store.
+The reflection pipeline is HEBBS's mechanism for generating higher-order knowledge from raw memories. It runs in the background -- never on the hot path -- and produces insight memories that capture patterns, trends, and generalizations across an entity's memory store.
 
 ## Pipeline Stages
 
@@ -29,9 +29,9 @@ For each cluster, the pipeline generates an insight proposal by sending the clus
 
 Proposed insights are validated before storage:
 
-- **Novelty check** — is this insight materially different from existing insights? Duplicate or near-duplicate insights are discarded.
-- **Grounding check** — does every claim in the insight trace back to source memories? Ungrounded claims are flagged.
-- **Confidence scoring** — each insight receives a confidence score based on cluster size, memory recency, and source diversity.
+- **Novelty check** -- is this insight materially different from existing insights? Duplicate or near-duplicate insights are discarded.
+- **Grounding check** -- does every claim in the insight trace back to source memories? Ungrounded claims are flagged.
+- **Confidence scoring** -- each insight receives a confidence score based on cluster size, memory recency, and source diversity.
 
 ### Stage 4: Consolidate
 
@@ -46,9 +46,8 @@ Validated insights are stored as `Insight`-kind memories with full lineage track
 The reflection pipeline uses an abstract LLM provider trait, allowing different backends:
 
 ```rust
-#[async_trait]
 pub trait LlmProvider: Send + Sync {
-    async fn generate(&self, prompt: &str) -> Result<String>;
+    fn complete(&self, request: LlmRequest) -> Result<LlmResponse>;
     fn model_name(&self) -> &str;
 }
 ```
@@ -57,20 +56,20 @@ Supported providers:
 
 | Provider | Configuration |
 |---|---|
-| OpenAI | `provider = "openai"`, requires `OPENAI_API_KEY` |
 | Anthropic | `provider = "anthropic"`, requires `ANTHROPIC_API_KEY` |
-| Local (Ollama) | `provider = "ollama"`, requires local Ollama instance |
+| OpenAI | `provider = "openai"`, requires `OPENAI_API_KEY` |
+| Gemini | `provider = "gemini"`, requires `GEMINI_API_KEY` |
+| Ollama (local) | `provider = "ollama"`, requires local Ollama instance |
 
 ```toml
-[reflect]
-enabled = true
-provider = "openai"
-model = "gpt-4o-mini"
-api_key = "${OPENAI_API_KEY}"
-min_memories = 5
-interval_seconds = 3600
-max_insights_per_cycle = 10
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+base_url = "https://api.anthropic.com"
 ```
+
+The LLM is required. HEBBS uses it for reflection, contradiction detection, and proposition extraction.
 
 ## Lineage Tracking
 
@@ -86,17 +85,17 @@ Insight: "Customer consistently prioritizes compliance over cost"
 
 This lineage enables:
 
-- **Explainability** — trace any insight back to its source memories.
-- **Invalidation** — if a source memory is forgotten or revised, dependent insights can be flagged for re-evaluation.
-- **Confidence evolution** — as new supporting memories arrive, insight confidence increases.
+- **Explainability** -- trace any insight back to its source memories.
+- **Invalidation** -- if a source memory is forgotten or revised, dependent insights can be flagged for re-evaluation.
+- **Confidence evolution** -- as new supporting memories arrive, insight confidence increases.
 
 ## Triggering Reflection
 
 Reflection runs in three modes:
 
-1. **Automatic** — triggered when the memory count for an entity exceeds `min_memories` and at least `interval_seconds` have passed since the last cycle.
-2. **Manual** — triggered via `client.reflect(entity)` or `hebbs-cli reflect --entity`.
-3. **Disabled** — set `enabled = false` or `set_policy(entity, reflect_enabled=False)`.
+1. **Automatic** -- triggered when the memory count for an entity exceeds a threshold (20+ memories) or at least 1 hour has passed since the last cycle.
+2. **Manual** -- triggered via `hebbs reflect --entity-id <id>`.
+3. **Disabled** -- set `enabled = false` or `set_policy(entity, reflect_enabled=False)`.
 
 ## Resource Considerations
 

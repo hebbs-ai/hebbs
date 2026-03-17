@@ -46,6 +46,7 @@ fn fix1_bidirectional_causal_traversal() {
             context: None,
             entity_id: Some("incident".into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let id_a = parse_id(&mem_a.memory_id);
@@ -61,6 +62,7 @@ fn fix1_bidirectional_causal_traversal() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.95),
             }],
+            kind: None,
         })
         .unwrap();
     let id_b = parse_id(&mem_b.memory_id);
@@ -76,6 +78,7 @@ fn fix1_bidirectional_causal_traversal() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.9),
             }],
+            kind: None,
         })
         .unwrap();
     let id_c = parse_id(&mem_c.memory_id);
@@ -153,7 +156,8 @@ fn fix2_tenant_isolation() {
                 context: None,
                 entity_id: Some("acme_finance".into()),
                 edges: vec![],
-            },
+            kind: None,
+        },
         )
         .unwrap();
 
@@ -167,7 +171,8 @@ fn fix2_tenant_isolation() {
                 context: None,
                 entity_id: Some("globex_product".into()),
                 edges: vec![],
-            },
+            kind: None,
+        },
         )
         .unwrap();
 
@@ -238,6 +243,7 @@ fn fix3_analogical_recall_uses_vector_arithmetic() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let id_a = parse_id(&mem_a.memory_id);
@@ -249,6 +255,7 @@ fn fix3_analogical_recall_uses_vector_arithmetic() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let id_b = parse_id(&mem_b.memory_id);
@@ -261,6 +268,7 @@ fn fix3_analogical_recall_uses_vector_arithmetic() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -329,6 +337,7 @@ fn fix4_assoc_embedding_stored_on_memory() {
             context: None,
             entity_id: Some("ops".into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let id_cause = parse_id(&mem_cause.memory_id);
@@ -344,6 +353,7 @@ fn fix4_assoc_embedding_stored_on_memory() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.9),
             }],
+            kind: None,
         })
         .unwrap();
 

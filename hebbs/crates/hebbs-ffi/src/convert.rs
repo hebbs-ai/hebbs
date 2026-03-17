@@ -30,6 +30,8 @@ pub fn memory_to_json(m: &Memory) -> String {
         MemoryKind::Episode => "episode",
         MemoryKind::Insight => "insight",
         MemoryKind::Revision => "revision",
+        MemoryKind::Document => "document",
+        MemoryKind::Proposition => "proposition",
     };
 
     let mut obj = serde_json::json!({
@@ -103,6 +105,7 @@ pub fn json_to_remember_input(json: &str) -> Result<RememberInput, String> {
         context,
         entity_id,
         edges,
+        kind: None,
     })
 }
 
@@ -484,6 +487,8 @@ fn parse_memory_kind(s: &str) -> Option<MemoryKind> {
         "episode" => Some(MemoryKind::Episode),
         "insight" => Some(MemoryKind::Insight),
         "revision" => Some(MemoryKind::Revision),
+        "document" => Some(MemoryKind::Document),
+        "proposition" => Some(MemoryKind::Proposition),
         _ => None,
     }
 }
@@ -496,6 +501,9 @@ fn parse_edge_type(s: &str) -> Result<EdgeType, String> {
         "revised_from" => Ok(EdgeType::RevisedFrom),
         "insight_from" => Ok(EdgeType::InsightFrom),
         "contradicts" => Ok(EdgeType::Contradicts),
+        "has_entity" => Ok(EdgeType::HasEntity),
+        "entity_relation" => Ok(EdgeType::EntityRelation),
+        "proposition_of" => Ok(EdgeType::PropositionOf),
         _ => Err(format!("unknown edge type: {}", s)),
     }
 }

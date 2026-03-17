@@ -61,7 +61,8 @@ pub fn run(tier: &Tier, data_dir: Option<&Path>, seed: u64) -> ScalabilityResult
                     context: inputs[inserted].context.clone(),
                     entity_id: inputs[inserted].entity_id.clone(),
                     edges: Vec::new(),
-                })
+            kind: None,
+        })
                 .unwrap();
             inserted += 1;
         }

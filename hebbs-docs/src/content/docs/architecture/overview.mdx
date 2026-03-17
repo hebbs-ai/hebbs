@@ -38,9 +38,9 @@ The HEBBS server is composed of six major subsystems:
 | **HNSW Index** | Approximate nearest neighbor search for similarity-based recall. `O(log n)` query complexity. |
 | **Temporal B-tree** | Time-ordered index for temporal recall. `O(log n)` range queries. |
 | **Graph Adjacency** | Edge-based index for causal and relational recall. `O(k)` traversal with bounded depth. |
-| **Embedding Engine** | Converts text to 384-dimensional vectors using ONNX Runtime with BGE-small-en-v1.5. |
+| **Embedding Engine** | Converts text to 768-dimensional vectors using ONNX Runtime with EmbeddingGemma-300M. |
 | **Storage Layer** | Persistent storage via embedded RocksDB. Column families for memories, edges, indexes, and metadata. |
-| **Reflection Pipeline** | Background process that analyzes memories and generates insights via LLM. |
+| **Reflection Pipeline** | Background process that autonomously handles reflection (insight generation), contradiction resolution, and proposition extraction via LLM. |
 
 ## Data Flow: Remember
 
@@ -48,7 +48,7 @@ When a client calls `remember`:
 
 1. **Server** receives the gRPC request and validates inputs at the boundary.
 2. **Core Engine** assigns an ID, timestamps the memory, and prepares a `WriteBatch`.
-3. **Embedding Engine** generates a 384-dimensional vector from the memory content.
+3. **Embedding Engine** generates a 768-dimensional vector from the memory content.
 4. **Indexes** — the HNSW index inserts the vector, the temporal B-tree inserts the timestamp, and the graph index inserts any edges. All updates are added to the `WriteBatch`.
 5. **Storage** atomically commits the `WriteBatch` to RocksDB, ensuring crash consistency.
 6. **Server** returns the stored memory with its assigned ID.
@@ -73,7 +73,7 @@ Total latency budget: < 10ms p99 for similarity recall at 10M memories.
 - **Entity isolation** — memories are partitioned by entity. No cross-entity leakage.
 - **Atomic multi-index updates** — all index and storage writes happen in a single RocksDB `WriteBatch` for crash consistency.
 - **Hot path sanctity** — no network calls, no unbounded computation, no locks on the read path.
-- **Background reflection** — LLM calls happen exclusively in the reflection pipeline, never on the hot path.
+- **Background autonomy** — LLM calls are used for reflection, contradiction resolution, and proposition extraction, all running autonomously in the background. LLM calls never happen on the hot path.
 
 ## Next Steps
 

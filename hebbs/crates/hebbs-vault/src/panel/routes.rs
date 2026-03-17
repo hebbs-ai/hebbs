@@ -85,6 +85,9 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/panel/queries/stats", get(query_stats))
         .route("/api/panel/queries/:id", get(get_query))
         .route("/api/panel/vaults/switch", post(switch_vault))
+        .route("/api/panel/resync", post(resync_stale))
+        .route("/api/panel/files", get(list_files))
+        .route("/api/panel/files/*path", get(get_file_content))
 }
 
 // ── Vault listing ──────────────────────────────────────────────────────
@@ -180,6 +183,57 @@ async fn switch_vault(
     Ok(Json(
         serde_json::json!({"switched": true, "vault_path": body.path}),
     ))
+}
+
+// ── Re-sync stale sections ─────────────────────────────────────────────
+
+async fn resync_stale(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
+
+    let config =
+        VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut manifest =
+        Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let (_, stale, _) = manifest.section_counts();
+    if stale == 0 {
+        return Ok(Json(serde_json::json!({
+            "status": "ok",
+            "message": "no stale sections",
+            "sections_embedded": 0,
+        })));
+    }
+
+    let embedder = state.embedder.clone();
+    match crate::ingest::phase2_ingest(&vault_root, &mut manifest, &engine, &embedder, &config)
+        .await
+    {
+        Ok(p2) => {
+            manifest
+                .save(&hebbs_dir)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            let _ = state.event_tx.send(super::PanelEvent::IngestComplete {
+                remembered: p2.sections_remembered,
+                revised: p2.sections_revised,
+            });
+
+            Ok(Json(serde_json::json!({
+                "status": "ok",
+                "sections_embedded": p2.sections_embedded,
+                "sections_remembered": p2.sections_remembered,
+                "sections_revised": p2.sections_revised,
+                "errors": p2.errors,
+            })))
+        }
+        Err(e) => Ok(Json(serde_json::json!({
+            "status": "error",
+            "message": format!("{}", e),
+        }))),
+    }
 }
 
 // ── Vault status ───────────────────────────────────────────────────────
@@ -343,6 +397,8 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                         MemoryKind::Episode => "episode",
                         MemoryKind::Insight => "insight",
                         MemoryKind::Revision => "revision",
+                        MemoryKind::Document => "document",
+                        MemoryKind::Proposition => "proposition",
                     };
                     let preview = if mem.content.len() > 200 {
                         format!("{}...", &mem.content[..200])
@@ -716,25 +772,25 @@ fn compute_cluster_labels_llm(
 ) -> Option<HashMap<i32, String>> {
     let hebbs_dir = vault_root.join(".hebbs");
     let vault_config = crate::config::VaultConfig::load(&hebbs_dir).ok()?;
-    let llm_cfg = &vault_config.reflect_llm;
+    let llm_cfg = &vault_config.llm;
 
     if !llm_cfg.is_configured() {
         return None;
     }
 
-    let provider_name = llm_cfg.provider.as_deref()?;
-    let model = llm_cfg.model.as_deref()?;
+    let provider_name = &llm_cfg.provider;
+    let model = &llm_cfg.model;
 
     // Ollama does not require an API key; all cloud providers do.
-    let provider_type = hebbs_reflect::ProviderType::from_name(provider_name);
-    let needs_key = !matches!(provider_type, hebbs_reflect::ProviderType::Ollama);
+    let provider_type = hebbs_llm::ProviderType::from_name(provider_name);
+    let needs_key = !matches!(provider_type, hebbs_llm::ProviderType::Ollama);
     let api_key = llm_cfg.resolved_api_key();
 
     if needs_key && api_key.is_none() {
         return None;
     }
 
-    let config = hebbs_reflect::LlmProviderConfig {
+    let config = hebbs_llm::LlmProviderConfig {
         provider_type,
         api_key,
         base_url: llm_cfg.base_url.clone(),
@@ -744,7 +800,7 @@ fn compute_cluster_labels_llm(
         retry_backoff_ms: 500,
     };
 
-    let provider = hebbs_reflect::create_provider(&config).ok()?;
+    let provider = hebbs_llm::create_provider(&config).ok()?;
 
     // Group node labels by cluster (max 10 per cluster to bound prompt size).
     let mut cluster_headings: HashMap<i32, Vec<&str>> = HashMap::new();
@@ -988,6 +1044,8 @@ async fn memory_detail(
         MemoryKind::Episode => "episode",
         MemoryKind::Insight => "insight",
         MemoryKind::Revision => "revision",
+        MemoryKind::Document => "document",
+        MemoryKind::Proposition => "proposition",
     };
 
     // Get edges from graph index
@@ -1257,6 +1315,8 @@ async fn recall_search(
             MemoryKind::Episode => "episode",
             MemoryKind::Insight => "insight",
             MemoryKind::Revision => "revision",
+            MemoryKind::Document => "document",
+            MemoryKind::Proposition => "proposition",
         };
 
         // Compute signal components.
@@ -1468,7 +1528,8 @@ async fn health_action(
                 context: None,
                 entity_id: None,
                 edges: Vec::new(),
-            };
+            kind: None,
+        };
             engine
                 .remember(input)
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -2159,6 +2220,8 @@ async fn list_memories(
                 MemoryKind::Episode => "episode",
                 MemoryKind::Insight => "insight",
                 MemoryKind::Revision => "revision",
+                MemoryKind::Document => "document",
+                MemoryKind::Proposition => "proposition",
             };
 
             let label = if !section.heading_path.is_empty() {
@@ -2304,6 +2367,9 @@ fn edge_type_str(et: &EdgeType) -> &'static str {
         EdgeType::RevisedFrom => "revised_from",
         EdgeType::InsightFrom => "insight_from",
         EdgeType::Contradicts => "contradicts",
+        EdgeType::HasEntity => "has_entity",
+        EdgeType::EntityRelation => "entity_relation",
+        EdgeType::PropositionOf => "proposition_of",
     }
 }
 
@@ -2518,4 +2584,162 @@ impl hebbs_storage::StorageBackend for StorageRef {
     fn compact(&self, cf: ColumnFamilyName) -> hebbs_storage::Result<()> {
         self.0.storage().compact(cf)
     }
+}
+
+// ── Files API (Notes tab) ───────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct FileListEntry {
+    path: String,
+    name: String,
+    memory_count: usize,
+    synced: usize,
+    stale: usize,
+}
+
+#[derive(Serialize)]
+struct FileListResponse {
+    files: Vec<FileListEntry>,
+}
+
+async fn list_files(
+    State(state): State<AppState>,
+) -> Result<Json<FileListResponse>, StatusCode> {
+    let (_, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
+    let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut files: Vec<FileListEntry> = manifest
+        .files
+        .iter()
+        .map(|(path, entry)| {
+            let synced = entry
+                .sections
+                .iter()
+                .filter(|s| s.state == SectionState::Synced)
+                .count();
+            let stale = entry
+                .sections
+                .iter()
+                .filter(|s| s.state == SectionState::ContentStale)
+                .count();
+            FileListEntry {
+                name: path.rsplit('/').next().unwrap_or(path).to_string(),
+                path: path.clone(),
+                memory_count: entry.sections.len(),
+                synced,
+                stale,
+            }
+        })
+        .collect();
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+
+    Ok(Json(FileListResponse { files }))
+}
+
+#[derive(Serialize)]
+struct FileSectionInfo {
+    memory_id: String,
+    heading_path: Vec<String>,
+    byte_start: usize,
+    byte_end: usize,
+    state: String,
+    label: String,
+    importance: f32,
+    decay_score: f32,
+}
+
+#[derive(Serialize)]
+struct FileContentResponse {
+    path: String,
+    content: String,
+    sections: Vec<FileSectionInfo>,
+}
+
+async fn get_file_content(
+    State(state): State<AppState>,
+    Path(file_path): Path<String>,
+) -> Result<Json<FileContentResponse>, StatusCode> {
+    // Wildcard captures may have a leading slash; strip it.
+    let file_path = file_path.strip_prefix('/').unwrap_or(&file_path).to_string();
+
+    // Prevent path traversal attacks
+    if file_path.contains("..") {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let (engine, vault_root) = state.vault_snapshot().await;
+    let hebbs_dir = vault_root.join(".hebbs");
+    let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let file_entry = manifest
+        .files
+        .get(&file_path)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Read actual file content from disk
+    let full_path = vault_root.join(&file_path);
+    let content =
+        std::fs::read_to_string(&full_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let now_us = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros() as u64;
+    let half_life_us: u64 = 30 * 24 * 3600 * 1_000_000;
+
+    let sections: Vec<FileSectionInfo> = file_entry
+        .sections
+        .iter()
+        .map(|s| {
+            let state_str = match s.state {
+                SectionState::Synced => "synced",
+                SectionState::ContentStale => "stale",
+                SectionState::Orphaned => "orphaned",
+            };
+
+            let label = if !s.heading_path.is_empty() {
+                s.heading_path.last().cloned().unwrap_or_default()
+            } else {
+                file_path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&file_path)
+                    .replace(".md", "")
+            };
+
+            // Try to get live scores from engine
+            let (importance, decay_score) = match parse_memory_id(&s.memory_id) {
+                Ok(id_bytes) => match engine.get(&id_bytes) {
+                    Ok(mem) => {
+                        let age_us = now_us.saturating_sub(mem.created_at);
+                        let time_factor =
+                            2.0_f64.powf(-(age_us as f64) / (half_life_us as f64)) as f32;
+                        let ds = mem.importance * time_factor;
+                        (mem.importance, ds)
+                    }
+                    Err(_) => (0.0, 0.0),
+                },
+                Err(_) => (0.0, 0.0),
+            };
+
+            FileSectionInfo {
+                memory_id: s.memory_id.clone(),
+                heading_path: s.heading_path.clone(),
+                byte_start: s.byte_start,
+                byte_end: s.byte_end,
+                state: state_str.to_string(),
+                label,
+                importance,
+                decay_score,
+            }
+        })
+        .collect();
+
+    Ok(Json(FileContentResponse {
+        path: file_path,
+        content,
+        sections,
+    }))
 }

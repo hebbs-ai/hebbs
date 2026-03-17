@@ -1,32 +1,19 @@
 ---
 title: "Contradiction Detection"
-description: "How HEBBS detects conflicting beliefs and lets agents review them with a two-phase prepare/commit flow."
+description: "How HEBBS automatically detects and resolves conflicting memories using its configured LLM."
 ---
 
-HEBBS detects contradictions between memories using a two-phase pipeline. Phase 1 runs automatically during ingest: a heuristic classifier flags candidate pairs and stores them as **pending contradictions**. Phase 2 is agent-driven: the agent retrieves pending candidates, reviews them with its own LLM, and commits verdicts.
+HEBBS detects contradictions between memories automatically during ingest. When a new memory is stored, HEBBS finds similar existing memories, sends candidate pairs to the configured LLM for classification, and creates appropriate graph edges based on the verdict. No manual review step is required.
 
-HEBBS has no LLM. The calling agent IS the LLM for contradiction review.
-
-## Two-Phase Pipeline
-
-### Phase 1: Heuristic Detection (automatic)
+## How It Works
 
 During ingest (indexing or watch), for each new or revised memory section:
 
 1. **Candidate selection**: Find the top `candidates_k` nearest neighbors by cosine similarity (default: 10).
 2. **Similarity filter**: Discard candidates below `min_similarity` (default: 0.5). Only semantically related memories are checked.
-3. **Heuristic classification**: Compare the content of each pair using negation asymmetry, antonym detection, and numeric disagreement. Confidence is capped at 0.75 (heuristics alone cannot be certain).
-4. **Pending storage**: If confidence exceeds `min_confidence` (default: 0.35), store a `PendingContradiction` record with both memory IDs, content snippets, classifier score, and method.
-
-No edges are created in Phase 1. Candidates wait for agent review.
-
-### Phase 2: Agent Review (on-demand)
-
-The agent retrieves and reviews pending candidates:
-
-1. **Prepare**: Call `contradiction-prepare` to get all pending candidates with content snippets and classifier scores.
-2. **Review**: The agent uses its own judgment (LLM reasoning) to evaluate each candidate.
-3. **Commit**: Call `contradiction-commit` with verdicts for each candidate.
+3. **LLM classification**: Send each candidate pair to the configured LLM with a structured prompt. The LLM classifies each pair and returns a verdict with confidence.
+4. **Edge creation**: Based on the LLM verdict, HEBBS creates the appropriate graph edges automatically.
+5. **Report generation**: Contradiction reports are written to the `contradictions/` directory.
 
 **Verdict types:**
 
@@ -34,23 +21,7 @@ The agent retrieves and reviews pending candidates:
 |---|---|
 | `contradiction` | Creates bidirectional `CONTRADICTS` edges between the two memories |
 | `revision` | Creates a `REVISED_FROM` edge (memory B supersedes memory A) |
-| `dismiss` | Removes the candidate. No edges created. |
-
-### Agent workflow
-
-```bash
-# Step 1: Get pending candidates
-hebbs contradiction-prepare --format json
-
-# Step 2: Review each candidate, then commit verdicts
-hebbs contradiction-commit --verdicts '[
-  {"pending_id": "abc123...", "verdict": "contradiction", "confidence": 0.9, "reasoning": "Budget changed from $5k to $2k"},
-  {"pending_id": "def456...", "verdict": "revision", "confidence": 0.85, "reasoning": "Updated timeline"},
-  {"pending_id": "ghi789...", "verdict": "dismiss", "confidence": 0.95, "reasoning": "Different topics"}
-]' --format json
-```
-
-See the [CLI reference](/cli/commands/#contradiction-prepare) for full flag details, or the [REST](/api/rest-endpoints/#contradiction-prepare-agent-driven) and [gRPC](/api/protobuf-schema/#contradictionprepare) references for programmatic access.
+| `dismiss` | No edges created. The pair is not conflicting. |
 
 ## Configuration
 
@@ -61,16 +32,12 @@ In `.hebbs/config.toml`:
 enabled = true          # Enable/disable contradiction detection
 candidates_k = 10       # Max neighbors to check per memory
 min_similarity = 0.5    # Minimum cosine similarity to consider a pair
-min_confidence = 0.35   # Minimum heuristic confidence to create a pending candidate
 ```
 
 ### Tuning
 
-- **Lower `min_similarity`** to catch contradictions between less obviously related memories. This increases false positives but catches more real conflicts.
-- **Raise `min_confidence`** to only surface high-confidence candidates for agent review. This reduces noise.
+- **Lower `min_similarity`** to catch contradictions between less obviously related memories. This increases LLM calls but catches more real conflicts.
 - **Increase `candidates_k`** if you have a large knowledge base and want more thorough checking. This increases ingest latency linearly.
-
-The heuristic classifier confidence is capped at 0.75. The agent's verdict confidence (provided during commit) is used for the final edge metadata and can go up to 1.0.
 
 ## Contradiction Reports
 
@@ -99,7 +66,7 @@ Revision verdicts create a directional `REVISED_FROM` edge instead.
 - **Knowledge base maintenance**: Surface when documentation in different files makes conflicting claims
 - **Project notes**: Detect when decisions recorded in one meeting contradict another
 - **Learning notes**: Find where your understanding has evolved and earlier notes are outdated
-- **Agent memory**: Prevent AI agents from holding contradictory beliefs. Agents review candidates with their own LLM and commit verdicts, keeping the memory graph clean.
+- **Agent memory**: Prevent AI agents from holding contradictory beliefs. Contradictions are resolved automatically during ingest, keeping the memory graph clean.
 
 ## Disabling
 

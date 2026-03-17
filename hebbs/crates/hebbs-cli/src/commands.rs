@@ -375,6 +375,7 @@ async fn execute_remember(
         entity_id,
         edges,
         tenant_id: tenant_id.map(str::to_string),
+        kind: None,
     };
 
     let mut client = conn.memory_client().await?;

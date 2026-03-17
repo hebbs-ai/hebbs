@@ -49,6 +49,7 @@ fn remember_n(engine: &Engine, entity: &str, n: usize) -> Vec<Vec<u8>> {
                     context: None,
                     entity_id: Some(entity.to_string()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap()
                 .memory_id
@@ -78,6 +79,7 @@ fn test_full_lifecycle() {
             context: Some(context),
             entity_id: Some(entity.into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let mem_id = mem.memory_id.clone();
@@ -220,6 +222,7 @@ fn test_lifecycle_with_subscribe() {
             context: None,
             entity_id: Some(entity.into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -268,6 +271,7 @@ fn test_concurrent_mixed_workload() {
                     context: None,
                     entity_id: Some("concurrent".into()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap()
                 .memory_id
@@ -299,6 +303,7 @@ fn test_concurrent_mixed_workload() {
                     context: None,
                     entity_id: Some("concurrent".into()),
                     edges: vec![],
+                    kind: None,
                 }) {
                     Ok(mem) => local_ids.push(mem.memory_id),
                     Err(_) => panic_flag.store(true, Ordering::Relaxed),
@@ -425,6 +430,7 @@ fn test_crash_recovery_remember() {
                     context: None,
                     entity_id: Some("recovery_entity".into()),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
             ids.push(mem.memory_id);
@@ -542,6 +548,7 @@ fn test_scale_10k_operations() {
                 context: None,
                 entity_id: Some(format!("scale_entity_{}", i % 10)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -656,7 +663,8 @@ fn test_remember_empty_content() {
         context: None,
         entity_id: None,
         edges: vec![],
-    });
+            kind: None,
+        });
     assert!(
         matches!(result, Err(HebbsError::InvalidInput { .. })),
         "empty content should be rejected"
@@ -676,6 +684,7 @@ fn test_remember_max_content() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     assert_eq!(mem.content.len(), 64 * 1024);
@@ -822,6 +831,7 @@ fn test_context_roundtrip_complex() {
             context: Some(context.clone()),
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -857,6 +867,7 @@ fn test_revise_context_merge_and_replace() {
             context: Some(initial_ctx),
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -937,6 +948,7 @@ fn test_remember_with_edges() {
             context: None,
             entity_id: Some("chain".into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let mut target_a = [0u8; 16];
@@ -953,6 +965,7 @@ fn test_remember_with_edges() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.9),
             }],
+            kind: None,
         })
         .unwrap();
     let mut target_b = [0u8; 16];
@@ -969,6 +982,7 @@ fn test_remember_with_edges() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.8),
             }],
+            kind: None,
         })
         .unwrap();
 
@@ -1016,6 +1030,7 @@ fn test_forget_cascade() {
             context: None,
             entity_id: Some("cascade_entity".into()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let mem_id = mem.memory_id.clone();

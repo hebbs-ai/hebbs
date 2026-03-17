@@ -57,6 +57,8 @@ pub fn memory_to_py(py: Python<'_>, m: &Memory) -> PyResult<PyObject> {
         MemoryKind::Episode => "episode",
         MemoryKind::Insight => "insight",
         MemoryKind::Revision => "revision",
+        MemoryKind::Document => "document",
+        MemoryKind::Proposition => "proposition",
     };
     dict.set_item("kind", kind_str)?;
     dict.set_item("device_id", m.device_id.as_deref())?;

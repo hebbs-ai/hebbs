@@ -19,6 +19,9 @@ pub enum HebbsError {
     #[error("reflect error: {0}")]
     Reflect(#[from] hebbs_reflect::ReflectError),
 
+    #[error("LLM error: {0}")]
+    Llm(#[from] hebbs_llm::LlmError),
+
     #[error("memory not found: {memory_id}")]
     MemoryNotFound { memory_id: String },
 

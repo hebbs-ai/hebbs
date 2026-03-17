@@ -38,6 +38,7 @@ fn memories_survive_restart() {
                     context: None,
                     entity_id: Some(format!("entity_{}", i % 10)),
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
             ids.push(mem.memory_id);
@@ -84,6 +85,7 @@ fn concurrent_writes_no_corruption() {
                             context: None,
                             entity_id: Some(format!("thread_{}", thread_id)),
                             edges: vec![],
+                            kind: None,
                         })
                         .unwrap();
                     ids.push(mem.memory_id);
@@ -148,6 +150,7 @@ fn delete_then_get_returns_not_found() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -175,6 +178,7 @@ fn list_by_entity_rocksdb() {
                     "odd".to_string()
                 }),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -249,6 +253,7 @@ fn concurrent_read_write_no_interference() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         pre_ids.push(mem.memory_id);
@@ -268,6 +273,7 @@ fn concurrent_read_write_no_interference() {
                     context: None,
                     entity_id: None,
                     edges: vec![],
+                    kind: None,
                 })
                 .unwrap();
         }
@@ -313,6 +319,7 @@ fn context_survives_rocksdb_roundtrip() {
             context: Some(ctx.clone()),
             entity_id: Some("ctx_test".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -371,6 +378,7 @@ fn ulid_time_sorting() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         ids.push(mem.memory_id);
@@ -400,6 +408,7 @@ fn remember_stores_embedding_rocksdb() {
             context: None,
             entity_id: Some("cust_42".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -433,6 +442,7 @@ fn different_content_different_embeddings() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -443,6 +453,7 @@ fn different_content_different_embeddings() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -465,7 +476,8 @@ fn embedding_survives_restart() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
         original_embedding = mem.embedding.clone();
         memory_id = mem.memory_id;
@@ -505,6 +517,7 @@ fn concurrent_remember_all_have_embeddings() {
                             context: None,
                             entity_id: None,
                             edges: vec![],
+                            kind: None,
                         })
                         .unwrap();
                     assert!(
@@ -671,6 +684,7 @@ fn recall_full_lifecycle_1k_memories() {
                 context: None,
                 entity_id: Some(format!("entity_{}", i % 10)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         all_ids.push(mem.memory_id);
@@ -737,6 +751,7 @@ fn recall_multi_strategy_consistency_rocksdb() {
                 context: None,
                 entity_id: Some("cons_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -807,7 +822,8 @@ fn reinforcement_survives_restart() {
                 context: None,
                 entity_id: Some("reinf_entity".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
         memory_id = mem.memory_id.clone();
 
@@ -850,6 +866,7 @@ fn concurrent_recall_no_panics() {
                 context: None,
                 entity_id: Some("conc_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -891,6 +908,7 @@ fn prime_round_trip_rocksdb() {
                 context: None,
                 entity_id: Some("prime_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -956,6 +974,7 @@ fn causal_recall_no_edges_rocksdb() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -981,6 +1000,7 @@ fn causal_recall_with_edges_rocksdb() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
     let mut root_id = [0u8; 16];
@@ -997,6 +1017,7 @@ fn causal_recall_with_edges_rocksdb() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.95),
             }],
+            kind: None,
         })
         .unwrap();
     let mut effect1_id = [0u8; 16];
@@ -1013,6 +1034,7 @@ fn causal_recall_with_edges_rocksdb() {
                 edge_type: EdgeType::CausedBy,
                 confidence: Some(0.85),
             }],
+            kind: None,
         })
         .unwrap();
 
@@ -1056,6 +1078,7 @@ fn recall_at_10k_scale() {
                 context: None,
                 entity_id: Some(format!("entity_{}", i % 100)),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -1098,6 +1121,7 @@ fn revise_roundtrip_rocksdb() {
             context: None,
             entity_id: Some("revise_test".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1136,7 +1160,8 @@ fn revise_survives_restart() {
                 context: None,
                 entity_id: Some("restart_revise".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
         memory_id = mem.memory_id.clone();
 
@@ -1171,6 +1196,7 @@ fn revise_re_embeds_on_content_change_rocksdb() {
             context: None,
             entity_id: Some("re_embed_test".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1229,6 +1255,7 @@ fn revise_creates_predecessor_snapshot_rocksdb() {
             context: None,
             entity_id: Some("snapshot_entity".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1290,6 +1317,7 @@ fn forget_by_id_rocksdb() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         ids.push(mem.memory_id);
@@ -1333,6 +1361,7 @@ fn forget_by_entity_rocksdb() {
                 context: None,
                 entity_id: Some("alpha".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -1346,6 +1375,7 @@ fn forget_by_entity_rocksdb() {
                 context: None,
                 entity_id: Some("beta".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         beta_ids.push(mem.memory_id);
@@ -1384,6 +1414,7 @@ fn forget_by_entity_after_compaction_rocksdb() {
                 context: None,
                 entity_id: Some("user_prefs".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -1395,6 +1426,7 @@ fn forget_by_entity_after_compaction_rocksdb() {
             context: None,
             entity_id: Some("meetings".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1438,6 +1470,7 @@ fn forget_creates_tombstones_rocksdb() {
             context: None,
             entity_id: Some("tombstone_entity".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1489,6 +1522,7 @@ fn forget_cascade_deletes_snapshots_rocksdb() {
             context: None,
             entity_id: Some("cascade_entity".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1556,6 +1590,7 @@ fn revise_then_forget_lifecycle() {
                 context: None,
                 entity_id: Some("lifecycle_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         ids.push(mem.memory_id);
@@ -1632,6 +1667,7 @@ fn forget_similarity_search_cleanup_rocksdb() {
                 context: None,
                 entity_id: Some("cleanup_entity".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         ids.push(mem.memory_id);
@@ -1683,6 +1719,7 @@ fn concurrent_revise_no_corruption() {
                             context: None,
                             entity_id: Some(format!("conc_thread_{}", t)),
                             edges: vec![],
+                            kind: None,
                         })
                         .unwrap();
                     ids.push(mem.memory_id);
@@ -1737,6 +1774,7 @@ fn tombstone_gc_rocksdb() {
             context: None,
             entity_id: None,
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1835,7 +1873,8 @@ fn subscribe_basic_lifecycle() {
                 context: None,
                 entity_id: Some("acme".to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
     }
 
@@ -1864,6 +1903,7 @@ fn subscribe_entity_isolation() {
             context: None,
             entity_id: Some("alpha".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1874,6 +1914,7 @@ fn subscribe_entity_isolation() {
             context: None,
             entity_id: Some("beta".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1905,6 +1946,7 @@ fn subscribe_dedup_prevents_repeated_push() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1943,6 +1985,7 @@ fn subscribe_close_is_clean() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -1967,6 +2010,7 @@ fn subscribe_pause_resume() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -2008,7 +2052,8 @@ fn subscribe_multiple_concurrent() {
                 context: None,
                 entity_id: Some(entity.to_string()),
                 edges: vec![],
-            })
+            kind: None,
+        })
             .unwrap();
     }
 
@@ -2049,6 +2094,7 @@ fn subscribe_new_write_during_subscription() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -2067,6 +2113,7 @@ fn subscribe_new_write_during_subscription() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -2090,6 +2137,7 @@ fn subscribe_stats_track_chunks() {
             context: None,
             entity_id: Some("acme".to_string()),
             edges: vec![],
+            kind: None,
         })
         .unwrap();
 
@@ -2127,6 +2175,7 @@ fn subscribe_backpressure_drops_oldest() {
                 context: None,
                 entity_id: Some("acme".to_string()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
     }
@@ -2188,6 +2237,7 @@ fn populate_memories(engine: &Engine, entity: &str, count: usize) -> Vec<Vec<u8>
                 context: None,
                 entity_id: Some(entity.into()),
                 edges: vec![],
+                kind: None,
             })
             .unwrap();
         ids.push(mem.memory_id.clone());

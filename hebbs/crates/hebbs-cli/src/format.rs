@@ -199,6 +199,8 @@ pub fn format_kind(kind_i32: i32) -> String {
         Ok(pb::MemoryKind::Episode) => "episode".to_string(),
         Ok(pb::MemoryKind::Insight) => "insight".to_string(),
         Ok(pb::MemoryKind::Revision) => "revision".to_string(),
+        Ok(pb::MemoryKind::Document) => "document".to_string(),
+        Ok(pb::MemoryKind::Proposition) => "proposition".to_string(),
         _ => "unknown".to_string(),
     }
 }
@@ -331,8 +333,11 @@ fn parse_edge_type(s: &str) -> Result<pb::EdgeType, String> {
         "revised_from" => Ok(pb::EdgeType::RevisedFrom),
         "insight_from" => Ok(pb::EdgeType::InsightFrom),
         "contradicts" => Ok(pb::EdgeType::Contradicts),
+        "has_entity" => Ok(pb::EdgeType::HasEntity),
+        "entity_relation" => Ok(pb::EdgeType::EntityRelation),
+        "proposition_of" => Ok(pb::EdgeType::PropositionOf),
         _ => Err(format!(
-            "Unknown edge type '{}'. Valid types: caused_by, related_to, followed_by, revised_from, insight_from, contradicts",
+            "Unknown edge type '{}'. Valid types: caused_by, related_to, followed_by, revised_from, insight_from, contradicts, has_entity, entity_relation, proposition_of",
             s
         )),
     }
@@ -346,6 +351,9 @@ pub fn format_edge_type(et: i32) -> &'static str {
         Ok(pb::EdgeType::RevisedFrom) => "revised_from",
         Ok(pb::EdgeType::InsightFrom) => "insight_from",
         Ok(pb::EdgeType::Contradicts) => "contradicts",
+        Ok(pb::EdgeType::HasEntity) => "has_entity",
+        Ok(pb::EdgeType::EntityRelation) => "entity_relation",
+        Ok(pb::EdgeType::PropositionOf) => "proposition_of",
         _ => "unknown",
     }
 }

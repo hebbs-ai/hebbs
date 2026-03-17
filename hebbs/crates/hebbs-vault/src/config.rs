@@ -21,8 +21,10 @@ pub struct VaultConfig {
     pub decay: DecayConfig,
     #[serde(default)]
     pub contradiction: ContradictionConfig,
+    #[serde(default, alias = "reflect_llm")]
+    pub llm: LlmConfig,
     #[serde(default)]
-    pub reflect_llm: ReflectLlmConfig,
+    pub extraction: ExtractionConfig,
     #[serde(default)]
     pub query_log: QueryLogConfig,
 }
@@ -126,19 +128,18 @@ pub struct ContradictionConfig {
     pub min_confidence: f32,
 }
 
-/// LLM provider configuration for the reflect subsystem.
+/// LLM provider configuration. Required for all HEBBS subsystems.
 ///
-/// When `provider` and `model` are set, features like cluster labeling
-/// can use the LLM for higher-quality output. Falls back to heuristics
-/// when unconfigured.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct ReflectLlmConfig {
+/// When configured, enables autonomous contradiction detection, reflection,
+/// and proposition extraction. `hebbs init` requires LLM configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmConfig {
     /// Provider name: "anthropic", "openai", "gemini", "ollama".
     #[serde(default)]
-    pub provider: Option<String>,
-    /// Model identifier (e.g. "claude-sonnet-4-20250514", "gpt-4o-mini").
+    pub provider: String,
+    /// Model identifier (e.g. "claude-haiku-4-5-20251001", "gpt-4o-mini").
     #[serde(default)]
-    pub model: Option<String>,
+    pub model: String,
     /// API key. For security, prefer `api_key_env` instead.
     #[serde(default)]
     pub api_key: Option<String>,
@@ -150,7 +151,19 @@ pub struct ReflectLlmConfig {
     pub base_url: Option<String>,
 }
 
-impl ReflectLlmConfig {
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            provider: String::new(),
+            model: String::new(),
+            api_key: None,
+            api_key_env: None,
+            base_url: None,
+        }
+    }
+}
+
+impl LlmConfig {
     /// Resolve the API key from either the direct value or the environment variable.
     pub fn resolved_api_key(&self) -> Option<String> {
         if let Some(ref key) = self.api_key {
@@ -170,8 +183,59 @@ impl ReflectLlmConfig {
 
     /// Returns true if both provider and model are configured.
     pub fn is_configured(&self) -> bool {
-        self.provider.is_some() && self.model.is_some()
+        !self.provider.is_empty() && !self.model.is_empty()
     }
+
+    /// Build an `LlmProviderConfig` from this config.
+    pub fn to_provider_config(&self) -> hebbs_llm::LlmProviderConfig {
+        hebbs_llm::LlmProviderConfig {
+            provider_type: hebbs_llm::ProviderType::from_name(&self.provider),
+            api_key: self.resolved_api_key(),
+            base_url: self.base_url.clone(),
+            model: self.model.clone(),
+            timeout_secs: 60,
+            max_retries: 3,
+            retry_backoff_ms: 1000,
+        }
+    }
+
+    /// Create an LLM provider from this config.
+    pub fn create_provider(&self) -> std::result::Result<Box<dyn hebbs_llm::LlmProvider>, hebbs_llm::LlmError> {
+        let config = self.to_provider_config();
+        hebbs_llm::create_provider(&config)
+    }
+}
+
+/// Backward-compatible type alias.
+pub type ReflectLlmConfig = LlmConfig;
+
+/// Configuration for LLM-based content extraction.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExtractionConfig {
+    /// Files larger than this (in tokens, estimated as chars/4) get
+    /// heading-split extraction with document summary.
+    #[serde(default = "default_large_file_threshold")]
+    pub large_file_threshold: usize,
+    /// Maximum propositions to extract per file.
+    #[serde(default = "default_max_propositions_per_file")]
+    pub max_propositions_per_file: usize,
+}
+
+impl Default for ExtractionConfig {
+    fn default() -> Self {
+        Self {
+            large_file_threshold: default_large_file_threshold(),
+            max_propositions_per_file: default_max_propositions_per_file(),
+        }
+    }
+}
+
+fn default_large_file_threshold() -> usize {
+    4096
+}
+
+fn default_max_propositions_per_file() -> usize {
+    200
 }
 
 /// Query audit log configuration.
@@ -278,10 +342,10 @@ fn default_min_section_length() -> usize {
     50
 }
 fn default_model() -> String {
-    "bge-small-en-v1.5".to_string()
+    "embeddinggemma-300m".to_string()
 }
 fn default_dimensions() -> usize {
-    384
+    768
 }
 fn default_batch_size() -> usize {
     50
@@ -545,7 +609,7 @@ mod tests {
         let config = VaultConfig::default();
         assert_eq!(config.chunking.split_on, "##");
         assert_eq!(config.chunking.min_section_length, 50);
-        assert_eq!(config.embedding.dimensions, 384);
+        assert_eq!(config.embedding.dimensions, 768);
         assert_eq!(config.watch.phase1_debounce_ms, 500);
         assert_eq!(config.watch.phase2_debounce_ms, 3000);
         assert_eq!(config.output.insight_dir, "insights/");

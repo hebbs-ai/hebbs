@@ -78,6 +78,7 @@ pub fn generate_memories(count: usize, seed: u64) -> Vec<RememberInput> {
             context: Some(context),
             entity_id: Some(entity.to_string()),
             edges: Vec::new(),
+            kind: None,
         });
     }
 

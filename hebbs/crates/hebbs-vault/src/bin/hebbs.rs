@@ -98,6 +98,27 @@ enum Commands {
         /// Reinitialize even if .hebbs/ already exists
         #[arg(long)]
         force: bool,
+        /// LLM provider: anthropic, openai, gemini, ollama
+        #[arg(long)]
+        provider: Option<String>,
+        /// LLM model identifier (e.g. claude-haiku-4-5-20251001)
+        #[arg(long)]
+        model: Option<String>,
+        /// Environment variable name holding the API key
+        #[arg(long)]
+        api_key_env: Option<String>,
+        /// LLM API key (prefer --api-key-env for security)
+        #[arg(long)]
+        api_key: Option<String>,
+        /// Base URL override for LLM provider
+        #[arg(long)]
+        base_url: Option<String>,
+    },
+
+    /// View or modify vault configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
     },
 
     /// Index all markdown files in the vault
@@ -426,6 +447,24 @@ enum KindArg {
     Revision,
 }
 
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Set a configuration value (dot-notation: llm.provider, llm.model)
+    Set {
+        /// Configuration key (dot-notation)
+        key: String,
+        /// Value to set
+        value: String,
+    },
+    /// Get a configuration value
+    Get {
+        /// Configuration key (dot-notation)
+        key: String,
+    },
+    /// Show full configuration
+    Show,
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  Entry Point
 // ═══════════════════════════════════════════════════════════════════════
@@ -483,6 +522,7 @@ async fn run(cli: Cli) -> i32 {
     // Commands that bypass the daemon entirely
     match &cli.command {
         Commands::Init { .. }
+        | Commands::Config { .. }
         | Commands::Version
         | Commands::Serve { .. }
         | Commands::Panel { .. }
@@ -587,14 +627,16 @@ async fn setup_engine(
         }));
     }
 
-    let _config = VaultConfig::load(&hebbs_dir)?;
+    let config = VaultConfig::load(&hebbs_dir)?;
 
     let db_path = hebbs_dir.join("index").join("db");
     std::fs::create_dir_all(&db_path)?;
     let storage = Arc::new(hebbs_storage::RocksDbBackend::open(&db_path)?);
 
-    let model_dir = hebbs_dir.join("index");
-    let embed_config = hebbs_embed::EmbedderConfig::default_bge_small(&model_dir);
+    // Use OS cache dir for model files (macOS: ~/Library/Caches/hebbs, Linux: ~/.cache/hebbs).
+    // This survives vault and daemon cleanup, so model is only downloaded once ever.
+    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
+    std::fs::create_dir_all(&embed_config.model_dir)?;
     let embedder: Arc<dyn Embedder> = Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?);
 
     let engine = Engine::new(storage, embedder.clone())?;
@@ -705,6 +747,11 @@ async fn run_local(cli: Cli) -> i32 {
         Commands::Init {
             ref vault_path,
             force,
+            ref provider,
+            ref model,
+            ref api_key_env,
+            ref api_key,
+            ref base_url,
         } => {
             let path = match vault_path.as_ref().or(cli.vault.as_ref()) {
                 Some(p) => p.clone(),
@@ -713,10 +760,93 @@ async fn run_local(cli: Cli) -> i32 {
                     return 1;
                 }
             };
-            match hebbs_vault::init(&path, force) {
+            let llm_config = if provider.is_some() || model.is_some() {
+                Some(hebbs_vault::config::LlmConfig {
+                    provider: provider.clone().unwrap_or_default(),
+                    model: model.clone().unwrap_or_default(),
+                    api_key: api_key.clone(),
+                    api_key_env: api_key_env.clone(),
+                    base_url: base_url.clone(),
+                })
+            } else {
+                None
+            };
+            match hebbs_vault::init_with_llm(&path, force, llm_config) {
                 Ok(()) => {
                     register_vault(&path);
                     println!("Initialized vault at {}", path.display());
+
+                    // Pre-download embedding model into OS cache dir so daemon starts instantly.
+                    // ~/Library/Caches/hebbs on macOS — survives all vault/daemon cleanups.
+                    let config = VaultConfig::load(&path.join(".hebbs").join("config.toml"))
+                        .unwrap_or_default();
+                    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
+                        &config.embedding.model,
+                    );
+                    std::fs::create_dir_all(&embed_config.model_dir).ok();
+                    println!("Ensuring embedding model ({})...", config.embedding.model);
+                    match hebbs_embed::ensure_model_files(&embed_config) {
+                        Ok(_) => println!("Embedding model ready."),
+                        Err(e) => {
+                            eprintln!("Warning: model download failed: {}", e);
+                            eprintln!("The daemon will retry on first start.");
+                        }
+                    }
+
+                    // Count markdown files so user knows what's coming
+                    let md_count = count_md_files(&path);
+
+                    // Start daemon and index (model is cached, so daemon starts fast)
+                    println!("Starting daemon...");
+                    match client::ensure_daemon().await {
+                        Ok(mut daemon) => {
+                            println!(
+                                "Indexing {} markdown file(s) with LLM extraction \
+                                 (proposition + entity extraction via Ollama)...",
+                                md_count
+                            );
+                            println!("  This runs once. Subsequent starts are instant.");
+
+                            let request = DaemonRequest {
+                                command: DaemonCommand::Index,
+                                vault_path: Some(path.clone()),
+                                vault_paths: None,
+                                caller: "cli".to_string(),
+                            };
+
+                            match daemon.send(&request).await {
+                                Ok(resp) if resp.status == ResponseStatus::Ok => {
+                                    if let Some(data) = &resp.data {
+                                        let embedded = data.get("sections_embedded")
+                                            .and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let remembered = data.get("sections_remembered")
+                                            .and_then(|v| v.as_u64()).unwrap_or(0);
+                                        println!(
+                                            "Indexed: {} sections embedded, {} memories created.",
+                                            embedded, remembered
+                                        );
+                                    } else {
+                                        println!("Indexing complete.");
+                                    }
+                                }
+                                Ok(resp) => {
+                                    eprintln!(
+                                        "Warning: indexing failed: {}",
+                                        resp.error.unwrap_or_default()
+                                    );
+                                }
+                                Err(e) => {
+                                    eprintln!("Warning: could not index via daemon: {}", e);
+                                    eprintln!("Run `hebbs index` to index your vault.");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: could not start daemon: {}", e);
+                            eprintln!("Run `hebbs serve` then `hebbs index` to index your vault.");
+                        }
+                    }
+
                     0
                 }
                 Err(e) => {
@@ -954,11 +1084,99 @@ async fn run_local(cli: Cli) -> i32 {
                     if let Some(le) = s.last_embedded {
                         println!("Last phase 2: {}", le.format("%Y-%m-%d %H:%M:%S UTC"));
                     }
+                    if s.llm_provider.is_some() || s.llm_model.is_some() {
+                        println!();
+                        println!("LLM:");
+                        if let Some(ref p) = s.llm_provider {
+                            println!("  provider: {}", p);
+                        }
+                        if let Some(ref m) = s.llm_model {
+                            println!("  model:    {}", m);
+                        }
+                    }
                     0
                 }
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     1
+                }
+            }
+        }
+
+        Commands::Config { ref action } => {
+            let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                Ok(p) => p,
+                Err(code) => return code,
+            };
+            let hebbs_dir = path.join(".hebbs");
+            match action {
+                ConfigAction::Show => {
+                    match VaultConfig::load(&hebbs_dir) {
+                        Ok(config) => {
+                            match toml::to_string_pretty(&config) {
+                                Ok(s) => {
+                                    println!("{}", s);
+                                    0
+                                }
+                                Err(e) => {
+                                    eprintln!("Error serializing config: {}", e);
+                                    1
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
+                }
+                ConfigAction::Get { key } => {
+                    match VaultConfig::load(&hebbs_dir) {
+                        Ok(config) => {
+                            match config_get(&config, key) {
+                                Some(val) => {
+                                    println!("{}", val);
+                                    0
+                                }
+                                None => {
+                                    eprintln!("Unknown config key: {}", key);
+                                    1
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
+                }
+                ConfigAction::Set { key, value } => {
+                    match VaultConfig::load(&hebbs_dir) {
+                        Ok(mut config) => {
+                            match config_set(&mut config, key, value) {
+                                Ok(()) => {
+                                    match config.save(&hebbs_dir) {
+                                        Ok(()) => {
+                                            println!("Set {} = {}", key, value);
+                                            0
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Error saving config: {}", e);
+                                            1
+                                        }
+                                    }
+                                }
+                                Err(msg) => {
+                                    eprintln!("Error: {}", msg);
+                                    1
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
                 }
             }
         }
@@ -1007,6 +1225,7 @@ async fn run_local(cli: Cli) -> i32 {
                         context: ctx,
                         entity_id: entity_id.clone(),
                         edges,
+                        kind: None,
                     };
 
                     match engine.remember(input) {
@@ -1754,11 +1973,88 @@ async fn run_local(cli: Cli) -> i32 {
             1
         }
 
-        Commands::Reflect { .. } => {
-            eprintln!(
-                "Reflect (full pipeline) is not yet supported in local mode. Use reflect-prepare/reflect-commit instead."
-            );
-            1
+        Commands::Reflect {
+            ref entity_id,
+            since_us,
+        } => {
+            let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                Ok(p) => p,
+                Err(code) => return code,
+            };
+            match setup_engine(&path).await {
+                Ok((engine, _)) => {
+                    let hebbs_dir = path.join(".hebbs");
+                    let vault_config = match VaultConfig::load(&hebbs_dir) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("Error loading vault config: {}", e);
+                            return 1;
+                        }
+                    };
+                    if !vault_config.llm.is_configured() {
+                        eprintln!("Error: LLM not configured. Set [llm] in .hebbs/config.toml or run `hebbs init` with --provider/--model.");
+                        return 1;
+                    }
+                    let provider_config = vault_config.llm.to_provider_config();
+                    let proposal_provider = match hebbs_reflect::create_provider(&provider_config) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("Error creating proposal LLM provider: {}", e);
+                            return 1;
+                        }
+                    };
+                    let validation_provider = match hebbs_reflect::create_provider(&provider_config) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("Error creating validation LLM provider: {}", e);
+                            return 1;
+                        }
+                    };
+
+                    let scope = build_reflect_scope(entity_id.clone(), since_us);
+                    let config = ReflectConfig {
+                        proposal_provider_config: provider_config.clone(),
+                        validation_provider_config: provider_config,
+                        ..ReflectConfig::default()
+                    };
+
+                    match engine.reflect(
+                        scope,
+                        &config,
+                        proposal_provider.as_ref(),
+                        validation_provider.as_ref(),
+                    ) {
+                        Ok(result) => {
+                            if is_json_format(&cli.format) {
+                                let json = serde_json::json!({
+                                    "insights_created": result.insights_created,
+                                    "clusters_found": result.clusters_found,
+                                    "clusters_processed": result.clusters_processed,
+                                    "memories_processed": result.memories_processed,
+                                });
+                                println!("{}", serde_json::to_string_pretty(&json).unwrap_or_default());
+                            } else {
+                                println!(
+                                    "Reflect complete: {} insights created from {} clusters ({} processed), {} memories scanned.",
+                                    result.insights_created,
+                                    result.clusters_found,
+                                    result.clusters_processed,
+                                    result.memories_processed,
+                                );
+                            }
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Reflect error: {}", e);
+                            1
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error setting up engine: {}", e);
+                    1
+                }
+            }
         }
 
         Commands::Subscribe { .. } | Commands::Feed { .. } => {
@@ -1829,11 +2125,17 @@ async fn run_local(cli: Cli) -> i32 {
             idle_timeout,
             panel_port,
         } => {
-            let config = match hebbs_vault::daemon::DaemonConfig::default_config() {
+            let daemon_config = match hebbs_vault::daemon::DaemonConfig::default_config() {
                 Some(mut c) => {
                     c.foreground = foreground;
                     c.idle_timeout_secs = idle_timeout;
                     c.panel_port = panel_port;
+                    // Try to pick embedding model from current vault's config
+                    if let Ok(cwd) = std::env::current_dir() {
+                        if let Ok(vc) = VaultConfig::load(&cwd.join(".hebbs")) {
+                            c.embedding_model = vc.embedding.model.clone();
+                        }
+                    }
                     c
                 }
                 None => {
@@ -1841,7 +2143,7 @@ async fn run_local(cli: Cli) -> i32 {
                     return 1;
                 }
             };
-            match hebbs_vault::daemon::run_daemon(config).await {
+            match hebbs_vault::daemon::run_daemon(daemon_config).await {
                 Ok(()) => 0,
                 Err(e) => {
                     eprintln!("Daemon error: {}", e);
@@ -2153,6 +2455,7 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
         }),
         // These are handled before reaching daemon mode or not supported via daemon
         Commands::Init { .. }
+        | Commands::Config { .. }
         | Commands::Version
         | Commands::Serve { .. }
         | Commands::Panel { .. }
@@ -2310,6 +2613,18 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 "  orphaned:      {}",
                 data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0)
             );
+            let llm_provider = data.get("llm_provider").and_then(|v| v.as_str());
+            let llm_model = data.get("llm_model").and_then(|v| v.as_str());
+            if llm_provider.is_some() || llm_model.is_some() {
+                println!();
+                println!("LLM:");
+                if let Some(p) = llm_provider {
+                    println!("  provider: {}", p);
+                }
+                if let Some(m) = llm_model {
+                    println!("  model:    {}", m);
+                }
+            }
         }
         Commands::Watch { .. } => {
             // Watch is merged into serve (Milestone 3). The daemon auto-starts
@@ -2747,6 +3062,7 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
         Commands::Version => Some(hebbs_cli::cli::Commands::Version),
         // Vault-only commands: not available in remote mode
         Commands::Init { .. }
+        | Commands::Config { .. }
         | Commands::Index { .. }
         | Commands::Watch { .. }
         | Commands::Rebuild { .. }
@@ -2763,6 +3079,98 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
 // ═══════════════════════════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Get a config value by dot-notation key.
+/// Recursively count .md files under `dir`, skipping `.hebbs/` subtrees.
+fn count_md_files(dir: &std::path::Path) -> usize {
+    fn walk(dir: &std::path::Path, count: &mut usize) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|n| n.to_str()) != Some(".hebbs") {
+                    walk(&path, count);
+                }
+            } else if path.extension().and_then(|x| x.to_str()) == Some("md") {
+                *count += 1;
+            }
+        }
+    }
+    let mut n = 0;
+    walk(dir, &mut n);
+    n
+}
+
+fn config_get(config: &VaultConfig, key: &str) -> Option<String> {
+    match key {
+        "llm.provider" => Some(config.llm.provider.clone()),
+        "llm.model" => Some(config.llm.model.clone()),
+        "llm.api_key_env" => Some(config.llm.api_key_env.clone().unwrap_or_default()),
+        "llm.base_url" => Some(config.llm.base_url.clone().unwrap_or_default()),
+        "chunking.split_on" => Some(config.chunking.split_on.clone()),
+        "chunking.min_section_length" => Some(config.chunking.min_section_length.to_string()),
+        "embedding.model" => Some(config.embedding.model.clone()),
+        "embedding.dimensions" => Some(config.embedding.dimensions.to_string()),
+        "embedding.batch_size" => Some(config.embedding.batch_size.to_string()),
+        "contradiction.enabled" => Some(config.contradiction.enabled.to_string()),
+        "contradiction.candidates_k" => Some(config.contradiction.candidates_k.to_string()),
+        "contradiction.min_similarity" => Some(config.contradiction.min_similarity.to_string()),
+        "contradiction.min_confidence" => Some(config.contradiction.min_confidence.to_string()),
+        "extraction.large_file_threshold" => Some(config.extraction.large_file_threshold.to_string()),
+        "extraction.max_propositions_per_file" => Some(config.extraction.max_propositions_per_file.to_string()),
+        _ => None,
+    }
+}
+
+/// Set a config value by dot-notation key.
+fn config_set(config: &mut VaultConfig, key: &str, value: &str) -> std::result::Result<(), String> {
+    match key {
+        "llm.provider" => config.llm.provider = value.to_string(),
+        "llm.model" => config.llm.model = value.to_string(),
+        "llm.api_key_env" => config.llm.api_key_env = Some(value.to_string()),
+        "llm.base_url" => config.llm.base_url = Some(value.to_string()),
+        "chunking.split_on" => config.chunking.split_on = value.to_string(),
+        "chunking.min_section_length" => {
+            config.chunking.min_section_length = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        "embedding.model" => config.embedding.model = value.to_string(),
+        "embedding.dimensions" => {
+            config.embedding.dimensions = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        "embedding.batch_size" => {
+            config.embedding.batch_size = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        "contradiction.enabled" => {
+            config.contradiction.enabled = value.parse::<bool>()
+                .map_err(|_| format!("invalid bool: {}", value))?;
+        }
+        "contradiction.candidates_k" => {
+            config.contradiction.candidates_k = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        "contradiction.min_similarity" => {
+            config.contradiction.min_similarity = value.parse::<f32>()
+                .map_err(|_| format!("invalid f32: {}", value))?;
+        }
+        "contradiction.min_confidence" => {
+            config.contradiction.min_confidence = value.parse::<f32>()
+                .map_err(|_| format!("invalid f32: {}", value))?;
+        }
+        "extraction.large_file_threshold" => {
+            config.extraction.large_file_threshold = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        "extraction.max_propositions_per_file" => {
+            config.extraction.max_propositions_per_file = value.parse::<usize>()
+                .map_err(|_| format!("invalid usize: {}", value))?;
+        }
+        _ => return Err(format!("unknown config key: {}", key)),
+    }
+    Ok(())
+}
 
 fn is_json_format(fmt: &Option<FormatArg>) -> bool {
     matches!(fmt, Some(FormatArg::Json))
