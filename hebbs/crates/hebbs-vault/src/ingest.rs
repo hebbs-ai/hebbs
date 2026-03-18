@@ -235,6 +235,29 @@ pub async fn phase2_ingest(
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
 ) -> Result<Phase2Stats> {
+    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, true).await
+}
+
+/// Phase 2 variant that skips LLM contradiction detection.
+/// Used during initial full index where there are no existing memories to contradict against.
+pub async fn phase2_ingest_no_contradict(
+    vault_root: &Path,
+    manifest: &mut Manifest,
+    engine: &Engine,
+    embedder: &Arc<dyn Embedder>,
+    config: &VaultConfig,
+) -> Result<Phase2Stats> {
+    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, false).await
+}
+
+async fn phase2_ingest_inner(
+    vault_root: &Path,
+    manifest: &mut Manifest,
+    engine: &Engine,
+    embedder: &Arc<dyn Embedder>,
+    config: &VaultConfig,
+    run_contradictions: bool,
+) -> Result<Phase2Stats> {
     // Create LLM provider from vault config when available for autonomous
     // contradiction resolution. Falls back to heuristic path on failure.
     let llm_provider: Option<Arc<dyn hebbs_llm::LlmProvider>> =
@@ -416,7 +439,7 @@ pub async fn phase2_ingest(
                     arr.copy_from_slice(engine_id_bytes);
 
                     // Run contradiction detection on the new memory
-                    if config.contradiction.enabled {
+                    if config.contradiction.enabled && run_contradictions {
                         let core_config = config.contradiction.to_core_config();
                         match engine.check_contradictions(&arr, &core_config, llm_provider.as_deref()) {
                             Ok(check_output) => {
@@ -605,13 +628,18 @@ pub async fn phase2_ingest(
 
     // Triple-layer extraction: when LLM is available, extract propositions and entities
     // from files that were newly processed. Only runs for files that had new sections.
+    // Skip on first index (run_contradictions=false) for speed -- extraction runs on next change.
     if let Some(ref provider) = llm_provider {
         // Collect unique file paths that had new items processed
         let mut extraction_files: HashSet<String> = HashSet::new();
+        if run_contradictions {
         for (rel_path, _, _, _) in &new_items {
             if processed_ids.iter().any(|(rp, _)| rp == rel_path) {
                 extraction_files.insert(rel_path.clone());
             }
+        }
+        } else {
+            info!("phase2: skipping LLM extraction on first index (will run on file changes)");
         }
 
         for rel_path in &extraction_files {

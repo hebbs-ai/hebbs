@@ -159,6 +159,9 @@ enum Commands {
         /// HTTP port for the Memory Palace panel (0 to disable)
         #[arg(long, default_value = "6381")]
         panel_port: u16,
+        /// Initial vault path for the panel to open on startup
+        #[arg(long)]
+        initial_vault: Option<PathBuf>,
     },
 
     /// Open the Memory Palace control panel in a browser
@@ -203,7 +206,7 @@ enum Commands {
         #[arg(short, long, value_enum)]
         strategy: Option<StrategyArg>,
         /// Maximum results to return
-        #[arg(short = 'k', long, default_value = "10")]
+        #[arg(short = 'k', long, default_value = "5")]
         top_k: u32,
         /// Entity ID (required for temporal strategy)
         #[arg(short, long)]
@@ -761,6 +764,7 @@ async fn run_local(cli: Cli) -> i32 {
                 }
             };
             let llm_config = if provider.is_some() || model.is_some() {
+                // Flags provided, use them directly.
                 Some(hebbs_vault::config::LlmConfig {
                     provider: provider.clone().unwrap_or_default(),
                     model: model.clone().unwrap_or_default(),
@@ -768,7 +772,11 @@ async fn run_local(cli: Cli) -> i32 {
                     api_key_env: api_key_env.clone(),
                     base_url: base_url.clone(),
                 })
+            } else if std::io::stdin().is_terminal() {
+                // Interactive mode: ask the user which LLM provider to use.
+                interactive_llm_setup()
             } else {
+                // Non-interactive (piped stdin), skip LLM config.
                 None
             };
             match hebbs_vault::init_with_llm(&path, force, llm_config) {
@@ -796,50 +804,34 @@ async fn run_local(cli: Cli) -> i32 {
                     // Count markdown files so user knows what's coming
                     let md_count = count_md_files(&path);
 
-                    // Start daemon and index (model is cached, so daemon starts fast)
+                    // Start daemon in the background (does NOT block on indexing)
                     println!("Starting daemon...");
                     match client::ensure_daemon().await {
                         Ok(mut daemon) => {
-                            println!(
-                                "Indexing {} markdown file(s) with LLM extraction \
-                                 (proposition + entity extraction via Ollama)...",
-                                md_count
-                            );
-                            println!("  This runs once. Subsequent starts are instant.");
-
+                            // Fire-and-forget: send Index command without waiting for completion.
+                            // The daemon processes it asynchronously; the CLI returns immediately.
                             let request = DaemonRequest {
                                 command: DaemonCommand::Index,
                                 vault_path: Some(path.clone()),
                                 vault_paths: None,
                                 caller: "cli".to_string(),
                             };
-
-                            match daemon.send(&request).await {
-                                Ok(resp) if resp.status == ResponseStatus::Ok => {
-                                    if let Some(data) = &resp.data {
-                                        let embedded = data.get("sections_embedded")
-                                            .and_then(|v| v.as_u64()).unwrap_or(0);
-                                        let remembered = data.get("sections_remembered")
-                                            .and_then(|v| v.as_u64()).unwrap_or(0);
-                                        println!(
-                                            "Indexed: {} sections embedded, {} memories created.",
-                                            embedded, remembered
-                                        );
-                                    } else {
-                                        println!("Indexing complete.");
-                                    }
-                                }
-                                Ok(resp) => {
-                                    eprintln!(
-                                        "Warning: indexing failed: {}",
-                                        resp.error.unwrap_or_default()
-                                    );
-                                }
+                            // Send the request but don't await the response.
+                            // Drop the connection; the daemon keeps indexing.
+                            match daemon.send_fire_and_forget(&request).await {
+                                Ok(_) => {}
                                 Err(e) => {
-                                    eprintln!("Warning: could not index via daemon: {}", e);
+                                    eprintln!("Warning: could not start indexing: {}", e);
                                     eprintln!("Run `hebbs index` to index your vault.");
                                 }
                             }
+
+                            println!();
+                            println!("  Your vault is live.");
+                            println!();
+                            println!("  Indexing {} file(s) in the background.", md_count);
+                            println!("  Run `hebbs status` to check progress.");
+                            println!("  Try:  hebbs recall \"your question here\"");
                         }
                         Err(e) => {
                             eprintln!("Warning: could not start daemon: {}", e);
@@ -1230,16 +1222,12 @@ async fn run_local(cli: Cli) -> i32 {
 
                     match engine.remember(input) {
                         Ok(memory) => {
-                            let id = format_memory_id(&memory.memory_id);
                             if is_json_format(&cli.format) {
                                 let json = memory_to_json(&memory);
                                 println!("{}", serde_json::to_string(&json).unwrap_or_default());
                             } else {
-                                println!("Remembered: {}", id);
-                                println!("  importance: {:.2}", memory.importance);
-                                if let Some(ref eid) = memory.entity_id {
-                                    println!("  entity: {}", eid);
-                                }
+                                let preview = truncate(&memory.content, 80);
+                                println!("Remembered: \"{}\"", preview);
                             }
                             0
                         }
@@ -1376,18 +1364,25 @@ async fn run_local(cli: Cli) -> i32 {
                                 if output.results.is_empty() {
                                     println!("No results found for: \"{}\"", cue_str);
                                 } else {
-                                    println!("Found {} result(s):\n", output.results.len());
+                                    println!();
                                     for (i, r) in output.results.iter().enumerate() {
-                                        let id = format_memory_id(&r.memory.memory_id);
                                         let content_preview = truncate(&r.memory.content, 200);
-                                        println!(
-                                            "--- Result {} (score: {:.4}) ---",
-                                            i + 1,
-                                            r.score
-                                        );
-                                        println!("ID:         {}", id);
-                                        println!("Importance: {:.2}", r.memory.importance);
-                                        println!("Content:    {}", content_preview);
+                                        // Extract source from context
+                                        let source = r.memory.context().ok().and_then(|ctx| {
+                                            let file = ctx.get("file_path").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                            let heading = ctx.get("heading_path").and_then(|v| v.as_array()).map(|arr| {
+                                                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" > ")
+                                            });
+                                            match (file, heading) {
+                                                (Some(f), Some(h)) if !h.is_empty() => Some(format!("{} > {}", f, h)),
+                                                (Some(f), _) => Some(f),
+                                                _ => None,
+                                            }
+                                        });
+                                        println!("  {}. {}", i + 1, content_preview);
+                                        if let Some(src) = source {
+                                            println!("     Source: {}", src);
+                                        }
                                         println!();
                                     }
                                 }
@@ -2070,43 +2065,29 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Panel { vault_path, port } => {
-            // Panel runs through the daemon. Ensure it's running, then
-            // tell it which vault to show via the switch endpoint.
-            match client::ensure_daemon_with_opts(Some(port)).await {
+            // Resolve the vault path to open in the panel on startup.
+            // This is passed to the daemon via --initial-vault so the panel
+            // opens the correct vault from frame one (no racy POST switch).
+            let initial_vault = vault_path.as_ref().or(cli.vault.as_ref()).and_then(|vp| {
+                let abs_path = std::fs::canonicalize(vp).unwrap_or_else(|_| vp.clone());
+                if abs_path.join(".hebbs").exists() {
+                    Some(abs_path)
+                } else {
+                    eprintln!(
+                        "Warning: vault not initialized at {}. Panel will use default vault.",
+                        abs_path.display()
+                    );
+                    None
+                }
+            });
+
+            let opts = client::DaemonStartOpts {
+                panel_port: Some(port),
+                initial_vault,
+            };
+            match client::ensure_daemon_full(opts).await {
                 Ok(_daemon) => {
                     let url = format!("http://127.0.0.1:{}", port);
-
-                    // If a vault path was specified, switch the panel to it.
-                    // Retry a few times since the panel HTTP server may still
-                    // be binding when the daemon Unix socket is already up.
-                    if let Some(vp) = vault_path.as_ref().or(cli.vault.as_ref()) {
-                        let abs_path = std::fs::canonicalize(vp).unwrap_or_else(|_| vp.clone());
-                        if abs_path.join(".hebbs").exists() {
-                            let body = serde_json::json!({"path": abs_path.display().to_string()})
-                                .to_string();
-                            let req = format!(
-                                "POST /api/panel/vaults/switch HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                                port, body.len(), body
-                            );
-                            for attempt in 0..5u32 {
-                                if attempt > 0 {
-                                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                                }
-                                if let Ok(mut stream) =
-                                    tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port))
-                                        .await
-                                {
-                                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                                    if stream.write_all(req.as_bytes()).await.is_ok() {
-                                        let mut buf = vec![0u8; 256];
-                                        let _ = stream.read(&mut buf).await;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     println!("Memory Palace running at {}", url);
                     open_browser(&url);
                     println!("Press Ctrl+C to stop.");
@@ -2124,12 +2105,14 @@ async fn run_local(cli: Cli) -> i32 {
             foreground,
             idle_timeout,
             panel_port,
+            ref initial_vault,
         } => {
             let daemon_config = match hebbs_vault::daemon::DaemonConfig::default_config() {
                 Some(mut c) => {
                     c.foreground = foreground;
                     c.idle_timeout_secs = idle_timeout;
                     c.panel_port = panel_port;
+                    c.initial_vault = initial_vault.clone();
                     // Try to pick embedding model from current vault's config
                     if let Ok(cwd) = std::env::current_dir() {
                         if let Ok(vc) = VaultConfig::load(&cwd.join(".hebbs")) {
@@ -2468,15 +2451,16 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
     }
 }
 
+/// Convert Rust error strings into user-friendly sentences.
+fn humanize_error(err: &str) -> String {
+    hebbs_vault::error::humanize_error(err)
+}
+
 /// Render a daemon response for CLI output.
 fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
     if response.status == ResponseStatus::Error {
-        eprintln!(
-            "Error: {}",
-            response
-                .error
-                .unwrap_or_else(|| "unknown error".to_string())
-        );
+        let raw = response.error.unwrap_or_else(|| "unknown error".to_string());
+        eprintln!("Error: {}", humanize_error(&raw));
         return 1;
     }
 
@@ -2502,15 +2486,9 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
     // Human format: render based on command type
     match &cli.command {
         Commands::Remember { .. } => {
-            if let Some(id) = data.get("memory_id").and_then(|v| v.as_str()) {
-                println!("Remembered: {}", id);
-                if let Some(imp) = data.get("importance").and_then(|v| v.as_f64()) {
-                    println!("  importance: {:.2}", imp);
-                }
-                if let Some(eid) = data.get("entity_id").and_then(|v| v.as_str()) {
-                    println!("  entity: {}", eid);
-                }
-            }
+            let content = data.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let preview = truncate(content, 80);
+            println!("Remembered: \"{}\"", preview);
         }
         Commands::Get { .. } | Commands::Inspect { .. } => {
             print_json_memory(&data);
@@ -2520,19 +2498,43 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 if results.is_empty() {
                     println!("No results found.");
                 } else {
-                    println!("Found {} result(s):\n", results.len());
+                    println!();
                     for (i, r) in results.iter().enumerate() {
-                        let id = r.get("memory_id").and_then(|v| v.as_str()).unwrap_or("?");
-                        let score = r.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                        let importance =
-                            r.get("importance").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                        println!("--- Result {} (score: {:.4}) ---", i + 1, score);
-                        println!("ID:         {}", id);
-                        println!("Importance: {:.2}", importance);
-                        println!("Content:    {}", truncate(content, 200));
+                        // Extract source from context
+                        let source = r.get("context").and_then(|ctx| {
+                            let file = ctx.get("file_path").and_then(|v| v.as_str());
+                            let heading = ctx.get("heading_path").and_then(|v| v.as_array()).map(|arr| {
+                                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" > ")
+                            });
+                            match (file, heading) {
+                                (Some(f), Some(h)) if !h.is_empty() => Some(format!("{} > {}", f, h)),
+                                (Some(f), _) => Some(f.to_string()),
+                                _ => None,
+                            }
+                        });
+                        println!("  {}. {}", i + 1, truncate(content, 200));
+                        if let Some(src) = source {
+                            println!("     Source: {}", src);
+                        }
                         println!();
                     }
+                }
+                // Show contradiction warnings when conflicting memories appear together
+                if let Some(conflicts) = data.get("contradictions").and_then(|v| v.as_array()) {
+                    if !conflicts.is_empty() {
+                        println!("  Conflicting information found ({} conflict{}):",
+                            conflicts.len(),
+                            if conflicts.len() == 1 { "" } else { "s" }
+                        );
+                        println!("  Run `hebbs contradictions` to review.");
+                        println!();
+                    }
+                }
+                // Show indexing completeness hint when vault is still being indexed.
+                if let Some(pct) = data.get("indexing_pct").and_then(|v| v.as_u64()) {
+                    println!("  {}% of your vault is indexed. More results may appear as indexing completes.", pct);
+                    println!();
                 }
             }
         }
@@ -2586,44 +2588,64 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             if let Some(root) = data.get("vault_root").and_then(|v| v.as_str()) {
                 println!("Vault: {}", root);
             }
-            println!();
-            println!(
-                "Files:    {} indexed",
-                data.get("total_files")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0)
-            );
-            println!(
-                "Sections: {} total",
-                data.get("total_sections")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0)
-            );
-            println!(
-                "  synced:        {}",
-                data.get("synced").and_then(|v| v.as_u64()).unwrap_or(0)
-            );
-            println!(
-                "  content-stale: {}",
-                data.get("content_stale")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0)
-            );
-            println!(
-                "  orphaned:      {}",
-                data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0)
-            );
+            let total_files = data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
+            let _total_sections = data.get("total_sections").and_then(|v| v.as_u64()).unwrap_or(0);
+            let synced = data.get("synced").and_then(|v| v.as_u64()).unwrap_or(0);
+            let content_stale = data.get("content_stale").and_then(|v| v.as_u64()).unwrap_or(0);
+            let orphaned = data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0);
+            let memories = data.get("total_memories").and_then(|v| v.as_u64()).unwrap_or(synced);
+
+            // Check for live indexing progress from the daemon
+            let live_indexing = data.get("indexing");
+
+            if live_indexing.is_some() || content_stale > 0 {
+                let total_sections = synced + content_stale + orphaned;
+                let pct = if total_sections > 0 { synced * 100 / total_sections } else { 100 };
+                println!("Files:    {} ({}% indexed)", total_files, pct);
+            } else {
+                println!("Files:    {} (all indexed)", total_files);
+            }
+            println!("Memories: {}", memories);
+
+            // Show live indexing progress (phase, file count)
+            if let Some(idx) = live_indexing {
+                let phase = idx.get("phase").and_then(|v| v.as_u64()).unwrap_or(0);
+                let idx_total = idx.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
+                let files_done = idx.get("files_done").and_then(|v| v.as_u64()).unwrap_or(0);
+                let current = idx.get("current_file").and_then(|v| v.as_str()).unwrap_or("");
+                print!("Indexing:  phase {}/2", phase);
+                if idx_total > 0 {
+                    print!(", {}/{} files", files_done, idx_total);
+                }
+                if !current.is_empty() {
+                    print!(" ({})", current);
+                }
+                println!();
+            } else if content_stale > 0 || orphaned > 0 {
+                if content_stale > 0 {
+                    let daemon_watching = data.get("daemon_watching")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    if daemon_watching {
+                        println!("Indexing: waiting for next change to re-index");
+                    } else {
+                        println!("Indexing: incomplete. Run `hebbs index` to finish.");
+                    }
+                }
+                if orphaned > 0 {
+                    println!("Removed:  {} source file(s) deleted", orphaned);
+                }
+            }
+
             let llm_provider = data.get("llm_provider").and_then(|v| v.as_str());
             let llm_model = data.get("llm_model").and_then(|v| v.as_str());
-            if llm_provider.is_some() || llm_model.is_some() {
-                println!();
-                println!("LLM:");
-                if let Some(p) = llm_provider {
-                    println!("  provider: {}", p);
-                }
-                if let Some(m) = llm_model {
-                    println!("  model:    {}", m);
-                }
+            if let (Some(p), Some(m)) = (llm_provider, llm_model) {
+                println!("LLM:      {}/{}", p, m);
+            }
+
+            println!();
+            if live_indexing.is_none() && content_stale == 0 && orphaned == 0 {
+                println!("Everything is up to date.");
             }
         }
         Commands::Watch { .. } => {
@@ -2633,24 +2655,18 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             println!("File watching is built into `hebbs serve`. No separate watcher needed.");
         }
         Commands::Index { .. } => {
-            println!(
-                "Indexed {} files ({} embedded, {} new, {} revised, {} forgotten)",
-                data.get("total_files")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
-                data.get("sections_embedded")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
-                data.get("sections_remembered")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
-                data.get("sections_revised")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
-                data.get("sections_forgotten")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
-            );
+            let total = data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
+            let memories = data.get("sections_remembered").and_then(|v| v.as_u64()).unwrap_or(0);
+            let revised = data.get("sections_revised").and_then(|v| v.as_u64()).unwrap_or(0);
+            let forgotten = data.get("sections_forgotten").and_then(|v| v.as_u64()).unwrap_or(0);
+            print!("Indexed {} file(s). {} memories created", total, memories);
+            if revised > 0 {
+                print!(", {} revised", revised);
+            }
+            if forgotten > 0 {
+                print!(", {} removed", forgotten);
+            }
+            println!(".");
         }
         Commands::List { .. } => {
             if let Some(files) = data.get("files").and_then(|v| v.as_array()) {
@@ -3080,15 +3096,92 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
 //  Helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Get a config value by dot-notation key.
-/// Recursively count .md files under `dir`, skipping `.hebbs/` subtrees.
+/// Interactive LLM provider setup for `hebbs init` when no flags are given.
+/// Returns `None` if the user skips or we cannot read input.
+fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
+    println!();
+    println!("  HEBBS needs an LLM for deep understanding of your notes.");
+    println!("  You can use a cloud provider or a local model via Ollama.");
+    println!();
+    println!("  [1] Ollama (local, free, private)");
+    println!("  [2] Gemini (fast, cheap)");
+    println!("  [3] Anthropic");
+    println!("  [4] OpenAI");
+    println!("  [s] Skip (embedding only, no LLM extraction)");
+    println!();
+    print!("  Choice [1]: ");
+    io::stdout().flush().ok();
+
+    let mut choice = String::new();
+    if io::stdin().read_line(&mut choice).is_err() {
+        return None;
+    }
+    let choice = choice.trim();
+
+    let (provider, default_model) = match choice {
+        "" | "1" => ("ollama", "gemma3:1b"),
+        "2" => ("gemini", "gemini-2.0-flash"),
+        "3" => ("anthropic", "claude-haiku-4-5-20251001"),
+        "4" => ("openai", "gpt-4o-mini"),
+        "s" | "S" => return None,
+        _ => {
+            eprintln!("  Unknown choice '{}', skipping LLM setup.", choice);
+            return None;
+        }
+    };
+
+    // Ask for model (with default)
+    print!("  Model [{}]: ", default_model);
+    io::stdout().flush().ok();
+    let mut model_input = String::new();
+    if io::stdin().read_line(&mut model_input).is_err() {
+        return None;
+    }
+    let model = model_input.trim();
+    let model = if model.is_empty() { default_model } else { model };
+
+    // Ask for API key env var for cloud providers
+    let api_key_env = if provider != "ollama" {
+        let default_env = match provider {
+            "anthropic" => "ANTHROPIC_API_KEY",
+            "openai" => "OPENAI_API_KEY",
+            "gemini" => "GEMINI_API_KEY",
+            _ => "",
+        };
+        print!("  API key env var [{}]: ", default_env);
+        io::stdout().flush().ok();
+        let mut env_input = String::new();
+        if io::stdin().read_line(&mut env_input).is_err() {
+            return None;
+        }
+        let env_val = env_input.trim();
+        Some(if env_val.is_empty() { default_env.to_string() } else { env_val.to_string() })
+    } else {
+        None
+    };
+
+    println!();
+    println!("  Using {}/{}", provider, model);
+
+    Some(hebbs_vault::config::LlmConfig {
+        provider: provider.to_string(),
+        model: model.to_string(),
+        api_key: None,
+        api_key_env,
+        base_url: None,
+    })
+}
+
+/// Recursively count .md files under `dir`, skipping internal/generated directories.
 fn count_md_files(dir: &std::path::Path) -> usize {
+    const SKIP_DIRS: &[&str] = &[".hebbs", ".git", ".obsidian", "node_modules", "contradictions", "insights"];
     fn walk(dir: &std::path::Path, count: &mut usize) {
         let Ok(entries) = std::fs::read_dir(dir) else { return };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                if path.file_name().and_then(|n| n.to_str()) != Some(".hebbs") {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if !SKIP_DIRS.contains(&name) {
                     walk(&path, count);
                 }
             } else if path.extension().and_then(|x| x.to_str()) == Some("md") {
@@ -3435,9 +3528,16 @@ fn print_memory_detail(m: &hebbs_core::memory::Memory) {
 }
 
 fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() > max_len {
-        format!("{}...", &s[..max_len])
+    // Strip markdown headers, collapse newlines/whitespace for clean display
+    let collapsed: String = s
+        .lines()
+        .map(|line| line.trim_start_matches('#').trim_start_matches('*').trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if collapsed.len() > max_len {
+        format!("{}...", &collapsed[..max_len])
     } else {
-        s.to_string()
+        collapsed
     }
 }

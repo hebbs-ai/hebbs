@@ -26,9 +26,23 @@ metadata:
 
 HEBBS gives AI agents cognitive abilities beyond similarity search. Index every file into atomic propositions and entity graphs, store non-file memories, then retrieve across four weighted dimensions: semantic similarity, recency, importance, and access frequency. Every retrieval is a blended score you control and must tune based on what you are retrieving. This is not RAG. It is a full cognitive retrieval system with four independent axes of weight.
 
-HEBBS handles all intelligence internally. Reflection, contradiction detection, and proposition extraction are fully autonomous -- powered by a configured LLM provider. The agent's job is to store and recall. HEBBS handles the rest.
+HEBBS handles all intelligence internally. Reflection, contradiction detection, and proposition extraction are fully autonomous, powered by a configured LLM provider. The agent's job is to store and recall. HEBBS handles the rest.
 
 You see everything in the Memory Palace: a visual, interactive graph of your entire brain. Nodes are memories. Edges are relationships. Red dashed lines are confirmed contradictions.
+
+---
+
+## Minimum viable agent API (3 commands)
+
+If you integrate nothing else, integrate these three:
+
+```sh
+hebbs recall "what database are we using" --format json   # search memory
+hebbs remember "user prefers dark mode" --format json      # store a fact
+hebbs status                                               # check vault health
+```
+
+Everything else (prime, insights, reflect, forget, inspect) is optional power tooling. These three commands are the complete read/write/health interface for an AI agent. If your tool framework limits you to a small surface area, implement only these.
 
 ---
 

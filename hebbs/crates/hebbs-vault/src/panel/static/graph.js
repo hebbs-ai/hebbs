@@ -108,6 +108,77 @@ export class MemoryGraph {
     this._centerView();
   }
 
+  /**
+   * Incrementally merge new data into the graph, preserving existing node positions.
+   * New nodes appear near connected existing nodes (or at a random edge position).
+   * Existing nodes keep their current (x, y) so the graph doesn't jump.
+   */
+  mergeData(nodes, edges, hasProjection, nClusters, clusterLabels) {
+    this.hasProjection = !!hasProjection;
+    this.nClusters = nClusters || 0;
+    this.clusterLabels = clusterLabels || {};
+
+    const oldPositions = new Map();
+    for (const n of this.nodes) {
+      oldPositions.set(n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy, fx: n.fx, fy: n.fy });
+    }
+
+    this.nodeMap.clear();
+    const phi = (1 + Math.sqrt(5)) / 2;
+    let newCount = 0;
+
+    nodes.forEach((n, i) => {
+      const old = oldPositions.get(n.id);
+      if (old) {
+        // Preserve existing position
+        n.x = old.x;
+        n.y = old.y;
+        n.vx = old.vx;
+        n.vy = old.vy;
+        n.fx = old.fx;
+        n.fy = old.fy;
+      } else if (n.x != null && n.y != null) {
+        // Server-provided UMAP position for new node
+        n.vx = 0;
+        n.vy = 0;
+        n.fx = null;
+        n.fy = null;
+        newCount++;
+      } else {
+        // New node without position: place at periphery with slight randomness
+        const theta = 2 * Math.PI * (this.nodes.length + newCount) / phi;
+        const r = Math.sqrt(this.nodes.length + newCount + 1) * 30;
+        n.x = Math.cos(theta) * r + (Math.random() - 0.5) * 20;
+        n.y = Math.sin(theta) * r + (Math.random() - 0.5) * 20;
+        n.vx = 0;
+        n.vy = 0;
+        n.fx = null;
+        n.fy = null;
+        newCount++;
+      }
+      if (n.pinned) {
+        n.fx = n.x;
+        n.fy = n.y;
+      }
+      this.nodeMap.set(n.id, n);
+    });
+
+    this.nodes = nodes;
+    this.edges = edges.map(e => ({
+      ...e,
+      sourceNode: this.nodeMap.get(e.source),
+      targetNode: this.nodeMap.get(e.target),
+    })).filter(e => e.sourceNode && e.targetNode);
+
+    this._buildClusters();
+
+    // Only reheat if new nodes were added, and gently
+    if (newCount > 0) {
+      this.alpha = Math.max(this.alpha, 0.15);
+      this.running = true;
+    }
+  }
+
   _buildClusters() {
     this.clusterHulls = [];
     if (this.nClusters === 0) return;

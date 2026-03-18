@@ -150,6 +150,28 @@ async function loadGraph() {
   populateFileFilter();
 }
 
+/**
+ * Incrementally merge new graph data, preserving existing node positions.
+ * Used during indexing so the graph grows live without jarring resets.
+ */
+async function mergeGraph() {
+  state.graphData = await api('/api/panel/graph');
+  if (state.graphData.nodes.length === 0) {
+    if (state.graph) state.graph.setData([], [], false, 0, {});
+    showEmptyState();
+    return;
+  }
+  hideEmptyState();
+  state.graph.mergeData(
+    state.graphData.nodes,
+    state.graphData.edges,
+    state.graphData.has_projection,
+    state.graphData.n_clusters,
+    state.graphData.cluster_labels || {}
+  );
+  populateFileFilter();
+}
+
 async function loadMemoryDetail(id) {
   state.memoryDetail = await api(`/api/panel/memories/${id}`);
   renderSidePanel();
@@ -184,7 +206,7 @@ class DetailDrawer {
     const detail = await api(`/api/panel/memories/${memoryId}`);
     const label = detail.heading_path.length > 0
       ? detail.heading_path[detail.heading_path.length - 1]
-      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : memoryId.slice(0, 12));
+      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : 'Memory');
 
     const existingIdx = this.stack.findIndex(s => s.id === memoryId);
     if (existingIdx >= 0) {
@@ -237,7 +259,7 @@ class DetailDrawer {
           ? `<span class="confidence-badge">Confidence: ${(m.confidence * 100).toFixed(0)}%</span>`
           : ''}
         <div class="panel-title">${escapeHtml(title)}</div>
-        <div class="panel-file">${escapeHtml(m.file_path || m.memory_id)}</div>
+        <div class="panel-file">${escapeHtml(m.file_path || '')}</div>
       </div>
       <div class="panel-section">
         <div class="panel-section-title">Content</div>
@@ -262,12 +284,15 @@ class DetailDrawer {
     if (m.source_ids && m.source_ids.length > 0) {
       html += `<div class="panel-section">
         <div class="panel-section-title">Source Memories</div>
-        ${m.source_ids.map(sid => `
+        ${m.source_ids.map(s => {
+          const sid = typeof s === 'string' ? s : s.id;
+          const label = (typeof s === 'object' && s.label) ? s.label : '';
+          return `
           <div class="edge-item" data-drawer-nav="${sid}">
             <span class="edge-type-badge">source</span>
-            <span style="color:var(--text-secondary)">${sid.slice(0, 12)}...</span>
-          </div>
-        `).join('')}
+            <span style="color:var(--text-secondary)">${escapeHtml(label || 'Memory')}</span>
+          </div>`;
+        }).join('')}
       </div>`;
     }
 
@@ -277,7 +302,7 @@ class DetailDrawer {
         ${m.edges.map(e => `
           <div class="edge-item" data-drawer-nav="${e.target_id}">
             <span class="edge-type-badge">${e.type.replace('_', ' ')}</span>
-            <span style="color:var(--text-secondary)">${e.target_id.slice(0, 12)}...</span>
+            <span style="color:var(--text-secondary)">${escapeHtml(e.label || 'Memory')}</span>
             <span style="color:var(--text-muted);font-size:10px;margin-left:auto">${(e.confidence * 100).toFixed(0)}%</span>
           </div>
         `).join('')}
@@ -774,7 +799,7 @@ async function openNoteMemory(memoryId) {
     const detail = await api(`/api/panel/memories/${memoryId}`);
     const heading = detail.heading_path.length > 0
       ? detail.heading_path[detail.heading_path.length - 1]
-      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : memoryId.slice(0, 12));
+      : (detail.file_path ? detail.file_path.split('/').pop().replace('.md', '') : 'Memory');
 
     titleEl.textContent = heading;
 
@@ -816,7 +841,7 @@ async function openNoteMemory(memoryId) {
         <div class="notes-related-list">`;
       for (const edge of detail.edges) {
         html += `<div class="notes-related-item" data-nav-id="${edge.target_id}">
-          <div class="notes-related-item-label">${edge.type} &rarr; ${edge.target_id.slice(0, 12)}</div>
+          <div class="notes-related-item-label">${edge.type} &rarr; ${escapeHtml(edge.label || 'Memory')}</div>
           <div class="notes-related-item-meta"><span>confidence: ${edge.confidence.toFixed(2)}</span></div>
         </div>`;
       }
@@ -1120,7 +1145,7 @@ function renderRecallResults() {
   for (const r of results) {
     const title = r.heading_path && r.heading_path.length > 0
       ? r.heading_path[r.heading_path.length - 1]
-      : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : r.memory_id.slice(0, 16));
+      : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : 'Memory');
 
     html += `
       <div class="recall-result-card" onclick="window._openDetail('${r.memory_id}')">
@@ -1253,8 +1278,8 @@ function renderQueriesList() {
     const latencyMs = (e.latency_us / 1000).toFixed(1);
     const queryPreview = e.query || (e.entity_id ? `entity: ${e.entity_id}` : '(no query)');
 
-    const resultIds = (e.result_memory_ids || []).map(id =>
-      `<span class="queries-result-id" onclick="event.stopPropagation(); window._openDetail('${id}')" title="${id}">${id.slice(0, 12)}</span>`
+    const resultIds = (e.result_memory_ids || []).map((id, idx) =>
+      `<span class="queries-result-id" onclick="event.stopPropagation(); window._openDetail('${id}')" title="${id}">Result ${idx + 1}</span>`
     ).join('');
 
     html += `
@@ -1410,7 +1435,7 @@ function renderTimelineTab() {
           ${fg.recent.map(f => `
             <div class="timeline-forgotten-item">
               <div class="timeline-forgotten-header">
-                <span class="timeline-forgotten-id" title="${escapeHtml(f.memory_id)}">${f.memory_id.substring(0, 12)}...</span>
+                <span class="timeline-forgotten-id" title="${escapeHtml(f.memory_id)}">${escapeHtml(f.content_preview || 'Forgotten memory')}</span>
                 <span class="timeline-forgotten-time">${escapeHtml(f.forgotten_at_human)}</span>
               </div>
               <div class="timeline-forgotten-criteria">${escapeHtml(f.criteria)}</div>
@@ -1869,7 +1894,7 @@ function renderSearchResults() {
   for (const r of results) {
     const scoreStr = (r.score !== undefined ? r.score : 0).toFixed(3);
     const hp = r.heading_path || [];
-    const title = hp.length > 0 ? hp[hp.length - 1] : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : r.memory_id.slice(0, 16));
+    const title = hp.length > 0 ? hp[hp.length - 1] : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : 'Memory');
     const preview = r.content ? r.content.slice(0, 120) : '';
     const kind = r.kind || 'episode';
     html += `
@@ -1937,7 +1962,7 @@ function renderHealthDetail() {
         <div class="health-detail-title">Orphaned Memories (${h.orphaned_memories.length})</div>
         ${h.orphaned_memories.map(m => `
           <div class="health-item" onclick="window._selectNode('${m.memory_id}')">
-            <span style="color:var(--text-secondary)">${escapeHtml(m.content_preview || m.memory_id.slice(0, 16))}</span>
+            <span style="color:var(--text-secondary)">${escapeHtml(m.content_preview || 'Memory')}</span>
             <button class="health-action-btn danger" onclick="event.stopPropagation()">Remove</button>
           </div>
         `).join('')}
@@ -1951,7 +1976,7 @@ function renderHealthDetail() {
         <div class="health-detail-title">Decay Candidates (${h.decay_candidates.length})</div>
         ${h.decay_candidates.map(m => `
           <div class="health-item" onclick="window._selectNode('${m.memory_id}')">
-            <span style="color:var(--text-secondary)">${escapeHtml(m.label || m.memory_id.slice(0, 16))}</span>
+            <span style="color:var(--text-secondary)">${escapeHtml(m.label || 'Memory')}</span>
             <span style="color:var(--error);font-size:10px;font-family:var(--font-mono)">${(m.decay_score || 0).toFixed(3)}</span>
           </div>
         `).join('')}
@@ -2219,7 +2244,7 @@ function renderSidePanel() {
         ? `<span class="confidence-badge">Confidence: ${(m.confidence * 100).toFixed(0)}%</span>`
         : ''}
       <div class="panel-title">${escapeHtml(title)}</div>
-      <div class="panel-file">${escapeHtml(m.file_path || m.memory_id)}</div>
+      <div class="panel-file">${escapeHtml(m.file_path || '')}</div>
     </div>
 
     <div class="panel-section">
@@ -2248,12 +2273,15 @@ function renderSidePanel() {
     html += `
       <div class="panel-section">
         <div class="panel-section-title">Source Memories</div>
-        ${m.source_ids.map(sid => `
+        ${m.source_ids.map(s => {
+          const sid = typeof s === 'string' ? s : s.id;
+          const label = (typeof s === 'object' && s.label) ? s.label : '';
+          return `
           <div class="edge-item" data-id="${sid}" onclick="window._selectNode('${sid}')">
             <span class="edge-type-badge">source</span>
-            <span style="color:var(--text-secondary)">${sid.slice(0, 12)}...</span>
-          </div>
-        `).join('')}
+            <span style="color:var(--text-secondary)">${escapeHtml(label || 'Memory')}</span>
+          </div>`;
+        }).join('')}
       </div>
     `;
   }
@@ -2265,7 +2293,7 @@ function renderSidePanel() {
         ${m.edges.map(e => `
           <div class="edge-item" data-id="${e.target_id}" onclick="window._selectNode('${e.target_id}')">
             <span class="edge-type-badge">${e.type.replace('_', ' ')}</span>
-            <span style="color:var(--text-secondary)">${e.target_id.slice(0, 12)}...</span>
+            <span style="color:var(--text-secondary)">${escapeHtml(e.label || 'Memory')}</span>
             <span style="color:var(--text-muted);font-size:10px;margin-left:auto">${(e.confidence * 100).toFixed(0)}%</span>
           </div>
         `).join('')}
@@ -2446,9 +2474,21 @@ function connectWebSocket() {
 
     switch (event.type) {
       case 'memory_created':
-      case 'memory_forgotten':
       case 'ingest_complete':
-        // Debounced graph refresh: coalesce rapid events into a single reload.
+        // Incremental graph update: merge new nodes without resetting positions.
+        if (_wsRefreshTimer) clearTimeout(_wsRefreshTimer);
+        _wsRefreshTimer = setTimeout(async () => {
+          _wsRefreshTimer = null;
+          await mergeGraph();
+          await loadStatus();
+          if (state.activeTab === 'dashboard') await loadDashboard();
+          if (state.activeTab === 'notes' && state.notesActiveFile) await openNoteFile(state.notesActiveFile);
+          if (state.activeTab === 'explorer') await loadExplorer();
+        }, 500);
+        break;
+
+      case 'memory_forgotten':
+        // Full reload on forget since nodes are removed.
         if (_wsRefreshTimer) clearTimeout(_wsRefreshTimer);
         _wsRefreshTimer = setTimeout(async () => {
           _wsRefreshTimer = null;

@@ -89,13 +89,20 @@ pub fn init_with_llm(
         match vault_config.llm.create_provider() {
             Ok(provider) => {
                 if let Err(e) = hebbs_llm::validate_provider(provider.as_ref()) {
-                    // Validation failed: clean up and return error
-                    let _ = std::fs::remove_dir_all(&hebbs_dir);
-                    return Err(VaultError::Config {
-                        reason: format!("LLM validation failed: {e}"),
-                    });
+                    let err_str = format!("{e}");
+                    if err_str.contains("429") || err_str.contains("rate") {
+                        // Rate limited - not a config error, just throttled
+                        tracing::warn!("LLM rate limited during validation (will work when limit resets)");
+                    } else {
+                        // Actual validation failure: clean up and return error
+                        let _ = std::fs::remove_dir_all(&hebbs_dir);
+                        return Err(VaultError::Config {
+                            reason: format!("Could not connect to LLM. Is {} running? Error: {e}", vault_config.llm.provider),
+                        });
+                    }
+                } else {
+                    info!("LLM provider validated successfully");
                 }
-                info!("LLM provider validated successfully");
             }
             Err(e) => {
                 let _ = std::fs::remove_dir_all(&hebbs_dir);

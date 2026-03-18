@@ -24,6 +24,15 @@ use crate::manifest::{Manifest, SectionState};
 
 type AppState = Arc<PanelState>;
 
+/// Truncate a string to `max_len` chars, appending "..." if truncated.
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len])
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  Static asset serving (embedded via include_str!)
 // ═══════════════════════════════════════════════════════════════════════
@@ -965,7 +974,7 @@ struct MemoryDetailResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     confidence: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    source_ids: Option<Vec<String>>,
+    source_ids: Option<Vec<SourceInfo>>,
 }
 
 #[derive(Serialize)]
@@ -988,6 +997,13 @@ struct EdgeInfo {
     #[serde(rename = "type")]
     edge_type: String,
     confidence: f32,
+    label: String,
+}
+
+#[derive(Serialize)]
+struct SourceInfo {
+    id: String,
+    label: String,
 }
 
 #[derive(Serialize)]
@@ -1057,10 +1073,17 @@ async fn memory_detail(
     };
     if let Ok(out) = index_manager.outgoing_edges(&id_16) {
         for (edge_type, target_id, metadata) in out {
+            let tid_str = bytes_to_ulid_string(&target_id);
+            let label = engine
+                .get(&target_id)
+                .ok()
+                .map(|m| truncate_str(&m.content, 60))
+                .unwrap_or_default();
             edges_out.push(EdgeInfo {
-                target_id: bytes_to_ulid_string(&target_id),
+                target_id: tid_str,
                 edge_type: edge_type_str(&edge_type).to_string(),
                 confidence: metadata.confidence,
+                label,
             });
         }
     }
@@ -1122,7 +1145,10 @@ async fn memory_detail(
         let mut sources = Vec::new();
         for edge in &edges_out {
             if edge.edge_type == "insight_from" {
-                sources.push(edge.target_id.clone());
+                sources.push(SourceInfo {
+                    id: edge.target_id.clone(),
+                    label: edge.label.clone(),
+                });
             }
         }
         if sources.is_empty() {

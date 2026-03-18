@@ -193,9 +193,9 @@ impl LlmConfig {
             api_key: self.resolved_api_key(),
             base_url: self.base_url.clone(),
             model: self.model.clone(),
-            timeout_secs: 60,
-            max_retries: 3,
-            retry_backoff_ms: 1000,
+            timeout_secs: 30,
+            max_retries: 1,
+            retry_backoff_ms: 500,
         }
     }
 

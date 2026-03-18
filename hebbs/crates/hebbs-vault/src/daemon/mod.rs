@@ -54,6 +54,20 @@ const EVICTION_INTERVAL: Duration = Duration::from_secs(60);
 /// Default HTTP port for the Memory Palace control panel.
 const DEFAULT_PANEL_PORT: u16 = 6381;
 
+/// Snapshot of in-progress indexing for a vault.
+/// Stored in shared state so `hebbs status` can report live progress.
+#[derive(Clone)]
+struct IndexingSnapshot {
+    /// Total files being indexed.
+    total_files: usize,
+    /// Current phase: 1 or 2.
+    phase: u8,
+    /// Files completed in the current phase.
+    files_done: usize,
+    /// Currently processing file name (display only).
+    current_file: String,
+}
+
 /// Daemon configuration passed to `run_daemon`.
 pub struct DaemonConfig {
     /// Path to the Unix socket (default: `~/.hebbs/daemon.sock`).
@@ -68,6 +82,10 @@ pub struct DaemonConfig {
     pub panel_port: u16,
     /// Embedding model name (e.g. "bge-small-en-v1.5", "embeddinggemma-300m").
     pub embedding_model: String,
+    /// Initial vault path for the panel to open on startup.
+    /// When set, the panel opens this vault instead of the home directory vault.
+    /// Passed by `hebbs panel <path>` or `hebbs init <path>`.
+    pub initial_vault: Option<PathBuf>,
 }
 
 impl DaemonConfig {
@@ -82,6 +100,7 @@ impl DaemonConfig {
             foreground: false,
             panel_port: DEFAULT_PANEL_PORT,
             embedding_model: "bge-small-en-v1.5".to_string(),
+            initial_vault: None,
         })
     }
 }
@@ -153,6 +172,11 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     let cancel = CancellationToken::new();
     let last_request = Arc::new(Mutex::new(Instant::now()));
     let active_connections = Arc::new(AtomicUsize::new(0));
+
+    // Shared indexing progress: tracks per-vault progress for `hebbs status` queries.
+    // Key: canonical vault path, Value: current progress snapshot.
+    let indexing_progress: Arc<Mutex<HashMap<PathBuf, IndexingSnapshot>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     // Signal handler: both SIGINT (Ctrl-C) and SIGTERM (kill)
     let cancel_signal = cancel.clone();
@@ -339,25 +363,27 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     // Serves the Memory Palace control panel from the daemon process.
     // Opens the global vault's engine for the panel to use.
     if config.panel_port > 0 {
-        // The global vault root is HOME (e.g., /Users/foo), not the runtime dir (~/.hebbs/).
-        // runtime_dir IS ~/.hebbs/, so the parent is the vault root.
-        let global_vault_root = runtime_dir
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| runtime_dir.to_path_buf());
-        // Ensure global vault is initialized (it might not exist yet)
-        let panel_engine = if global_vault_root.join(".hebbs").exists() {
-            match vault_manager.lock().await.get_or_open(&global_vault_root) {
-                Ok((engine, panel_embedder)) => Some((engine, panel_embedder, global_vault_root)),
+        // Determine which vault to show in the panel on startup:
+        // 1. If an initial_vault was explicitly set (from `hebbs panel <path>`), use that.
+        // 2. Otherwise fall back to the home directory vault.
+        let panel_vault_root = config.initial_vault.clone().unwrap_or_else(|| {
+            runtime_dir
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| runtime_dir.to_path_buf())
+        });
+        let panel_engine = if panel_vault_root.join(".hebbs").exists() {
+            match vault_manager.lock().await.get_or_open(&panel_vault_root) {
+                Ok((engine, panel_embedder)) => Some((engine, panel_embedder, panel_vault_root)),
                 Err(e) => {
-                    warn!("panel: failed to open global vault: {}, panel disabled", e);
+                    warn!("panel: failed to open vault at {}: {}, panel disabled", panel_vault_root.display(), e);
                     None
                 }
             }
         } else {
             warn!(
-                "panel: global vault not initialized at {}, panel disabled",
-                global_vault_root.display()
+                "panel: vault not initialized at {}, panel disabled",
+                panel_vault_root.display()
             );
             None
         };
@@ -399,9 +425,10 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
                         let last_req = last_request.clone();
                         let cancel_conn = cancel.clone();
                         let active = active_connections.clone();
+                        let idx_progress = indexing_progress.clone();
                         active.fetch_add(1, Ordering::SeqCst);
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(stream, vm, last_req, cancel_conn).await {
+                            if let Err(e) = handle_connection(stream, vm, last_req, idx_progress, cancel_conn).await {
                                 warn!("connection error: {}", e);
                             }
                             active.fetch_sub(1, Ordering::SeqCst);
@@ -430,6 +457,7 @@ async fn handle_connection(
     stream: tokio::net::UnixStream,
     vault_manager: Arc<Mutex<VaultManager>>,
     last_request: Arc<Mutex<Instant>>,
+    indexing_progress: Arc<Mutex<HashMap<PathBuf, IndexingSnapshot>>>,
     cancel: CancellationToken,
 ) -> Result<(), String> {
     let (mut reader, mut writer) = tokio::io::split(stream);
@@ -461,7 +489,7 @@ async fn handle_connection(
             return Ok(());
         }
 
-        let response = dispatch_command(request, &vault_manager, &mut writer).await;
+        let response = dispatch_command(request, &vault_manager, &indexing_progress, &mut writer).await;
 
         write_message(&mut writer, &response)
             .await
@@ -476,6 +504,7 @@ async fn handle_connection(
 async fn dispatch_command(
     request: DaemonRequest,
     vault_manager: &Arc<Mutex<VaultManager>>,
+    indexing_progress: &Arc<Mutex<HashMap<PathBuf, IndexingSnapshot>>>,
     writer: &mut tokio::io::WriteHalf<tokio::net::UnixStream>,
 ) -> DaemonResponse {
     let extra_vault_paths = request.vault_paths.clone();
@@ -682,10 +711,70 @@ async fn dispatch_command(
                 }
             }
 
-            DaemonResponse::ok(serde_json::json!({
+            // Check for contradictions among returned results.
+            // O(k * log n): for each result, query its contradiction edges and
+            // check if any target is also in the result set.
+            let mut contradictions: Vec<serde_json::Value> = Vec::new();
+            if count >= 2 {
+                // Build set of returned memory IDs (raw 16-byte form)
+                let result_id_set: HashSet<[u8; 16]> = results.iter().filter_map(|r| {
+                    r.get("memory_id").and_then(|v| v.as_str()).and_then(|id_str| {
+                        parse_memory_id(id_str).ok().and_then(|bytes| {
+                            if bytes.len() == 16 {
+                                let mut arr = [0u8; 16];
+                                arr.copy_from_slice(&bytes);
+                                Some(arr)
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                }).collect();
+
+                if let Some(engine) = engines.first() {
+                    let mut seen_pairs: HashSet<([u8; 16], [u8; 16])> = HashSet::new();
+                    for id in &result_id_set {
+                        if let Ok(edges) = engine.contradictions(id) {
+                            for (target, confidence) in edges {
+                                if result_id_set.contains(&target) {
+                                    // Deduplicate bidirectional edges
+                                    let pair = if *id < target { (*id, target) } else { (target, *id) };
+                                    if seen_pairs.insert(pair) {
+                                        contradictions.push(serde_json::json!({
+                                            "memory_a": format_memory_id(id),
+                                            "memory_b": format_memory_id(&target),
+                                            "confidence": confidence,
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Include indexing completeness so the CLI can show "N% indexed" hints.
+            // O(1): reads manifest section counts only, no engine query.
+            let indexing_pct: Option<usize> = crate::status(&vault_path).ok().and_then(|s| {
+                let total = s.synced + s.content_stale + s.orphaned;
+                if total > 0 && s.content_stale > 0 {
+                    Some(s.synced * 100 / total)
+                } else {
+                    None // omit field when fully indexed
+                }
+            });
+
+            let mut resp = serde_json::json!({
                 "results": results,
                 "count": count,
-            }))
+            });
+            if !contradictions.is_empty() {
+                resp["contradictions"] = serde_json::json!(contradictions);
+            }
+            if let Some(pct) = indexing_pct {
+                resp["indexing_pct"] = serde_json::json!(pct);
+            }
+            DaemonResponse::ok(resp)
         }
 
         Command::Forget {
@@ -942,15 +1031,33 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
+            let is_watched = vault_manager.lock().await.is_open(&vault_path);
+            let idx_snap = indexing_progress.lock().await.get(&vault_path).cloned();
             match crate::status(&vault_path) {
-                Ok(s) => DaemonResponse::ok(serde_json::json!({
-                    "vault_root": s.vault_root.display().to_string(),
-                    "total_files": s.total_files,
-                    "total_sections": s.total_sections,
-                    "synced": s.synced,
-                    "content_stale": s.content_stale,
-                    "orphaned": s.orphaned,
-                })),
+                Ok(s) => {
+                    let mut resp = serde_json::json!({
+                        "vault_root": s.vault_root.display().to_string(),
+                        "total_files": s.total_files,
+                        "total_sections": s.total_sections,
+                        "total_memories": s.synced,
+                        "synced": s.synced,
+                        "content_stale": s.content_stale,
+                        "orphaned": s.orphaned,
+                        "llm_provider": s.llm_provider,
+                        "llm_model": s.llm_model,
+                        "daemon_watching": is_watched,
+                    });
+                    // Include live indexing progress if indexing is in progress
+                    if let Some(snap) = idx_snap {
+                        resp["indexing"] = serde_json::json!({
+                            "phase": snap.phase,
+                            "total_files": snap.total_files,
+                            "files_done": snap.files_done,
+                            "current_file": snap.current_file,
+                        });
+                    }
+                    DaemonResponse::ok(resp)
+                }
                 Err(e) => DaemonResponse::err(format!("{}", e)),
             }
         }
@@ -990,31 +1097,66 @@ async fn dispatch_command(
                 Err(e) => return DaemonResponse::err(format!("failed to collect files: {}", e)),
             };
             let total_files = all_files.len();
-            send_progress!(format!("Phase 1/2 — Parsing {} file(s)...", total_files));
+
+            // Set initial indexing progress
+            {
+                let mut prog = indexing_progress.lock().await;
+                prog.insert(vault_path.clone(), IndexingSnapshot {
+                    total_files,
+                    phase: 1,
+                    files_done: 0,
+                    current_file: String::new(),
+                });
+            }
+
+            send_progress!(format!("Phase 1/2: parsing {} file(s)...", total_files));
 
             // Phase 1: parse
             let p1_stats = match crate::ingest::phase1_ingest(&all_files, &vault_path, &mut manifest, &config) {
                 Ok(s) => s,
-                Err(e) => return DaemonResponse::err(format!("phase1 failed: {}", e)),
+                Err(e) => {
+                    indexing_progress.lock().await.remove(&vault_path);
+                    return DaemonResponse::err(format!("phase1 failed: {}", e));
+                }
             };
             manifest.save(&hebbs_dir).ok();
-            send_progress!(format!(
-                "Phase 1/2 complete — {} new, {} modified section(s). Starting embedding...",
-                p1_stats.sections_new, p1_stats.sections_modified
-            ));
 
-            let (_, stale, orphaned) = manifest.section_counts();
+            // Update progress: phase 1 complete, entering phase 2
+            let (synced, stale, orphaned) = manifest.section_counts();
+            let sections_to_process = stale + orphaned;
+            {
+                let mut prog = indexing_progress.lock().await;
+                if let Some(snap) = prog.get_mut(&vault_path) {
+                    snap.phase = 2;
+                    snap.files_done = 0;
+                }
+            }
+
             send_progress!(format!(
-                "Phase 2/2 — Embedding & storing {} section(s) via LLM + vector index...",
-                stale + orphaned
+                "Phase 2/2: embedding {} section(s)...",
+                sections_to_process
             ));
 
             // Phase 2: embed + store
-            let p2_stats = match crate::ingest::phase2_ingest(&vault_path, &mut manifest, &engine, &embedder, &config).await {
+            // Skip LLM contradiction detection and extraction on first full index
+            // (no existing memories to contradict against or extract from).
+            let is_first_index = synced == 0;
+            let p2_stats = if is_first_index {
+                crate::ingest::phase2_ingest_no_contradict(&vault_path, &mut manifest, &engine, &embedder, &config).await
+            } else {
+                crate::ingest::phase2_ingest(&vault_path, &mut manifest, &engine, &embedder, &config).await
+            };
+            let p2_stats = match p2_stats {
                 Ok(s) => s,
-                Err(e) => return DaemonResponse::err(format!("phase2 failed: {}", e)),
+                Err(e) => {
+                    indexing_progress.lock().await.remove(&vault_path);
+                    return DaemonResponse::err(format!("phase2 failed: {}", e));
+                }
             };
             manifest.save(&hebbs_dir).ok();
+
+            // Clear indexing progress (done)
+            indexing_progress.lock().await.remove(&vault_path);
 
             DaemonResponse::ok(serde_json::json!({
                 "total_files": total_files,
@@ -1544,20 +1686,28 @@ async fn run_watch_loop(
                                 info!("[watch] catch-up phase1: {} processed, {} new, {} modified",
                                     p1.files_processed, p1.sections_new, p1.sections_modified);
                                 let _ = state.manifest.save(&state.hebbs_dir());
+                                // Only arm phase2 if there are modified sections (not first-time index).
+                                // For fresh vaults, the explicit `hebbs index` command handles phase2.
+                                if p1.sections_modified > 0 {
+                                    let phase2_ms = state.config.watch.phase2_debounce_ms;
+                                    state.phase2_deadline = Some(tokio::time::Instant::now() + Duration::from_millis(phase2_ms));
+                                    state.has_stale_sections = true;
+                                } else {
+                                    info!("[watch] catch-up: all sections new, skipping phase2 (explicit index will handle)");
+                                }
                             }
-                            // Arm phase2 for catch-up
-                            let phase2_ms = state.config.watch.phase2_debounce_ms;
-                            state.phase2_deadline = Some(tokio::time::Instant::now() + Duration::from_millis(phase2_ms));
-                            state.has_stale_sections = true;
                         }
                         Ok(_) => {}
                         Err(e) => warn!("[watch] catch-up error for {}: {}", state.vault_root.display(), e),
                     }
 
                     // Also check for stale sections left by interrupted phase2
+                    // (only from a genuinely interrupted previous session, not fresh init)
                     if !state.has_stale_sections {
-                        let (_, stale, _) = state.manifest.section_counts();
-                        if stale > 0 {
+                        let (synced, stale, _) = state.manifest.section_counts();
+                        // Only arm if there are BOTH synced and stale sections (partial index).
+                        // If synced == 0 and stale > 0, it's a fresh vault -- explicit index handles it.
+                        if stale > 0 && synced > 0 {
                             info!(
                                 "[watch] catch-up: {} stale sections from interrupted phase2, arming re-embed",
                                 stale
@@ -1567,6 +1717,8 @@ async fn run_watch_loop(
                                 tokio::time::Instant::now() + Duration::from_millis(phase2_ms),
                             );
                             state.has_stale_sections = true;
+                        } else if stale > 0 {
+                            info!("[watch] catch-up: {} stale sections on fresh vault, deferring to explicit index", stale);
                         }
                     }
                 }

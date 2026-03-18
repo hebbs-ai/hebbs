@@ -48,9 +48,10 @@ struct TestServer {
 
 impl TestServer {
     async fn start() -> Self {
+        // Bind port 0 to get an OS-assigned port, then pass the listener directly
+        // to tonic via TcpIncoming::from_listener to avoid TOCTOU port conflicts.
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        drop(listener);
 
         let backend = Arc::new(hebbs_storage::InMemoryBackend::new());
         let embedder = Arc::new(MockEmbedder::default_dims());
@@ -116,6 +117,9 @@ impl TestServer {
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
+        let incoming = tonic::transport::server::TcpIncoming::from_listener(listener, true, None)
+            .unwrap();
+
         tokio::spawn(async move {
             TonicServer::builder()
                 .add_service(MemoryServiceServer::with_interceptor(
@@ -131,11 +135,12 @@ impl TestServer {
                     grpc_interceptor,
                 ))
                 .add_service(HealthServiceServer::new(health_svc))
-                .serve_with_shutdown(addr, async { drop(shutdown_rx.await) })
+                .serve_with_incoming_shutdown(incoming, async { drop(shutdown_rx.await) })
                 .await
                 .unwrap();
         });
 
+        // Brief wait for the server task to start accepting connections
         for _ in 0..100 {
             if tokio::net::TcpStream::connect(addr).await.is_ok() {
                 break;

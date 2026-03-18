@@ -43,6 +43,21 @@ impl DaemonClient {
         Ok(Self { stream })
     }
 
+    /// Send a request without waiting for the response.
+    ///
+    /// Used by `hebbs init` to kick off indexing in the daemon without
+    /// blocking the CLI. The daemon processes the command; the client
+    /// drops the connection immediately after sending.
+    pub async fn send_fire_and_forget(&mut self, request: &DaemonRequest) -> Result<(), String> {
+        let (_reader, mut writer) = self.stream.split();
+
+        write_message(&mut writer, request)
+            .await
+            .map_err(|e| format!("failed to send request: {}", e))?;
+
+        Ok(())
+    }
+
     /// Send a request and receive the final response.
     ///
     /// Any `Progress` responses received before the final response are printed
@@ -86,12 +101,25 @@ pub fn default_pid_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".hebbs").join("daemon.pid"))
 }
 
+/// Options for starting/connecting to the daemon.
+pub struct DaemonStartOpts {
+    /// Panel HTTP port override.
+    pub panel_port: Option<u16>,
+    /// Initial vault path for the panel to open on startup.
+    pub initial_vault: Option<PathBuf>,
+}
+
 /// Ensure the daemon is running, starting it if necessary.
 /// Returns a connected client.
-///
-/// `panel_port` is passed to the daemon on auto-start so the panel binds to the
-/// caller's requested port. Pass `None` for the default port.
 pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonClient, String> {
+    ensure_daemon_full(DaemonStartOpts {
+        panel_port,
+        initial_vault: None,
+    }).await
+}
+
+/// Ensure the daemon is running with full options (panel port + initial vault).
+pub async fn ensure_daemon_full(opts: DaemonStartOpts) -> Result<DaemonClient, String> {
     let socket_path = default_socket_path().ok_or("cannot determine home directory")?;
 
     // Try to connect directly
@@ -106,6 +134,13 @@ pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonCl
         match client.send(&ping).await {
             Ok(resp) if resp.status == ResponseStatus::Ok => {
                 debug!("daemon already running, connected");
+                // If an initial vault was requested and the daemon is already running,
+                // switch the panel to that vault via HTTP POST so the user sees the right one.
+                if let Some(ref vault) = opts.initial_vault {
+                    if let Some(port) = opts.panel_port {
+                        switch_panel_vault(port, vault).await;
+                    }
+                }
                 // Need a fresh connection since we consumed the stream for ping
                 return DaemonClient::connect(&socket_path).await;
             }
@@ -116,7 +151,7 @@ pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonCl
     }
 
     // Daemon not running, start it
-    start_daemon(panel_port)?;
+    start_daemon(&opts)?;
 
     // Poll for socket with backoff, then continue at last interval until timeout
     let deadline = tokio::time::Instant::now() + DAEMON_START_TIMEOUT;
@@ -152,9 +187,7 @@ pub async fn ensure_daemon() -> Result<DaemonClient, String> {
 }
 
 /// Start the daemon as a background process.
-///
-/// If `panel_port` is `Some(port)`, passes `--panel-port <port>` to the daemon.
-fn start_daemon(panel_port: Option<u16>) -> Result<(), String> {
+fn start_daemon(opts: &DaemonStartOpts) -> Result<(), String> {
     // Clean up stale PID file
     if let Some(pid_path) = default_pid_path() {
         if pid_path.exists() {
@@ -206,8 +239,11 @@ fn start_daemon(panel_port: Option<u16>) -> Result<(), String> {
 
         let mut cmd = StdCommand::new(&exe);
         cmd.arg("serve").arg("--foreground");
-        if let Some(port) = panel_port {
+        if let Some(port) = opts.panel_port {
             cmd.arg("--panel-port").arg(port.to_string());
+        }
+        if let Some(ref vault) = opts.initial_vault {
+            cmd.arg("--initial-vault").arg(vault);
         }
         cmd.stdin(Stdio::null())
             .stdout(Stdio::from(log_file))
@@ -229,14 +265,45 @@ fn start_daemon(panel_port: Option<u16>) -> Result<(), String> {
     {
         let mut cmd = StdCommand::new(&exe);
         cmd.arg("serve").arg("--foreground");
-        if let Some(port) = panel_port {
+        if let Some(port) = opts.panel_port {
             cmd.arg("--panel-port").arg(port.to_string());
+        }
+        if let Some(ref vault) = opts.initial_vault {
+            cmd.arg("--initial-vault").arg(vault);
         }
         cmd.spawn()
             .map_err(|e| format!("failed to spawn daemon: {}", e))?;
     }
 
     Ok(())
+}
+
+/// Send a vault switch request to the panel HTTP server.
+///
+/// Fire-and-forget: errors are silently ignored since the panel may not be
+/// enabled or the HTTP server may not be up yet when called from panel startup.
+async fn switch_panel_vault(port: u16, vault: &std::path::Path) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let body = format!(r#"{{"path":"{}"}}"#, vault.display());
+    let req = format!(
+        "POST /api/panel/vaults/switch HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        port,
+        body.len(),
+        body
+    );
+    // Retry briefly: the panel HTTP server may still be binding.
+    for attempt in 0..5u32 {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
+        if let Ok(mut stream) = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+            if stream.write_all(req.as_bytes()).await.is_ok() {
+                let mut buf = [0u8; 256];
+                let _ = stream.read(&mut buf).await;
+                return;
+            }
+        }
+    }
 }
 
 /// Check if the daemon is running by attempting a connection and ping.

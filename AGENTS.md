@@ -58,7 +58,7 @@ The full engineering standard is documented in `docs/GuidingPrinciples.md`.
 
 ## Writing Style
 
-- **Never use em-dashes (—) or double dashes (--)** in any written content: blog posts, documentation, commit messages, comments, or user-facing text. Use alternatives instead: commas, colons, semicolons, parentheses, or separate sentences.
+- **Never use em-dashes (—) or double dashes (--)** in any written content: blog posts, documentation, commit messages, comments, conversational text, or user-facing text. Do not replace em-dashes with double dashes; both are equally unacceptable. Use proper punctuation instead: commas, colons, semicolons, parentheses, or separate sentences.
 - **Every blog post must have a generated hero image.** Create the image using HTML/CSS (not AI image generators), render it to a static image using Puppeteer (`node render script` in `/tmp`), and save it to the blog's `public/images/` directory. The image must include the HEBBS logo (amber circles on dark, from `public/logo-icon.svg`). Use clean, minimal designs (1200x630, 2x DPI) with the post title and relevant visual elements. Reference the image in the post's frontmatter as both `heroImage` and `ogImage` for social meta tags.
 
 ---

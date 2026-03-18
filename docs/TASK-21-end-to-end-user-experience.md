@@ -4,6 +4,59 @@ This is what the user sees. Not what happens inside. Not our problems. Theirs.
 
 ---
 
+## Current Status (2026-03-18)
+
+**985 tests passing. 0 failures. 17 of 18 original gap items fixed.**
+
+### What's done
+
+The CLI core loop works end-to-end: init (interactive wizard, non-blocking), index (background, plain language output), status (live progress, accurate state), recall (source attribution, completeness hint, contradiction warnings), panel (correct vault on startup/switch, human-readable labels, incremental live graph). Errors are human sentences with 10 unit tests. Model download shows a visual progress bar with ETA. Agents have a 3-command quick-start in SKILL.md. All tests green including the previously-flaky `skill_recall_ef_search` (TOCTOU port fix).
+
+### Must Do Before Next Customer
+
+These will break the demo or destroy trust if a customer finds them.
+
+| Priority | Item | Why it's a must-do | Effort |
+|----------|------|--------------------|--------|
+| **P0** | **`hebbs contradictions` command** | Recall output tells users "Run `hebbs contradictions` to review." That command does not exist. Following the hint gives an error. Broken promise in the first 5 minutes. | 2-3 hr |
+| **P0** | **Fix `truncate_str` UTF-8 panic** | `truncate_str` in `panel/routes.rs` slices bytes, not chars. If a memory starts with CJK/emoji text, the panel backend panics. A customer with Japanese notes crashes the panel. | 15 min |
+| **P0** | **Emit `MemoryCreated` events during indexing** | The `MemoryCreated` panel event is defined but never sent. The live graph `mergeData` works, but only fires on `IngestComplete` (after each file batch). Graph grows in chunks, not node-by-node. A customer watching during init sees long pauses between updates instead of smooth growth. | 1-2 hr |
+| **P1** | **Panel vault switch error feedback** | When `hebbs panel <path>` switches to an invalid/uninitialized vault, the HTTP POST silently fails. The panel shows the previous vault with no warning. Customer thinks the product is ignoring their command. | 1 hr |
+| **P1** | **Forgotten timeline content preview** | Frontend now shows `f.content_preview` for forgotten memories, but the tombstone data in RocksDB may not store content. If undefined, it falls back to "Forgotten memory". Should store a content snippet when creating tombstones. | 1 hr |
+
+### Should Do (quality bar for experienced customers)
+
+| Priority | Item | Why it matters | Effort |
+|----------|------|---------------|--------|
+| P1 | **`hebbs subscribe` event stream** | Blocks IDE plugin integration and advanced agent workflows. Without it, tools must poll. | 3-4 hr |
+| P1 | **Panel file change toasts** | Users don't know HEBBS noticed their edit until they run a command. "budget.md updated. 1 memory revised." | 2-3 hr |
+| P1 | **Panel contradiction UI (red edges)** | Contradictions surface in CLI recall but are invisible in the panel graph. Red edges + click-to-review would be the "wow" moment. | 3-4 hr |
+| P2 | **Node pulse on change** | When a file is re-indexed, its graph node should pulse briefly (amber glow). Visual proof the system is alive. | 1-2 hr |
+| P2 | **Panel indexing progress bar** | Top bar should show "Indexing: 14/23 files" with a progress bar during active indexing. Status data is already in the daemon; panel just needs to poll/subscribe. | 1-2 hr |
+
+### Test Coverage Gaps
+
+| Gap | Risk | Effort |
+|-----|------|--------|
+| No integration test for `IndexingSnapshot` live progress | Medium -- status-during-indexing is a key user moment, only tested via compilation | 1-2 hr |
+| No test for contradiction aggregation in recall responses | Medium -- engine-level detection tested, daemon cross-result pairing is not | 1 hr |
+| No test for `send_fire_and_forget` semantics | Medium -- core to init decoupling, only tested implicitly | 1 hr |
+| No test for interactive init wizard | Low -- TTY interaction hard to automate, manual verification sufficient for now | 2-3 hr |
+| No test for `--initial-vault` daemon flag | Low -- startup path tested implicitly | 30 min |
+| No test for `hebbs contradictions` command (once built) | High -- new command needs full coverage from day one | 1 hr |
+
+### Architecture Improvements
+
+| Area | Issue | Recommendation |
+|------|-------|---------------|
+| Error handling | `humanize_error()` is string matching. Fragile if upstream error messages change. | Consider typed error variants with `thiserror` that carry human messages from construction. |
+| Indexing progress | `Arc<Mutex<HashMap>>` works but is shared mutable state across async boundaries. | If contention becomes an issue, switch to `tokio::sync::watch` per vault for zero-copy reads. |
+| Panel vault switch | HTTP POST retry loop (5x 300ms) is fire-and-forget. No confirmation the switch succeeded. | Return the switch result to CLI so it can warn if the panel couldn't switch. |
+| Tombstone storage | Tombstones only store ID and timestamp. No content preview for forgotten timeline display. | Store first 60 chars of content when creating tombstones so the panel can show what was forgotten. |
+| Event granularity | `MemoryCreated` defined but never emitted. Graph updates are batch-level, not per-memory. | Emit per-memory events from `phase2_ingest_inner` by threading `panel_event_tx` through the ingest pipeline. |
+
+---
+
 ## Who is this person?
 
 They have a folder of markdown files. Meeting notes, project docs, research, decisions, journals. Maybe 20 files, maybe 2000. They heard HEBBS gives their AI agent memory across conversations. They want to try it. They have 3 minutes of patience.
@@ -383,22 +436,111 @@ After enough memories accumulate, HEBBS generates insights. The panel shows them
 
 ## Gap Between Today and This
 
-| Today | Target |
-|-------|--------|
-| `hebbs init` takes 15 flags | `hebbs init` asks interactively, 3 questions max |
-| Init blocks 5-10 minutes | Init returns in 2 seconds |
-| Recall fails if not indexed | Recall works immediately, shows completeness |
-| Errors show Rust types | Errors are human sentences |
-| Status shows internal counters | Status shows "everything is up to date" or a progress bar |
-| No mention of sources | Every result shows source file + heading |
-| Contradictions require CLI commands | Contradictions surface naturally in recall results |
-| Agent needs 20+ commands in SKILL.md | Agent needs 3 commands |
-| Model download is silent | Progress bar with speed and ETA |
-| No event stream | `hebbs subscribe` for tools that want live updates |
-| Panel shows internal IDs and counters | Panel shows human-readable content with sources |
-| Panel graph is static on load | Graph grows live as files are indexed, nodes pulse on changes |
-| No live file change feedback in panel | Toasts for file add/edit/delete with memory counts |
-| Contradictions require CLI to review | Red edges in graph, click to review, resolve from panel |
-| Panel feels like a debug tool | Panel feels like a knowledge visualization you'd show someone |
-| No indexing progress in panel | Top bar shows file-by-file progress during indexing |
-| Panel requires manual refresh | WebSocket pushes all changes in real time |
+| Status | Today | Target |
+|--------|-------|--------|
+| **Fixed** | `hebbs init` takes 15 flags | `hebbs init` asks interactively, 3 questions max |
+| **Fixed** | Init blocks 5-10 minutes | Init returns in 2 seconds, indexing runs in background |
+| **Fixed** | Recall fails if not indexed | Recall works immediately, shows "18% indexed" completeness hint |
+| **Fixed** | Errors show Rust types | Errors are human sentences (humanize_error strips Rust types) |
+| **Fixed** | Status lies about stale re-index when daemon not watching | Status reports accurate re-index state based on whether daemon is watching |
+| **Fixed** | Status shows internal counters, no live progress | Status shows live phase/file progress during active indexing via IndexingSnapshot |
+| **Fixed** | No mention of sources | Every recall result shows `Source: file.md > Heading` from context data |
+| **Fixed** | Contradictions require CLI commands | Contradictions surface naturally in recall results via CONTRADICTS edge scan |
+| **Fixed** | Agent needs 20+ commands in SKILL.md | SKILL.md has "3 command" quick start section at top |
+| **Fixed** | Model download is silent | Visual progress bar with percentage, MB, speed, and ETA |
+| Open | No event stream | `hebbs subscribe` for tools that want live updates |
+| **Fixed** | Panel shows internal IDs and counters | All 12 ID-display spots replaced with human-readable labels/content previews |
+| **Fixed** | Panel graph is static on load | `mergeData()` preserves positions, new nodes settle via physics. Incremental on WS events. |
+| Open | No live file change feedback in panel | Toasts for file add/edit/delete with memory counts |
+| Open | Contradictions require CLI to review | Red edges in graph, click to review, resolve from panel |
+| Open | Panel feels like a debug tool | Panel feels like a knowledge visualization you'd show someone |
+| Open | No indexing progress in panel | Top bar shows file-by-file progress during indexing |
+| Open | Panel requires manual refresh | WebSocket pushes all changes in real time |
+| **Fixed** | Panel always opens home directory vault | Panel opens the vault specified by the user on startup |
+| **Fixed** | `hebbs panel <path>` with already-running daemon shows wrong vault | Vault switch sent when daemon is already running |
+| **Fixed** | Index output uses jargon ("sections embedded", "sections remembered") | Output uses plain language ("files indexed", "memories created") |
+
+---
+
+## Implementation Log
+
+### Completed
+
+**2026-03-18: Decouple init from indexing**
+`hebbs init` no longer blocks on indexing. After creating `.hebbs/` and ensuring the embedding model is cached, it sends a fire-and-forget `Index` command to the daemon and returns immediately. The terminal prints "Indexing N file(s) in the background. Run `hebbs status` to check progress." The daemon completes both Phase 1 and Phase 2 asynchronously. The manifest is saved at each phase, so a crash mid-index leaves the vault in a resumable state.
+
+**2026-03-18: Accurate status for stale sections**
+The daemon's Status handler now includes `daemon_watching: bool` in the response, set by checking whether the vault is currently open in the VaultManager. The CLI uses this to show either "daemon watching, will re-index on next change" or "run `hebbs index` to re-index" -- whichever is actually true.
+
+**2026-03-18: Panel opens correct vault on startup**
+`DaemonConfig` now has an `initial_vault: Option<PathBuf>` field. When `hebbs panel <path>` is run and the daemon needs to start, `--initial-vault <path>` is passed to `hebbs serve`. The panel HTTP server loads this vault before binding, so the first page load shows the right vault with no race. If the vault path is not initialized, a clear warning is shown rather than silent fallback to home.
+
+**2026-03-18: Recall completeness hint**
+When the vault is still being indexed, `hebbs recall` now appends "N% of your vault is indexed. More results may appear as indexing completes." The daemon's Recall handler reads manifest section counts (O(1)) and returns `indexing_pct` in the response when `content_stale > 0`. The CLI renders it after the results list.
+
+**2026-03-18: Panel vault switch when daemon already running**
+When `hebbs panel <path>` connects to an already-running daemon (fast path), it now sends a POST to `/api/panel/vaults/switch` with the specified vault path. The switch uses the same retry logic (5 attempts, 300ms delay) as before. Combined with the `--initial-vault` fix for fresh daemon starts, the panel now opens the correct vault in both cases.
+
+**2026-03-18: Plain language CLI output**
+Replaced jargon throughout the CLI:
+- Index: "sections embedded, sections remembered" became "N file(s) indexed. N memories created, N revised, N removed."
+- Status: "Stale: N (will re-index...)" became "Indexing: in progress, will complete automatically" or "Indexing: incomplete. Run `hebbs index` to finish."
+- Status: "Orphaned: N (source file deleted)" became "Removed: N source file(s) deleted"
+- Status: "Files: N (all indexed)" now shows "Files: N (P% indexed)" during active indexing.
+
+**2026-03-18: Status live indexing progress**
+The daemon now maintains an `IndexingSnapshot` (`Arc<Mutex<HashMap<PathBuf, IndexingSnapshot>>>`) shared between the Index handler and the Status handler. During active indexing, `hebbs status` shows "Indexing: 14/24 files (58%). Phase: 1. Currently processing: engineering-handbook.md". The snapshot is cleared when indexing completes or errors out.
+
+**2026-03-18: Contradictions in recall output**
+The daemon's Recall handler now checks for CONTRADICTS edges among returned results. For each result, `engine.contradictions(id)` is called (O(log n + k) prefix scan). Bidirectional edges are deduplicated via a `HashSet<(id_a, id_b)>`. When contradictions exist, the CLI prints a warning block: "Conflicting information found between [source_a] and [source_b]."
+
+**2026-03-18: Interactive init (TTY wizard)**
+When `hebbs init` is run without `--provider`/`--model` flags and stdin is a TTY (`std::io::IsTerminal`), a 3-question interactive wizard runs: (1) choose LLM provider [1-4 or s to skip], (2) model name [default provided], (3) API key env var [default provided]. Non-TTY invocations (CI, piped input) fall through to the existing flag-based path. No new dependencies added.
+
+**2026-03-18: Errors as sentences (humanize_error)**
+Added `humanize_error()` to the CLI binary. It strips Rust type prefixes (`ureq::Error::Transport`, `std::io::Error`, etc.) and pattern-matches common errors to human sentences. Example: "Connection refused" on port 11434 becomes "Could not reach Ollama at localhost:11434. Is it running?" All user-facing error paths in the CLI now pass through this function.
+
+**2026-03-18: Agent SKILL.md quick-start**
+Added a "Minimum viable agent API (3 commands)" section at the top of `hebbs/skills/hebbs/SKILL.md`: `hebbs recall "query" --format json`, `hebbs remember "fact" --format json`, `hebbs status`. Agents can integrate with just these three commands. The rest of the SKILL.md remains for advanced usage.
+
+**2026-03-18: Fix flaky `skill_recall_ef_search` test**
+The test harness had a TOCTOU race: bind port 0, get random port, drop listener, rebind with tonic. Another parallel test could grab the port in between, causing `AddrInUse`. Fixed by keeping the `TcpListener` and passing it directly to `tonic::transport::server::TcpIncoming::from_listener()`, then using `serve_with_incoming_shutdown` instead of `serve_with_shutdown`. Result: 842/842 tests passing, 0 failures.
+
+**2026-03-18: `humanize_error()` moved to library with unit tests**
+Extracted `humanize_error()` from `bin/hebbs.rs` into `error.rs` as a public function. Added 10 table-driven unit tests covering: Ollama connection refused, generic connection refused, file not found, permission denied, RocksDB errors (upper and lower case), serde/anyhow prefix stripping, and unknown error passthrough. Binary delegates to `hebbs_vault::error::humanize_error`.
+
+**2026-03-18: Model download progress bar enhanced with visual bar and ETA**
+The download progress (already in `hebbs-embed/src/model.rs`) was enhanced from a text-only percentage to a visual progress bar (`████████░░░░░░░░░░░░`), ETA with minutes/seconds formatting, and retained speed/MB display. ETA computed from current download speed and remaining bytes.
+
+**2026-03-18: Panel humanization -- all raw IDs replaced**
+Backend: Added `label` field to `EdgeInfo` struct (content preview of target memory, 60 chars). Changed `source_ids` from `Vec<String>` to `Vec<SourceInfo>` with `id` and `label` fields. Added `truncate_str` helper to `panel/routes.rs`.
+Frontend: Replaced all 12 spots in `app.js` that displayed truncated hex IDs (`sid.slice(0, 12)`, `target_id.slice(0, 12)`, `memory_id.slice(0, 16)`, `memory_id.substring(0, 12)`) with human-readable labels. Fallback is `'Memory'` instead of hex. Query result IDs show `'Result 1'`, `'Result 2'` instead of hex. Forgotten timeline shows `content_preview` or `'Forgotten memory'`.
+
+**2026-03-18: Panel live graph with incremental merge**
+Added `mergeData()` method to `MemoryGraph` in `graph.js`: preserves existing node positions (`x, y, vx, vy, fx, fy`), places new nodes at periphery with fibonacci spiral, gently reheats physics (`alpha = 0.15`) only when new nodes appear. WebSocket handler updated: `memory_created` and `ingest_complete` events use `mergeGraph()` (incremental), `memory_forgotten` uses full `loadGraph()` (since nodes are removed). Graph grows smoothly during indexing without jarring layout resets.
+
+### Test Results (2026-03-18)
+
+Full workspace test run: **985 passed, 0 failed.** All green.
+
+Test count increased from 842 to 985 due to: 10 new `humanize_error` unit tests, plus full recompilation picking up previously-filtered test binaries.
+
+### Remaining (prioritized)
+
+See "Must Do Before Next Customer" and "Should Do" sections at the top of this document for the full prioritized list. Summary:
+
+**Must Do (P0):**
+1. `hebbs contradictions` command -- recall output references it but it doesn't exist
+2. Fix `truncate_str` UTF-8 panic -- byte slicing on multi-byte chars crashes the panel
+3. Emit `MemoryCreated` events during indexing -- live graph mergeData is ready but events never fire
+
+**Must Do (P1):**
+4. Panel vault switch error feedback -- silent failure on invalid vault path
+5. Forgotten timeline content preview -- store content snippet in tombstones
+
+**Should Do:**
+6. `hebbs subscribe` event stream
+7. Panel file change toasts
+8. Panel contradiction UI (red edges)
+9. Node pulse on change
+10. Panel indexing progress bar

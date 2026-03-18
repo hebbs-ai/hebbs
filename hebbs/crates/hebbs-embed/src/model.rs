@@ -213,13 +213,29 @@ fn download_file(url: &str, dest: &Path) -> Result<()> {
             };
             if let Some(total) = total_length {
                 let pct = (downloaded as f64 / total as f64 * 100.0).min(100.0);
+                let eta = if speed_mb > 0.01 {
+                    let remaining_mb = (total - downloaded) as f64 / 1_048_576.0;
+                    let secs = (remaining_mb / speed_mb) as u64;
+                    if secs >= 60 {
+                        format!("~{}m{}s left", secs / 60, secs % 60)
+                    } else {
+                        format!("~{}s left", secs)
+                    }
+                } else {
+                    String::new()
+                };
+                // Visual progress bar (20 chars wide)
+                let filled = (pct / 5.0) as usize;
+                let bar: String = "\u{2588}".repeat(filled) + &"\u{2591}".repeat(20 - filled);
                 eprint!(
-                    "\r  Downloading {} ... {:.0}% ({:.1}/{:.1} MB, {:.1} MB/s)  ",
+                    "\r  Downloading {} {} {:.0}% ({:.1}/{:.1} MB, {:.1} MB/s) {}  ",
                     file_name,
+                    bar,
                     pct,
                     downloaded as f64 / 1_048_576.0,
                     total as f64 / 1_048_576.0,
                     speed_mb,
+                    eta,
                 );
             } else {
                 eprint!(
