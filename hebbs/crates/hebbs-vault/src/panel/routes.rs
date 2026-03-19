@@ -39,14 +39,14 @@ fn truncate_str(s: &str, max_len: usize) -> String {
 
 const INDEX_HTML: &str = include_str!("static/index.html");
 const APP_JS: &str = include_str!("static/app.js");
-const GRAPH_JS: &str = include_str!("static/graph.js");
+const BRAIN_JS: &str = include_str!("static/brain.js");
 const PANEL_CSS: &str = include_str!("static/panel.css");
 
 pub fn static_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(serve_index))
         .route("/static/app.js", get(serve_app_js))
-        .route("/static/graph.js", get(serve_graph_js))
+        .route("/static/brain.js", get(serve_brain_js))
         .route("/static/panel.css", get(serve_panel_css))
 }
 
@@ -58,8 +58,8 @@ async fn serve_app_js() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "application/javascript")], APP_JS)
 }
 
-async fn serve_graph_js() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "application/javascript")], GRAPH_JS)
+async fn serve_brain_js() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "application/javascript")], BRAIN_JS)
 }
 
 async fn serve_panel_css() -> impl IntoResponse {

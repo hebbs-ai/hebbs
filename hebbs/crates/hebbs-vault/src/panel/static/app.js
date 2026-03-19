@@ -2,36 +2,30 @@
 //
 // Pure vanilla JS. No frameworks, no build step.
 // Manages state, API calls, tab routing, and component rendering.
-// 6 tabs: Dashboard, Explorer, Recall, Graph, Timeline, Settings
+// 7 tabs: Dashboard, Notes, Explorer, Recall, Brain, Queries, Timeline, Settings
 
-import { MemoryGraph } from './graph.js';
+import { MemoryBrain } from './brain.js';
 
 // ═══════════════════════════════════════════════════════════════════════
 //  State
 // ═══════════════════════════════════════════════════════════════════════
 
 const state = {
-  activeTab: 'graph',
+  activeTab: 'brain',
   tabsLoaded: {}, // track which tabs have been loaded
 
   vaults: [],
   activeVault: null,
   status: null,
-  graph: null,
+  brain: null,
   graphData: null,
   selectedNodeId: null,
   memoryDetail: null,
 
-  // Graph tab: Search + Controls
-  searchQuery: '',
-  searchResults: null,
-  searchLatency: null,
+  // Brain/Recall shared weights
   weights: { relevance: 0.5, recency: 0.2, importance: 0.2, reinforcement: 0.1 },
   strategies: ['similarity', 'temporal'],
   topK: 10,
-  filters: { state: '', file_path: '', importance_min: 0, importance_max: 1 },
-  decayMode: false,
-  healthDetail: null,
 
   // Timeline (graph tab bottom bar removed, now standalone tab)
   timelineData: null,
@@ -128,53 +122,49 @@ async function loadVaults() {
 
 async function loadStatus() {
   state.status = await api('/api/panel/status');
-  renderHealthBadge();
 }
 
 async function loadGraph() {
   state.graphData = await api('/api/panel/graph');
   if (state.graphData.nodes.length === 0) {
-    // Clear the canvas so stale nodes from a previous vault don't linger
-    if (state.graph) state.graph.setData([], [], false, 0, {});
-    showEmptyState();
+    if (state.brain) state.brain.setData([], [], false, 0, {});
     return;
   }
-  hideEmptyState();
-  state.graph.setData(
-    state.graphData.nodes,
-    state.graphData.edges,
-    state.graphData.has_projection,
-    state.graphData.n_clusters,
-    state.graphData.cluster_labels || {}
-  );
-  populateFileFilter();
+  if (state.brain) {
+    state.brain.setData(
+      state.graphData.nodes,
+      state.graphData.edges,
+      state.graphData.has_projection,
+      state.graphData.n_clusters,
+      state.graphData.cluster_labels || {}
+    );
+  }
 }
 
 /**
  * Incrementally merge new graph data, preserving existing node positions.
- * Used during indexing so the graph grows live without jarring resets.
+ * Used during indexing so the brain grows live without jarring resets.
  */
 async function mergeGraph() {
   state.graphData = await api('/api/panel/graph');
   if (state.graphData.nodes.length === 0) {
-    if (state.graph) state.graph.setData([], [], false, 0, {});
-    showEmptyState();
+    if (state.brain) state.brain.setData([], [], false, 0, {});
     return;
   }
-  hideEmptyState();
-  state.graph.mergeData(
-    state.graphData.nodes,
-    state.graphData.edges,
-    state.graphData.has_projection,
-    state.graphData.n_clusters,
-    state.graphData.cluster_labels || {}
-  );
-  populateFileFilter();
+  if (state.brain) {
+    state.brain.mergeData(
+      state.graphData.nodes,
+      state.graphData.edges,
+      state.graphData.has_projection,
+      state.graphData.n_clusters,
+      state.graphData.cluster_labels || {}
+    );
+  }
 }
 
 async function loadMemoryDetail(id) {
   state.memoryDetail = await api(`/api/panel/memories/${id}`);
-  renderSidePanel();
+  renderBrainSidePanel();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -338,9 +328,9 @@ class DetailDrawer {
       graphLink.addEventListener('click', () => {
         const id = m.memory_id;
         this.close();
-        switchTab('graph');
+        switchTab('brain');
         state.selectedNodeId = id;
-        if (state.graph) state.graph.selectNode(id);
+        if (state.brain) state.brain.selectNode(id);
         loadMemoryDetail(id);
       });
     }
@@ -379,18 +369,15 @@ function switchTab(tabName) {
       case 'queries': loadQueriesTab(); break;
       case 'timeline': loadTimelineTab(); break;
       case 'settings': loadSettingsTab(); break;
-      case 'graph':
-        // Graph may need resize after hidden->visible
-        if (state.graph) {
-          setTimeout(() => state.graph._resize(), 50);
-        }
+      case 'brain':
+        if (state.brain) setTimeout(() => state.brain._resize(), 50);
         break;
     }
   }
 
-  // Graph always needs resize on switch back
-  if (tabName === 'graph' && state.graph) {
-    setTimeout(() => state.graph._resize(), 50);
+  // Brain always needs resize on switch back
+  if (tabName === 'brain' && state.brain) {
+    setTimeout(() => state.brain._resize(), 50);
   }
 }
 
@@ -1317,11 +1304,10 @@ window._queriesFilterCaller = (caller) => {
 };
 
 window._showQueryOnGraph = (memoryIds) => {
-  // Switch to graph tab and highlight these memories
-  switchTab('graph');
-  if (state.graph) {
+  switchTab('brain');
+  if (state.brain) {
     const results = memoryIds.map(id => ({ memory_id: id, score: 1.0 }));
-    state.graph.setSearchResults(results);
+    state.brain.setSearchResults(results);
   }
 };
 
@@ -1822,334 +1808,17 @@ function showSettingsStatus(msg, type) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Graph Tab: Search
-// ═══════════════════════════════════════════════════════════════════════
 
-async function doSearch() {
-  const query = state.searchQuery.trim();
-  if (!query) {
-    state.searchResults = null;
-    state.searchLatency = null;
-    state.graph.setSearchResults(null);
-    document.getElementById('latency-badge').textContent = '';
-    if (!state.memoryDetail) {
-      const panel = document.getElementById('side-panel');
-      panel.classList.add('hidden');
-    }
-    return;
-  }
 
-  const t0 = performance.now();
-  try {
-    const body = {
-      query,
-      weights: state.weights,
-      strategies: state.strategies,
-      top_k: state.topK,
-      filters: {
-        state: state.filters.state || undefined,
-        file_path: state.filters.file_path || undefined,
-        importance_min: state.filters.importance_min,
-        importance_max: state.filters.importance_max,
-      },
-    };
-    const results = await api('/api/panel/recall', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const latency = Math.round(performance.now() - t0);
 
-    state.searchResults = results.results;
-    state.searchLatency = latency;
-    state.graph.setSearchResults(state.searchResults);
 
-    document.getElementById('latency-badge').textContent = `${latency}ms`;
-    renderSearchResults();
-  } catch (err) {
-    console.error('Search failed:', err);
-    state.searchResults = [];
-    state.searchLatency = null;
-    state.graph.setSearchResults(null);
-    document.getElementById('latency-badge').textContent = 'err';
-  }
-}
 
-function renderSearchResults() {
-  const results = state.searchResults;
-  if (!results || results.length === 0) return;
 
-  const panel = document.getElementById('side-panel');
-  const content = document.getElementById('side-panel-content');
-  panel.classList.remove('hidden');
 
-  let html = `
-    <div class="panel-header">
-      <div class="panel-title">Search Results</div>
-      <div class="panel-file">${results.length} results in ${state.searchLatency}ms</div>
-    </div>
-  `;
 
-  for (const r of results) {
-    const scoreStr = (r.score !== undefined ? r.score : 0).toFixed(3);
-    const hp = r.heading_path || [];
-    const title = hp.length > 0 ? hp[hp.length - 1] : (r.file_path ? r.file_path.split('/').pop().replace('.md', '') : 'Memory');
-    const preview = r.content ? r.content.slice(0, 120) : '';
-    const kind = r.kind || 'episode';
-    html += `
-      <div class="search-result-item" onclick="window._selectNode('${r.memory_id}')">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span class="search-result-title">${escapeHtml(title)}</span>
-          <span class="search-result-score">${scoreStr}</span>
-        </div>
-        <div class="search-result-preview">${escapeHtml(preview)}</div>
-        <div class="search-result-meta">
-          <span>${kind}</span>
-          ${r.file_path ? `<span>${escapeHtml(r.file_path)}</span>` : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  content.innerHTML = html;
-}
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Graph Tab: Health Detail
-// ═══════════════════════════════════════════════════════════════════════
-
-async function loadHealthDetail() {
-  try {
-    state.healthDetail = await api('/api/panel/health');
-    renderHealthDetail();
-  } catch (err) {
-    console.error('Failed to load health detail:', err);
-  }
-}
-
-function renderHealthDetail() {
-  if (!state.healthDetail) return;
-
-  const panel = document.getElementById('side-panel');
-  const content = document.getElementById('side-panel-content');
-  panel.classList.remove('hidden');
-
-  const h = state.healthDetail;
-  let html = `
-    <div class="panel-header">
-      <div class="panel-title">Vault Health</div>
-    </div>
-  `;
-
-  if (h.stale_files && h.stale_files.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="health-detail-title">Stale Files (${h.stale_files.length})</div>
-        ${h.stale_files.map(f => `
-          <div class="health-item">
-            <span style="color:var(--text-secondary)">${escapeHtml(f.path)}</span>
-            <span style="color:var(--amber-bright);font-size:10px">${f.sections_stale} sections</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if (h.orphaned_memories && h.orphaned_memories.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="health-detail-title">Orphaned Memories (${h.orphaned_memories.length})</div>
-        ${h.orphaned_memories.map(m => `
-          <div class="health-item" onclick="window._selectNode('${m.memory_id}')">
-            <span style="color:var(--text-secondary)">${escapeHtml(m.content_preview || 'Memory')}</span>
-            <button class="health-action-btn danger" onclick="event.stopPropagation()">Remove</button>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if (h.decay_candidates && h.decay_candidates.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="health-detail-title">Decay Candidates (${h.decay_candidates.length})</div>
-        ${h.decay_candidates.map(m => `
-          <div class="health-item" onclick="window._selectNode('${m.memory_id}')">
-            <span style="color:var(--text-secondary)">${escapeHtml(m.label || 'Memory')}</span>
-            <span style="color:var(--error);font-size:10px;font-family:var(--font-mono)">${(m.decay_score || 0).toFixed(3)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if ((!h.stale_files || h.stale_files.length === 0) && (!h.orphaned_memories || h.orphaned_memories.length === 0) && (!h.decay_candidates || h.decay_candidates.length === 0)) {
-    html += `<div class="panel-section"><div style="color:var(--success);font-size:13px">All clear. No health issues detected.</div></div>`;
-  }
-
-  content.innerHTML = html;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  Graph Tab: Controls Setup
-// ═══════════════════════════════════════════════════════════════════════
-
-function setupGraphControls() {
-  // Controls toggle
-  const controlsEl = document.getElementById('controls');
-  const toggleBtn = document.getElementById('controls-toggle');
-  toggleBtn.addEventListener('click', () => {
-    controlsEl.classList.toggle('collapsed');
-    setTimeout(() => { if (state.graph) state.graph._resize(); }, 250);
-  });
-
-  // Weight sliders
-  const weightKeys = ['relevance', 'recency', 'importance', 'reinforcement'];
-  const debouncedSearch = debounce(() => { if (state.searchQuery) doSearch(); }, 150);
-
-  for (const key of weightKeys) {
-    const slider = document.getElementById(`w-${key}`);
-    const valEl = document.getElementById(`w-${key}-val`);
-    slider.addEventListener('input', () => {
-      const val = parseInt(slider.value, 10) / 100;
-      state.weights[key] = val;
-      valEl.textContent = val.toFixed(2);
-      debouncedSearch();
-    });
-  }
-
-  // Presets
-  const presets = {
-    relevance: { relevance: 1.0, recency: 0.0, importance: 0.0, reinforcement: 0.0 },
-    recency: { relevance: 0.3, recency: 0.5, importance: 0.1, reinforcement: 0.1 },
-    importance: { relevance: 0.2, recency: 0.1, importance: 0.6, reinforcement: 0.1 },
-  };
-
-  document.querySelectorAll('#tab-graph .preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const preset = presets[btn.dataset.preset];
-      if (!preset) return;
-      state.weights = { ...preset };
-      for (const key of weightKeys) {
-        const slider = document.getElementById(`w-${key}`);
-        const valEl = document.getElementById(`w-${key}-val`);
-        slider.value = Math.round(state.weights[key] * 100);
-        valEl.textContent = state.weights[key].toFixed(2);
-      }
-      if (state.searchQuery) doSearch();
-    });
-  });
-
-  // Strategy checkboxes
-  const strategyIds = ['similarity', 'temporal', 'causal', 'analogical'];
-  for (const strat of strategyIds) {
-    const cb = document.getElementById(`strat-${strat}`);
-    cb.addEventListener('change', () => {
-      if (cb.checked) {
-        if (!state.strategies.includes(strat)) state.strategies.push(strat);
-      } else {
-        state.strategies = state.strategies.filter(s => s !== strat);
-      }
-      if (state.searchQuery) doSearch();
-    });
-  }
-
-  // Top-K
-  document.getElementById('top-k-select').addEventListener('change', (e) => {
-    state.topK = parseInt(e.target.value, 10);
-    if (state.searchQuery) doSearch();
-  });
-
-  // Filters
-  document.getElementById('filter-state').addEventListener('change', (e) => {
-    state.filters.state = e.target.value;
-    if (state.searchQuery) doSearch();
-  });
-
-  document.getElementById('filter-file').addEventListener('change', (e) => {
-    state.filters.file_path = e.target.value;
-    if (state.searchQuery) doSearch();
-  });
-
-  const impMinSlider = document.getElementById('filter-imp-min');
-  const impMaxSlider = document.getElementById('filter-imp-max');
-  const debouncedFilter = debounce(() => { if (state.searchQuery) doSearch(); }, 150);
-
-  impMinSlider.addEventListener('input', () => {
-    state.filters.importance_min = parseInt(impMinSlider.value, 10) / 100;
-    debouncedFilter();
-  });
-  impMaxSlider.addEventListener('input', () => {
-    state.filters.importance_max = parseInt(impMaxSlider.value, 10) / 100;
-    debouncedFilter();
-  });
-
-  // Search input
-  const searchInput = document.getElementById('search-input');
-  const debouncedSearchInput = debounce(() => {
-    state.searchQuery = searchInput.value;
-    doSearch();
-  }, 300);
-  searchInput.addEventListener('input', debouncedSearchInput);
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      searchInput.value = '';
-      state.searchQuery = '';
-      state.searchResults = null;
-      state.searchLatency = null;
-      state.graph.setSearchResults(null);
-      document.getElementById('latency-badge').textContent = '';
-      renderSidePanel();
-    }
-  });
-
-  // Decay toggle
-  const decayToggle = document.getElementById('decay-toggle');
-  decayToggle.addEventListener('click', () => {
-    state.decayMode = !state.decayMode;
-    decayToggle.classList.toggle('active', state.decayMode);
-    decayToggle.textContent = state.decayMode ? 'Hide decay' : 'Show decay';
-    state.graph.setDecayMode(state.decayMode);
-    if (state.decayMode) {
-      loadHealthDetail();
-    }
-  });
-
-  // Health badge click
-  document.getElementById('health-badge').addEventListener('click', () => {
-    loadHealthDetail();
-  });
-
-  // Export PNG
-  document.getElementById('export-png').addEventListener('click', () => {
-    if (state.graph) state.graph.exportPNG();
-  });
-
-  // Export SVG
-  document.getElementById('export-svg').addEventListener('click', () => {
-    if (state.graph) state.graph.exportSVG();
-  });
-}
-
-function populateFileFilter() {
-  if (!state.graphData || !state.graphData.nodes) return;
-  const fileSet = new Set();
-  for (const node of state.graphData.nodes) {
-    if (node.file_path) fileSet.add(node.file_path);
-  }
-  const select = document.getElementById('filter-file');
-  select.innerHTML = '<option value="">All files</option>';
-  for (const fp of [...fileSet].sort()) {
-    const opt = document.createElement('option');
-    opt.value = fp;
-    opt.textContent = fp.split('/').pop();
-    select.appendChild(opt);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  Graph Tab: Side Panel (memory detail)
+//  Vault Dropdown
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderVaultDropdown() {
@@ -2189,135 +1858,6 @@ function renderVaultDropdown() {
   });
 }
 
-function renderHealthBadge() {
-  const el = document.getElementById('health-text');
-  if (!state.status) {
-    el.textContent = 'Loading...';
-    return;
-  }
-  const s = state.status;
-  const parts = [];
-  parts.push(`<span class="count">${s.memory_count}</span> memories`);
-  if (s.insight_count > 0) {
-    parts.push(`<span class="count">${s.insight_count}</span> insights`);
-  }
-
-  const syncClass = s.sync_percentage >= 95 ? 'sync-ok' : (s.sync_percentage >= 80 ? '' : 'stale');
-  parts.push(`<span class="${syncClass}">${Math.round(s.sync_percentage)}% synced</span>`);
-
-  if (s.stale > 0) {
-    parts.push(`<span class="stale">${s.stale} stale</span>`);
-  }
-  if (s.orphaned > 0) {
-    parts.push(`<span class="orphaned">${s.orphaned} orphaned</span>`);
-  }
-
-  el.innerHTML = parts.join('<span class="separator">|</span>');
-}
-
-function renderSidePanel() {
-  const panel = document.getElementById('side-panel');
-  const content = document.getElementById('side-panel-content');
-
-  if (state.searchResults && state.searchResults.length > 0 && !state.memoryDetail) {
-    renderSearchResults();
-    return;
-  }
-
-  if (!state.memoryDetail) {
-    panel.classList.add('hidden');
-    return;
-  }
-
-  const m = state.memoryDetail;
-  panel.classList.remove('hidden');
-
-  const kindClass = m.kind;
-  const title = m.heading_path.length > 0
-    ? m.heading_path[m.heading_path.length - 1]
-    : (m.file_path ? m.file_path.split('/').pop().replace('.md', '') : 'Memory');
-
-  let html = `
-    <div class="panel-header">
-      <span class="panel-kind ${kindClass}">${m.kind}</span>
-      ${m.confidence !== null && m.confidence !== undefined
-        ? `<span class="confidence-badge">Confidence: ${(m.confidence * 100).toFixed(0)}%</span>`
-        : ''}
-      <div class="panel-title">${escapeHtml(title)}</div>
-      <div class="panel-file">${escapeHtml(m.file_path || '')}</div>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-section-title">Content</div>
-      <div class="panel-content-preview">${escapeHtml(m.content.slice(0, 500))}${m.content.length > 500 ? '...' : ''}</div>
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-section-title">Score Breakdown</div>
-      ${renderScoreRow('Recency', m.scores.recency, 'recency')}
-      ${renderScoreRow('Importance', m.scores.importance, 'importance')}
-      ${renderScoreRow('Reinforcement', m.scores.reinforcement, 'reinforcement')}
-    </div>
-
-    <div class="panel-section">
-      <div class="panel-section-title">Metadata</div>
-      ${renderMetaRow('Decay score', m.decay_score.toFixed(3))}
-      ${renderMetaRow('Access count', m.access_count)}
-      ${renderMetaRow('Created', formatTimestamp(m.created_at))}
-      ${renderMetaRow('Last accessed', formatTimestamp(m.last_accessed_at))}
-      ${m.state ? renderMetaRow('State', m.state) : ''}
-    </div>
-  `;
-
-  if (m.source_ids && m.source_ids.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="panel-section-title">Source Memories</div>
-        ${m.source_ids.map(s => {
-          const sid = typeof s === 'string' ? s : s.id;
-          const label = (typeof s === 'object' && s.label) ? s.label : '';
-          return `
-          <div class="edge-item" data-id="${sid}" onclick="window._selectNode('${sid}')">
-            <span class="edge-type-badge">source</span>
-            <span style="color:var(--text-secondary)">${escapeHtml(label || 'Memory')}</span>
-          </div>`;
-        }).join('')}
-      </div>
-    `;
-  }
-
-  if (m.edges.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="panel-section-title">Edges</div>
-        ${m.edges.map(e => `
-          <div class="edge-item" data-id="${e.target_id}" onclick="window._selectNode('${e.target_id}')">
-            <span class="edge-type-badge">${e.type.replace('_', ' ')}</span>
-            <span style="color:var(--text-secondary)">${escapeHtml(e.label || 'Memory')}</span>
-            <span style="color:var(--text-muted);font-size:10px;margin-left:auto">${(e.confidence * 100).toFixed(0)}%</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if (m.neighbors.length > 0) {
-    html += `
-      <div class="panel-section">
-        <div class="panel-section-title">Similar Memories</div>
-        ${m.neighbors.map(n => `
-          <div class="neighbor-item" data-id="${n.id}" onclick="window._selectNode('${n.id}')">
-            <span style="color:var(--amber-bright);font-size:10px;font-family:var(--font-mono)">${(n.similarity * 100).toFixed(0)}%</span>
-            <span style="color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(n.label)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  content.innerHTML = html;
-}
-
 function renderScoreRow(label, score, cssClass) {
   const pct = (score.raw * 100).toFixed(0);
   return `
@@ -2340,23 +1880,170 @@ function renderMetaRow(label, value) {
   `;
 }
 
-function showEmptyState() {
-  let el = document.querySelector('.empty-state');
-  if (!el) {
-    el = document.createElement('div');
-    el.className = 'empty-state';
-    document.getElementById('main').appendChild(el);
+// ═══════════════════════════════════════════════════════════════════════
+//  Brain Tab
+// ═══════════════════════════════════════════════════════════════════════
+
+function initBrain() {
+  if (state.brain) {
+    state.brain._resize();
+    return;
   }
-  el.innerHTML = `
-    <h2>Your memory palace is empty</h2>
-    <p>Index some markdown files to see your memory graph:</p>
-    <p style="margin-top: 8px"><code>hebbs init .</code> then <code>hebbs index .</code></p>
-  `;
+
+  const canvas = document.getElementById('brain-canvas');
+  state.brain = new MemoryBrain(canvas);
+
+  state.brain.onNodeClick = async (node) => {
+    if (!node) {
+      state.selectedNodeId = null;
+      state.memoryDetail = null;
+      renderBrainSidePanel();
+      return;
+    }
+    state.selectedNodeId = node.id;
+    state.memoryDetail = await api(`/api/panel/memories/${node.id}`);
+    renderBrainSidePanel();
+  };
+
+  state.brain.start();
+
+  // Feed existing graph data
+  if (state.graphData && state.graphData.nodes.length > 0) {
+    state.brain.setData(
+      state.graphData.nodes,
+      state.graphData.edges,
+      state.graphData.has_projection,
+      state.graphData.n_clusters,
+      state.graphData.cluster_labels || {}
+    );
+  }
+
+  // Brain search input
+  const searchInput = document.getElementById('brain-search-input');
+  const debouncedBrainSearch = debounce(() => {
+    doBrainSearch(searchInput.value);
+  }, 300);
+  searchInput.addEventListener('input', debouncedBrainSearch);
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      state.brain.setSearchResults(null);
+      document.getElementById('brain-latency-badge').textContent = '';
+    }
+  });
+
+  // Side panel close
+  document.getElementById('brain-side-panel-close').addEventListener('click', () => {
+    state.selectedNodeId = null;
+    state.memoryDetail = null;
+    state.brain.selectNode(null);
+    renderBrainSidePanel();
+  });
 }
 
-function hideEmptyState() {
-  const el = document.querySelector('.empty-state');
-  if (el) el.remove();
+async function doBrainSearch(query) {
+  query = query.trim();
+  if (!query) {
+    state.brain.setSearchResults(null);
+    document.getElementById('brain-latency-badge').textContent = '';
+    return;
+  }
+
+  const t0 = performance.now();
+  try {
+    const body = {
+      query,
+      weights: state.weights,
+      strategies: state.strategies,
+      top_k: state.topK,
+    };
+    const results = await api('/api/panel/recall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const latency = Math.round(performance.now() - t0);
+    state.brain.setSearchResults(results.results);
+    document.getElementById('brain-latency-badge').textContent = `${latency}ms`;
+  } catch (err) {
+    console.error('Brain search failed:', err);
+    state.brain.setSearchResults(null);
+    document.getElementById('brain-latency-badge').textContent = 'err';
+  }
+}
+
+function renderBrainSidePanel() {
+  const panel = document.getElementById('brain-side-panel');
+  const content = document.getElementById('brain-side-panel-content');
+
+  if (!state.memoryDetail) {
+    panel.classList.add('hidden');
+    return;
+  }
+
+  const m = state.memoryDetail;
+  panel.classList.remove('hidden');
+
+  const title = m.heading_path && m.heading_path.length > 0
+    ? m.heading_path[m.heading_path.length - 1]
+    : (m.file_path ? m.file_path.split('/').pop().replace('.md', '') : 'Memory');
+
+  let html = `
+    <div class="panel-header">
+      <span class="panel-kind ${m.kind}">${m.kind}</span>
+      ${m.confidence != null ? `<span class="confidence-badge">Confidence: ${(m.confidence * 100).toFixed(0)}%</span>` : ''}
+      <div class="panel-title">${escapeHtml(title)}</div>
+      <div class="panel-file">${escapeHtml(m.file_path || '')}</div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Content</div>
+      <div class="panel-content-preview">${escapeHtml(m.content.slice(0, 500))}${m.content.length > 500 ? '...' : ''}</div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Score Breakdown</div>
+      ${renderScoreRow('Recency', m.scores.recency, 'recency')}
+      ${renderScoreRow('Importance', m.scores.importance, 'importance')}
+      ${renderScoreRow('Reinforcement', m.scores.reinforcement, 'reinforcement')}
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Metadata</div>
+      ${renderMetaRow('Decay score', m.decay_score.toFixed(3))}
+      ${renderMetaRow('Access count', m.access_count)}
+      ${renderMetaRow('Created', formatTimestamp(m.created_at))}
+      ${renderMetaRow('Last accessed', formatTimestamp(m.last_accessed_at))}
+      ${m.state ? renderMetaRow('State', m.state) : ''}
+    </div>
+  `;
+
+  if (m.edges && m.edges.length > 0) {
+    html += `
+      <div class="panel-section">
+        <div class="panel-section-title">Edges</div>
+        ${m.edges.map(e => `
+          <div class="edge-item" data-id="${e.target_id}" onclick="window._brainSelectNode('${e.target_id}')">
+            <span class="edge-type-badge">${e.type.replace('_', ' ')}</span>
+            <span style="color:var(--text-secondary)">${escapeHtml(e.label || 'Memory')}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  if (m.neighbors && m.neighbors.length > 0) {
+    html += `
+      <div class="panel-section">
+        <div class="panel-section-title">Similar Memories</div>
+        ${m.neighbors.map(n => `
+          <div class="neighbor-item" data-id="${n.id}" onclick="window._brainSelectNode('${n.id}')">
+            <span style="color:var(--amber-bright);font-size:10px;font-family:var(--font-mono)">${(n.similarity * 100).toFixed(0)}%</span>
+            <span style="color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(n.label)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  content.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2364,47 +2051,35 @@ function hideEmptyState() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function init() {
-  // Initialize graph
-  const canvas = document.getElementById('graph-canvas');
-  state.graph = new MemoryGraph(canvas);
+  // Initialize brain as the default visualization
+  initBrain();
 
-  state.graph.onNodeClick = async (node) => {
-    if (!node) {
-      state.selectedNodeId = null;
-      state.memoryDetail = null;
-      renderSidePanel();
-      return;
-    }
-    state.selectedNodeId = node.id;
-    await loadMemoryDetail(node.id);
-  };
-
-  state.graph.start();
-
-  // Close side panel button
-  document.getElementById('side-panel-close').addEventListener('click', () => {
-    state.selectedNodeId = null;
-    state.memoryDetail = null;
-    state.graph.selectNode(null);
-    renderSidePanel();
+  // Export PNG button
+  document.getElementById('export-png').addEventListener('click', () => {
+    if (state.brain) state.brain.exportPNG();
   });
 
-  // Global function for graph tab node clicks
+  // Global function for node clicks (used by detail drawers, brain side panel edges)
   window._selectNode = async (id) => {
     state.selectedNodeId = id;
-    state.graph.selectNode(id);
-    await loadMemoryDetail(id);
+    state.brain?.selectNode(id);
+    state.memoryDetail = await api(`/api/panel/memories/${id}`);
+    renderBrainSidePanel();
   };
 
-  // Global function for cross-tab node navigation (switch to graph and select)
+  // Alias used by brain side panel edges
+  window._brainSelectNode = window._selectNode;
+
+  // Global function for cross-tab node navigation (switch to brain and select)
   window._selectNodeTab = async (id) => {
-    switchTab('graph');
+    switchTab('brain');
     state.selectedNodeId = id;
-    state.graph.selectNode(id);
-    await loadMemoryDetail(id);
+    state.brain?.selectNode(id);
+    state.memoryDetail = await api(`/api/panel/memories/${id}`);
+    renderBrainSidePanel();
   };
 
-  // Initialize detail drawers for non-graph tabs
+  // Initialize detail drawers for non-brain tabs
   _drawers = {
     dashboard: new DetailDrawer('tab-dashboard'),
     explorer:  new DetailDrawer('tab-explorer'),
@@ -2413,13 +2088,14 @@ async function init() {
     timeline:  new DetailDrawer('tab-timeline'),
   };
 
-  // Global function for in-context detail (opens drawer in current tab, or graph side panel)
+  // Global function for in-context detail (opens drawer in current tab, or brain side panel)
   window._openDetail = async (id) => {
     const tab = state.activeTab;
-    if (tab === 'graph') {
+    if (tab === 'brain') {
       state.selectedNodeId = id;
-      state.graph.selectNode(id);
-      await loadMemoryDetail(id);
+      state.brain?.selectNode(id);
+      state.memoryDetail = await api(`/api/panel/memories/${id}`);
+      renderBrainSidePanel();
       return;
     }
     const drawer = _drawers[tab];
@@ -2433,21 +2109,16 @@ async function init() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // Mark graph tab as loaded since it is default
-  state.tabsLoaded['graph'] = true;
-
-  // Set up graph controls
-  setupGraphControls();
+  // Mark brain tab as loaded since it is default
+  state.tabsLoaded['brain'] = true;
 
   // Load data
   try {
     await Promise.all([loadVaults(), loadStatus()]);
-    // Re-render vault dropdown now that status is available (fallback for standalone mode)
     renderVaultDropdown();
     await loadGraph();
   } catch (err) {
     console.error('Failed to load data:', err);
-    showEmptyState();
   }
 
   // Connect WebSocket for live events from the daemon
