@@ -373,34 +373,25 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
     let mut id_set: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut embeddings: Vec<(String, Vec<f32>)> = Vec::new();
 
-    // Collect nodes from manifest
-    for (file_path, file_entry) in &manifest.files {
-        for section in &file_entry.sections {
-            if section.state == SectionState::Orphaned {
-                continue;
-            }
+    // Helper: add a memory node from engine by ULID string.
+    // Returns true if the node was added (not a duplicate).
+    let add_memory_node = |mem_id: &str,
+                                file_path: &str,
+                                heading_path: Vec<String>,
+                                label: String,
+                                id_set: &mut std::collections::HashSet<String>,
+                                nodes: &mut Vec<GraphNode>,
+                                embeddings: &mut Vec<(String, Vec<f32>)>| -> bool {
+        if !id_set.insert(mem_id.to_string()) {
+            return false;
+        }
+        let id_bytes = match parse_memory_id(mem_id) {
+            Ok(b) => b,
+            Err(_) => return false,
+        };
 
-            let mem_id = section.memory_id.clone();
-            if !id_set.insert(mem_id.clone()) {
-                continue;
-            }
-
-            // Try to get memory from engine for rich metadata
-            let id_bytes = match parse_memory_id(&mem_id) {
-                Ok(b) => b,
-                Err(_) => continue,
-            };
-
-            let (
-                kind,
-                importance,
-                decay_score,
-                access_count,
-                created_at,
-                content_preview,
-                embedding,
-                confidence,
-            ) = match engine.get(&id_bytes) {
+        let (kind, importance, decay_score, access_count, created_at, content_preview, embedding, confidence) =
+            match engine.get(&id_bytes) {
                 Ok(mem) => {
                     let k = match mem.kind {
                         MemoryKind::Episode => "episode",
@@ -414,7 +405,6 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                     } else {
                         mem.content.clone()
                     };
-                    // Extract confidence from context for insights
                     let conf = if mem.kind == MemoryKind::Insight {
                         mem.context().ok().and_then(|ctx| {
                             ctx.get("hebbs-confidence")
@@ -424,71 +414,86 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                     } else {
                         None
                     };
-                    (
-                        k,
-                        mem.importance,
-                        mem.decay_score,
-                        mem.access_count,
-                        mem.created_at,
-                        preview,
-                        mem.embedding.clone(),
-                        conf,
-                    )
+                    (k, mem.importance, mem.decay_score, mem.access_count,
+                     mem.created_at, preview, mem.embedding.clone(), conf)
                 }
-                Err(_) => {
-                    // Memory not in engine (maybe not yet embedded)
-                    ("episode", 0.5, 1.0, 0u64, 0u64, String::new(), None, None)
-                }
+                Err(_) => return false,
             };
 
-            // Compute recency signal [0, 1]
-            let age_us = now_us.saturating_sub(created_at);
-            let recency = 1.0 - (age_us as f32 / max_age_us as f32).min(1.0);
+        let age_us = now_us.saturating_sub(created_at);
+        let recency = 1.0 - (age_us as f32 / max_age_us as f32).min(1.0);
+        let reinforcement = ((1.0 + access_count as f32).ln() / (1.0 + 100.0_f32).ln()).min(1.0);
 
-            // Compute reinforcement signal [0, 1]
-            let reinforcement = (1.0 + access_count as f32).ln() / (1.0 + 100.0_f32).ln();
+        if let Some(emb) = embedding {
+            embeddings.push((mem_id.to_string(), emb));
+        }
 
+        nodes.push(GraphNode {
+            id: mem_id.to_string(),
+            label,
+            file_path: file_path.to_string(),
+            heading_path,
+            kind: kind.to_string(),
+            importance,
+            recency,
+            reinforcement,
+            decay_score,
+            access_count,
+            state: "synced".to_string(),
+            created_at,
+            content_preview,
+            confidence,
+            x: None,
+            y: None,
+            cluster: None,
+            pinned: false,
+        });
+        true
+    };
+
+    // Collect nodes from manifest: sections, document memories, and proposition memories
+    for (file_path, file_entry) in &manifest.files {
+        let file_label = file_path
+            .rsplit('/')
+            .next()
+            .unwrap_or(file_path)
+            .trim_end_matches(".md")
+            .to_string();
+
+        // Document memory (Layer 1)
+        if let Some(ref doc_id) = file_entry.document_memory_id {
+            add_memory_node(
+                doc_id, file_path, Vec::new(),
+                file_label.clone(),
+                &mut id_set, &mut nodes, &mut embeddings,
+            );
+        }
+
+        // Proposition memories (Layer 2)
+        for (i, prop_id) in file_entry.proposition_memory_ids.iter().enumerate() {
+            let prop_label = format!("{}#{}", file_label, i + 1);
+            add_memory_node(
+                prop_id, file_path, Vec::new(),
+                prop_label,
+                &mut id_set, &mut nodes, &mut embeddings,
+            );
+        }
+
+        // Section memories (legacy raw chunks, if any still exist)
+        for section in &file_entry.sections {
+            if section.state == SectionState::Orphaned {
+                continue;
+            }
             let label = if !section.heading_path.is_empty() {
                 section.heading_path.last().cloned().unwrap_or_default()
             } else {
-                file_path
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or(file_path)
-                    .trim_end_matches(".md")
-                    .to_string()
+                file_label.clone()
             };
-
-            let state_str = match section.state {
-                SectionState::Synced => "synced",
-                SectionState::ContentStale => "stale",
-                SectionState::Orphaned => "orphaned",
-            };
-
-            if let Some(emb) = embedding {
-                embeddings.push((mem_id.clone(), emb));
-            }
-
-            nodes.push(GraphNode {
-                id: mem_id,
-                label,
-                file_path: file_path.clone(),
-                heading_path: section.heading_path.clone(),
-                kind: kind.to_string(),
-                importance,
-                recency,
-                reinforcement: reinforcement.min(1.0),
-                decay_score,
-                access_count,
-                state: state_str.to_string(),
-                created_at,
-                content_preview,
-                confidence,
-                x: None,
-                y: None,
-                cluster: None,
-                pinned: false,
-            });
+            add_memory_node(
+                &section.memory_id, file_path,
+                section.heading_path.clone(), label,
+                &mut id_set, &mut nodes, &mut embeddings,
+            );
         }
     }
 

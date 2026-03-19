@@ -9,8 +9,7 @@ Thumbs.db
 # IDE/editor local state
 .vscode/
 .idea/
-.cursor/projects/
-.cursor/plans/
+.cursor/
 
 # Logs
 *.log

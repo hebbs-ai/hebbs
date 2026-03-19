@@ -130,7 +130,7 @@ Deep scan of all competing agent memory systems, papers, and architectures to va
 | HEBBS Feature | Truly Novel? | Nearest Competitor | Gap |
 |---|---|---|---|
 | Full pipeline (encode->associate->detect->resolve->consolidate->decay) | **YES** | None chain all 6 | Unique |
-| Contradiction detection (dual-mode: heuristic + LLM, two-phase commit) | **YES** | Zep has temporal conflict handling | Zep invalidates; HEBBS classifies, creates typed edges, supports agent review |
+| Contradiction detection (LLM-based structured classification, two-phase commit) | **YES** | Zep has temporal conflict handling | Zep invalidates; HEBBS classifies into contradiction/revision/dismiss, creates typed edges, supports agent review |
 | Hebbian associative embeddings (dual embedding + per-edge-type offsets) | **YES** (mechanism is novel) | Kairos (Hebbian on KG edges) | Different mechanism. HEBBS: embedding evolution + analogical reasoning. Kairos: edge weight LTP/LTD |
 | 4 recall strategies (temporal, causal, analogical, similarity) | **PARTIAL** | MAGMA (4 graph types + policy traversal) | HEBBS adds analogical recall via offset vectors (unique). Must differentiate from MAGMA |
 | Adaptive decay (Ebbinghaus half-life + reinforcement capping) | **PARTIAL** | ACT-R paper (temporal decay + semantic + noise) | HEBBS integrates into full pipeline; ACT-R is dialogue-only. HEBBS's reinforcement capping is novel |

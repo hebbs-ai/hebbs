@@ -101,7 +101,7 @@ Every code change must comply with the guiding principles. The most commonly rel
 
 ### Cross-Component Consistency
 
-Every change must propagate across all affected layers: proto → server (gRPC + REST) → CLI → Rust client SDK → Python SDK → TypeScript SDK → FFI/PyO3 → hebbs-docs. Never change one layer in isolation. See `.cursor/rules/cross-component-consistency.mdc` for the full component map and propagation checklist.
+Every change must propagate across all affected layers: proto → server (gRPC + REST) → CLI → Rust client SDK → Python SDK → TypeScript SDK → FFI/PyO3 → hebbs-docs. Never change one layer in isolation.
 
 ### Commits
 

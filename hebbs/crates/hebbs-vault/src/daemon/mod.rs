@@ -1556,6 +1556,21 @@ struct VaultWatchState {
 }
 
 impl VaultWatchState {
+    /// Reload manifest from disk to pick up changes made by other code paths
+    /// (e.g., the Index command handler). This prevents the watch loop from
+    /// overwriting a good manifest with a stale in-memory copy.
+    fn reload_manifest(&mut self) {
+        let hebbs_dir = self.vault_root.join(".hebbs");
+        match Manifest::load(&hebbs_dir) {
+            Ok(m) => self.manifest = m,
+            Err(e) => warn!(
+                "[watch:{}] failed to reload manifest: {}",
+                self.vault_root.display(),
+                e
+            ),
+        }
+    }
+
     fn new(vault_root: PathBuf) -> Option<Self> {
         let hebbs_dir = vault_root.join(".hebbs");
         let config = VaultConfig::load(&hebbs_dir).ok()?;
@@ -1601,10 +1616,14 @@ async fn run_watch_loop(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                // Save all manifests on shutdown
-                for state in states.values_mut() {
-                    if let Err(e) = state.manifest.save(&state.hebbs_dir()) {
-                        warn!("failed to save manifest for {} on shutdown: {}", state.vault_root.display(), e);
+                // On shutdown, only save if we have pending work (phase1_armed or has_stale_sections).
+                // Otherwise, the on-disk manifest is already up to date and saving our
+                // in-memory copy could overwrite updates from the Index command handler.
+                for state in states.values() {
+                    if state.phase1_armed || state.has_stale_sections {
+                        if let Err(e) = state.manifest.save(&state.hebbs_dir()) {
+                            warn!("failed to save manifest for {} on shutdown: {}", state.vault_root.display(), e);
+                        }
                     }
                 }
                 break;
@@ -1690,6 +1709,8 @@ async fn run_watch_loop(
                 // Run startup catch-up on first event for this vault
                 if !state.caught_up {
                     state.caught_up = true;
+                    // Reload manifest from disk in case Index handler updated it
+                    state.reload_manifest();
                     match find_changed_files(&state.vault_root, &state.manifest, &state.ignore_set) {
                         Ok(changed) if !changed.is_empty() => {
                             info!("[watch] catch-up for {}: {} files changed", state.vault_root.display(), changed.len());
@@ -1777,6 +1798,10 @@ async fn run_watch_loop(
                     if state.phase1_armed
                         && (!state.pending_creates.is_empty() || !state.pending_deletes.is_empty())
                     {
+                        // Reload manifest from disk before modifying to avoid
+                        // overwriting updates from the Index command handler.
+                        state.reload_manifest();
+
                         let creates: Vec<PathBuf> = state.pending_creates.drain().collect();
                         let deletes: Vec<PathBuf> = state.pending_deletes.drain().collect();
 
@@ -1831,6 +1856,10 @@ async fn run_watch_loop(
                                 info!("[watch:{}] phase2: starting embed + index",
                                     state.vault_root.file_name().unwrap_or_default().to_string_lossy());
 
+                                // Reload manifest from disk before phase2 to avoid
+                                // overwriting updates from the Index command handler.
+                                state.reload_manifest();
+
                                 // Need engine + embedder from vault manager
                                 let pair = vault_manager.lock().await
                                     .get_or_open(&state.vault_root);
@@ -1850,6 +1879,10 @@ async fn run_watch_loop(
                                                     p2.sections_embedded, p2.sections_remembered,
                                                     p2.sections_revised, p2.sections_forgotten
                                                 );
+                                                // Only save manifest after successful phase2
+                                                if let Err(e) = state.manifest.save(&state.hebbs_dir()) {
+                                                    warn!("[watch] failed to save manifest after phase2: {}", e);
+                                                }
                                                 // Run auto-forget after phase2 to clean up decayed memories
                                                 match engine.auto_forget() {
                                                     Ok(fg) if fg.forgotten_count > 0 => {
@@ -1868,14 +1901,14 @@ async fn run_watch_loop(
                                                     revised: p2.sections_revised,
                                                 });
                                             }
-                                            Err(e) => warn!("[watch] phase2 error: {}", e),
+                                            Err(e) => {
+                                                warn!("[watch] phase2 error: {}", e);
+                                                // Do NOT save manifest on failure to avoid
+                                                // overwriting good state with stale data.
+                                            }
                                         }
                                     }
                                     Err(e) => warn!("[watch] failed to open vault for phase2: {}", e),
-                                }
-
-                                if let Err(e) = state.manifest.save(&state.hebbs_dir()) {
-                                    warn!("[watch] failed to save manifest after phase2: {}", e);
                                 }
 
                                 state.phase2_deadline = None;
