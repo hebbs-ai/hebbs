@@ -12,9 +12,11 @@ members = [
     "crates/hebbs-cli",
     "crates/hebbs-client",
     "crates/hebbs-ffi",
-    "crates/hebbs-python-native",
     "crates/hebbs-bench",
     "crates/hebbs-vault",
+]
+exclude = [
+    "crates/hebbs-python-native",
 ]
 
 [workspace.package]

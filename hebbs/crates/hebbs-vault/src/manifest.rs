@@ -33,6 +33,10 @@ pub struct FileEntry {
     /// ULIDs of Proposition-kind memories extracted from this file (Layer 2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub proposition_memory_ids: Vec<String>,
+    /// SHA-256 content hashes of propositions (parallel to proposition_memory_ids).
+    /// Used for hash-based merge on re-extraction to preserve reinforcement history.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proposition_hashes: Vec<String>,
 }
 
 /// Tracking state for a single section within a file.
@@ -184,6 +188,7 @@ mod tests {
                 }],
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
 
@@ -217,6 +222,7 @@ mod tests {
                 sections: Vec::new(),
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
         m2.save(dir.path()).unwrap();
@@ -257,6 +263,7 @@ mod tests {
                 ],
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
 
@@ -302,6 +309,7 @@ mod tests {
                 ],
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
         let (synced, stale, orphaned) = m.section_counts();

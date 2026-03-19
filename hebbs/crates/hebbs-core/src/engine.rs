@@ -2911,6 +2911,15 @@ impl Engine {
             }
         }
 
+        // Content-hash dedup: if two memories have identical content, keep
+        // the one with the highest relevance. This prevents duplicate results
+        // when the same fact is extracted from different files.
+        let mut seen_content_hashes: HashSet<[u8; 32]> = HashSet::new();
+        dedup_map.retain(|_, (memory, _, _)| {
+            let hash: [u8; 32] = Sha256::digest(memory.content.as_bytes()).into();
+            seen_content_hashes.insert(hash)
+        });
+
         // Compute composite scores and build final results
         let mut ranked: Vec<RecallResult> = dedup_map
             .into_values()

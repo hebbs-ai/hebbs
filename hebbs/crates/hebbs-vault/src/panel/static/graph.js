@@ -483,8 +483,8 @@ export class MemoryGraph {
 
     // When UMAP positions exist, use minimal forces (just light edge attraction)
     // When no projection, use full force-directed layout
-    const repulsion = projected ? 0 : 800;
-    const springLen = projected ? 0 : 120;
+    const repulsion = projected ? 0 : 1000;
+    const springLen = projected ? 0 : 140;
     const springK = projected ? 0.005 : 0.03;
     const gravity = projected ? 0 : 0.01;
     const damping = projected ? 0.5 : 0.85;
@@ -600,10 +600,12 @@ export class MemoryGraph {
         ctx.fillStyle = cluster.color;
         ctx.fill();
 
-        // Subtle border
-        ctx.strokeStyle = cluster.color.replace('0.06', '0.15');
+        // Dashed border for clear cluster boundaries
+        ctx.strokeStyle = cluster.color.replace(/[\d.]+\)$/, '0.25)');
+        ctx.setLineDash([6, 4]);
         ctx.lineWidth = 1;
         ctx.stroke();
+        ctx.setLineDash([]);
 
         // Cluster label at top of hull
         if (cluster.label) {
@@ -668,7 +670,7 @@ export class MemoryGraph {
       // Timeline filtering: completely hide non-visible nodes
       if (visSet && !visSet.has(node.id)) continue;
 
-      const radius = 4 + node.importance * 12;
+      const radius = 2.5 + node.importance * 3.5;
       const isHovered = this.hoveredNode === node;
       const isSelected = this.selectedNode === node;
 
@@ -676,7 +678,7 @@ export class MemoryGraph {
       const r = Math.round(120 + node.recency * 125); // 120-245
       const g = Math.round(53 + node.recency * 105);  // 53-158
       const b_val = Math.round(15 + node.recency * -4); // 15-11
-      let baseAlpha = 0.5 + node.reinforcement * 0.5;
+      let baseAlpha = 0.7 + node.reinforcement * 0.3;
 
       // Search highlighting
       const isSearchMatch = searchActive && this.searchHighlight.has(node.id);
@@ -716,9 +718,11 @@ export class MemoryGraph {
           ctx.shadowBlur = 0;
         } else {
           ctx.strokeStyle = '#F59E0B';
-          ctx.lineWidth = isSelected ? 3 : (isHovered ? 2.5 : 1.5);
-          ctx.shadowColor = '#F59E0B';
-          ctx.shadowBlur = isSelected ? 15 : (isHovered ? 12 : 6);
+          ctx.lineWidth = isSelected ? 2.5 : (isHovered ? 2 : 1);
+          if (isSelected || isHovered) {
+            ctx.shadowColor = '#F59E0B';
+            ctx.shadowBlur = isSelected ? 10 : 6;
+          }
           ctx.stroke();
           ctx.shadowBlur = 0;
         }
@@ -734,33 +738,33 @@ export class MemoryGraph {
         } else if (isSelected) {
           ctx.fillStyle = '#F59E0B';
           ctx.shadowColor = '#F59E0B';
-          ctx.shadowBlur = 20;
+          ctx.shadowBlur = 10;
           ctx.fill();
           ctx.shadowBlur = 0;
           ctx.strokeStyle = '#FDE68A';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.stroke();
         } else if (isSearchMatch) {
           const score = this.searchHighlight.get(node.id);
-          ctx.fillStyle = `rgba(245, 158, 11, ${0.5 + score * 0.5})`;
+          ctx.fillStyle = `rgba(245, 158, 11, ${0.6 + score * 0.4})`;
           ctx.shadowColor = '#F59E0B';
-          ctx.shadowBlur = 8 + score * 12;
+          ctx.shadowBlur = 4 + score * 6;
           ctx.fill();
           ctx.shadowBlur = 0;
           ctx.strokeStyle = `rgba(245, 158, 11, 0.8)`;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1;
           ctx.stroke();
         } else if (searchActive && !isSearchMatch) {
           ctx.fillStyle = `rgba(107, 114, 128, 0.2)`;
           ctx.fill();
         } else if (isHovered) {
           ctx.fillStyle = `rgba(${r}, ${g}, ${b_val}, ${Math.min(baseAlpha + 0.2, 1)})`;
-          ctx.shadowColor = `rgba(${r}, ${g}, ${b_val}, 0.5)`;
-          ctx.shadowBlur = 12;
+          ctx.shadowColor = `rgba(${r}, ${g}, ${b_val}, 0.4)`;
+          ctx.shadowBlur = 6;
           ctx.fill();
           ctx.shadowBlur = 0;
-          ctx.strokeStyle = `rgba(245, 158, 11, 0.6)`;
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = `rgba(245, 158, 11, 0.7)`;
+          ctx.lineWidth = 1;
           ctx.stroke();
         } else {
           ctx.fillStyle = `rgba(${r}, ${g}, ${b_val}, ${baseAlpha})`;
@@ -887,7 +891,7 @@ export class MemoryGraph {
     let closest = null;
     let minDist = Infinity;
     for (const node of this.nodes) {
-      const radius = 4 + node.importance * 12 + 4; // hit area slightly larger
+      const radius = 2.5 + node.importance * 3.5 + 6; // hit area generous for small dots
       const dx = world.x - node.x;
       const dy = world.y - node.y;
       const dist = Math.sqrt(dx * dx + dy * dy);

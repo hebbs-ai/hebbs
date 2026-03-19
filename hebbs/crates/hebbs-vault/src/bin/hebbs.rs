@@ -776,9 +776,15 @@ async fn run_local(cli: Cli) -> i32 {
                 // Interactive mode: ask the user which LLM provider to use.
                 interactive_llm_setup()
             } else {
-                // Non-interactive (piped stdin), skip LLM config.
-                None
+                // Non-interactive (piped stdin): LLM is required.
+                eprintln!("Error: LLM provider is required. Use --provider and --model flags in non-interactive mode.");
+                return 1;
             };
+            // LLM is required for HEBBS
+            if llm_config.is_none() {
+                eprintln!("Error: LLM provider is required for HEBBS. Please select a provider.");
+                return 1;
+            }
             match hebbs_vault::init_with_llm(&path, force, llm_config) {
                 Ok(()) => {
                     register_vault(&path);
@@ -3097,17 +3103,16 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Interactive LLM provider setup for `hebbs init` when no flags are given.
-/// Returns `None` if the user skips or we cannot read input.
+/// LLM is required; returns `None` only if stdin read fails.
 fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
     println!();
-    println!("  HEBBS needs an LLM for deep understanding of your notes.");
+    println!("  HEBBS requires an LLM for extracting knowledge from your notes.");
     println!("  You can use a cloud provider or a local model via Ollama.");
     println!();
     println!("  [1] Ollama (local, free, private)");
     println!("  [2] Gemini (fast, cheap)");
     println!("  [3] Anthropic");
     println!("  [4] OpenAI");
-    println!("  [s] Skip (embedding only, no LLM extraction)");
     println!();
     print!("  Choice [1]: ");
     io::stdout().flush().ok();
@@ -3123,9 +3128,8 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
         "2" => ("gemini", "gemini-2.0-flash"),
         "3" => ("anthropic", "claude-haiku-4-5-20251001"),
         "4" => ("openai", "gpt-4o-mini"),
-        "s" | "S" => return None,
         _ => {
-            eprintln!("  Unknown choice '{}', skipping LLM setup.", choice);
+            eprintln!("  Unknown choice '{}'. LLM is required for HEBBS.", choice);
             return None;
         }
     };

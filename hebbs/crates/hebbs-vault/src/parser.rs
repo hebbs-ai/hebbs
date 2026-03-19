@@ -292,6 +292,88 @@ fn extract_sections(text: &str, body_start: usize, split_level: usize) -> Vec<Pa
     sections
 }
 
+/// Merge sections shorter than `min_len` characters into neighbors.
+///
+/// Walks the section list; if a section's trimmed content length is below
+/// `min_len`, it is merged into the next section (or previous if last).
+/// Empty sections are then removed.
+///
+/// Time complexity: O(n) where n = number of sections.
+pub fn merge_short_sections(sections: &mut Vec<ParsedSection>, min_len: usize) {
+    if sections.len() <= 1 {
+        return;
+    }
+
+    // Pass 1: merge short sections into neighbors.
+    // Walk backwards so index shifting is safe.
+    let mut i = 0;
+    while i < sections.len() {
+        if sections[i].content.trim().len() < min_len {
+            if i + 1 < sections.len() {
+                // Merge into next: prepend current content before next section's content
+                let merged_content = format!(
+                    "{}\n\n{}",
+                    sections[i].content.trim(),
+                    sections[i + 1].content
+                );
+                sections[i + 1].content = merged_content;
+                sections[i + 1].byte_start = sections[i].byte_start;
+                sections.remove(i);
+                // Don't increment i; re-check the merged section
+            } else if i > 0 {
+                // Last section is short: merge into previous
+                let merged_content = format!(
+                    "{}\n\n{}",
+                    sections[i - 1].content,
+                    sections[i].content.trim()
+                );
+                sections[i - 1].content = merged_content;
+                sections[i - 1].byte_end = sections[i].byte_end;
+                sections.remove(i);
+                // Don't increment; we're done (was last element)
+            } else {
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    // Pass 2: remove empty sections
+    sections.retain(|s| !s.content.trim().is_empty());
+}
+
+/// Strip boilerplate lines from content: template variables (`{{...}}`),
+/// and pure-placeholder lines (TBD, TODO, N/A, etc.).
+///
+/// Returns the cleaned content string. If all content is boilerplate,
+/// returns an empty string.
+pub fn strip_boilerplate(content: &str) -> String {
+    let placeholder_re = regex::Regex::new(
+        r"(?i)^\s*(?:TBD|TODO|N/?A|FIXME|placeholder|coming soon|---)\s*$"
+    ).expect("valid regex");
+    let template_re = regex::Regex::new(r"\{\{.*?\}\}").expect("valid regex");
+
+    let mut lines: Vec<&str> = Vec::new();
+    for line in content.lines() {
+        // Skip pure-placeholder lines
+        if placeholder_re.is_match(line) {
+            continue;
+        }
+        // Strip template variables from line
+        let cleaned = template_re.replace_all(line, "");
+        let trimmed = cleaned.trim();
+        if trimmed.is_empty() && line.contains("{{") {
+            // Line was entirely template variable(s), skip it
+            continue;
+        }
+        lines.push(line);
+    }
+
+    let result = lines.join("\n");
+    result.trim().to_string()
+}
+
 /// Extract wiki-links and tags from a text block, respecting fenced code blocks.
 fn extract_links_and_tags(
     text: &str,
@@ -517,5 +599,78 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_merge_short_sections() {
+        let mut sections = vec![
+            ParsedSection {
+                heading_path: vec!["A".into()],
+                heading_level: 2,
+                content: "Hi".into(), // short
+                byte_start: 0,
+                byte_end: 10,
+                wiki_links: vec![],
+                tags: vec![],
+            },
+            ParsedSection {
+                heading_path: vec!["B".into()],
+                heading_level: 2,
+                content: "This is a longer section with enough content.".into(),
+                byte_start: 10,
+                byte_end: 60,
+                wiki_links: vec![],
+                tags: vec![],
+            },
+        ];
+        merge_short_sections(&mut sections, 20);
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].content.contains("Hi"));
+        assert!(sections[0].content.contains("longer section"));
+    }
+
+    #[test]
+    fn test_merge_short_sections_last_merges_into_previous() {
+        let mut sections = vec![
+            ParsedSection {
+                heading_path: vec!["A".into()],
+                heading_level: 2,
+                content: "This is a longer section with enough content.".into(),
+                byte_start: 0,
+                byte_end: 50,
+                wiki_links: vec![],
+                tags: vec![],
+            },
+            ParsedSection {
+                heading_path: vec!["B".into()],
+                heading_level: 2,
+                content: "Hi".into(), // short, last
+                byte_start: 50,
+                byte_end: 60,
+                wiki_links: vec![],
+                tags: vec![],
+            },
+        ];
+        merge_short_sections(&mut sections, 20);
+        assert_eq!(sections.len(), 1);
+        assert!(sections[0].content.contains("Hi"));
+        assert!(sections[0].content.contains("longer section"));
+    }
+
+    #[test]
+    fn test_strip_boilerplate() {
+        let content = "Some real content\n{{template_var}}\nTBD\nMore real content";
+        let cleaned = strip_boilerplate(content);
+        assert!(cleaned.contains("Some real content"));
+        assert!(cleaned.contains("More real content"));
+        assert!(!cleaned.contains("{{template_var}}"));
+        assert!(!cleaned.contains("TBD"));
+    }
+
+    #[test]
+    fn test_strip_boilerplate_all_placeholder() {
+        let content = "TBD\nTODO\nN/A";
+        let cleaned = strip_boilerplate(content);
+        assert!(cleaned.is_empty());
     }
 }

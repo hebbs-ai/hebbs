@@ -258,6 +258,7 @@ mod tests {
                 }],
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
 

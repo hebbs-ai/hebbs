@@ -1137,15 +1137,26 @@ async fn dispatch_command(
                 sections_to_process
             ));
 
-            // Phase 2: embed + store
-            // Skip LLM contradiction detection and extraction on first full index
-            // (no existing memories to contradict against or extract from).
+            // Phase 2: LLM extraction (file-first pipeline)
+            // Skip contradiction detection on first full index
+            // (no existing memories to contradict against).
             let is_first_index = synced == 0;
-            let p2_stats = if is_first_index {
-                crate::ingest::phase2_ingest_no_contradict(&vault_path, &mut manifest, &engine, &embedder, &config).await
-            } else {
-                crate::ingest::phase2_ingest(&vault_path, &mut manifest, &engine, &embedder, &config).await
-            };
+            let run_contradictions = !is_first_index;
+            let idx_progress = indexing_progress.clone();
+            let vault_path_progress = vault_path.clone();
+            let progress_cb: Option<Box<dyn Fn(usize, usize, &str) + Send>> = Some(Box::new(move |done, total, file| {
+                if let Ok(mut prog) = idx_progress.try_lock() {
+                    if let Some(snap) = prog.get_mut(&vault_path_progress) {
+                        snap.files_done = done;
+                        snap.total_files = total;
+                        snap.current_file = file.to_string();
+                    }
+                }
+            }));
+            let p2_stats = crate::ingest::phase2_ingest_with_progress(
+                &vault_path, &mut manifest, &engine, &embedder, &config,
+                run_contradictions, progress_cb,
+            ).await;
             let p2_stats = match p2_stats {
                 Ok(s) => s,
                 Err(e) => {

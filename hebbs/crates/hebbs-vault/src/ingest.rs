@@ -5,12 +5,10 @@ use std::sync::Arc;
 use chrono::Utc;
 use tracing::{debug, info, warn};
 
-use hebbs_core::contradict::ClassifierMethod;
 use hebbs_core::engine::Engine;
 use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
-use crate::contradiction_writer::{ContradictionOutput, ContradictionWriter};
 use crate::error::{Result, VaultError};
 use crate::manifest::{sha256_checksum, FileEntry, Manifest, SectionEntry, SectionState};
 use crate::parser::parse_markdown_file;
@@ -179,6 +177,7 @@ pub fn phase1_ingest(
                 sections: new_sections,
                 document_memory_id: None,
                 proposition_memory_ids: Vec::new(),
+                proposition_hashes: Vec::new(),
             },
         );
 
@@ -219,15 +218,16 @@ pub fn phase1_delete(path: &Path, vault_root: &Path, manifest: &mut Manifest) ->
     Ok(orphaned_count)
 }
 
-/// Phase 2: Embed content-stale sections and push to engine.
+/// Phase 2: File-first LLM extraction pipeline.
 ///
-/// 1. Collect all ContentStale/Orphaned sections
-/// 2. Read content from files at byte offsets
-/// 3. Batch embed
-/// 4. Call engine remember/revise/delete
-/// 5. Resolve wiki-links to RELATED_TO edges
+/// For each file with stale sections:
+/// 1. LLM extracts propositions (hash-based merge preserves stable facts)
+/// 2. LLM generates document summary
+/// 3. Orphaned sections are deleted
 ///
-/// Time complexity: O(N * D) for embedding where N = sections, D = dimensions.
+/// LLM provider is REQUIRED. Returns error if not configured.
+///
+/// Time complexity: O(F * LLM_call) for extraction, O(N * D) for embedding.
 pub async fn phase2_ingest(
     vault_root: &Path,
     manifest: &mut Manifest,
@@ -235,7 +235,7 @@ pub async fn phase2_ingest(
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
 ) -> Result<Phase2Stats> {
-    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, true).await
+    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, true, None).await
 }
 
 /// Phase 2 variant that skips LLM contradiction detection.
@@ -247,45 +247,59 @@ pub async fn phase2_ingest_no_contradict(
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
 ) -> Result<Phase2Stats> {
-    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, false).await
+    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, false, None).await
 }
 
-async fn phase2_ingest_inner(
+/// Phase 2 with progress callback for file-level reporting.
+pub async fn phase2_ingest_with_progress(
     vault_root: &Path,
     manifest: &mut Manifest,
     engine: &Engine,
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
     run_contradictions: bool,
+    progress: Option<Box<dyn Fn(usize, usize, &str) + Send>>,
 ) -> Result<Phase2Stats> {
-    // Create LLM provider from vault config when available for autonomous
-    // contradiction resolution. Falls back to heuristic path on failure.
-    let llm_provider: Option<Arc<dyn hebbs_llm::LlmProvider>> =
-        if config.llm.is_configured() {
-            match config.llm.create_provider() {
-                Ok(p) => Some(Arc::from(p)),
-                Err(e) => {
-                    debug!("LLM provider not available for contradiction detection: {}", e);
-                    None
-                }
+    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, run_contradictions, progress).await
+}
+
+async fn phase2_ingest_inner(
+    vault_root: &Path,
+    manifest: &mut Manifest,
+    engine: &Engine,
+    _embedder: &Arc<dyn Embedder>,
+    config: &VaultConfig,
+    _run_contradictions: bool,
+    progress: Option<Box<dyn Fn(usize, usize, &str) + Send>>,
+) -> Result<Phase2Stats> {
+    // LLM provider is required for extraction
+    let llm_provider: Arc<dyn hebbs_llm::LlmProvider> = if config.llm.is_configured() {
+        match config.llm.create_provider() {
+            Ok(p) => Arc::from(p),
+            Err(e) => {
+                return Err(VaultError::Config {
+                    reason: format!("LLM provider required but failed to create: {e}"),
+                });
             }
-        } else {
-            None
-        };
+        }
+    } else {
+        return Err(VaultError::Config {
+            reason: "LLM provider not configured. Run `hebbs init` with --provider/--model or `hebbs config set llm.provider <provider>`.".to_string(),
+        });
+    };
+
     let mut stats = Phase2Stats::default();
 
-    // Collect work items
-    let mut new_items: Vec<(String, String, String, SectionWorkItem)> = Vec::new(); // (rel_path, memory_id, content, work)
-    let mut modified_items: Vec<(String, String, String, SectionWorkItem)> = Vec::new();
-    let mut delete_ids: Vec<(String, String)> = Vec::new(); // (rel_path, memory_id)
-    // Heading-only sections with no body content: mark synced without embedding
+    // Collect files with stale sections, grouped by file path
+    let mut stale_files: HashSet<String> = HashSet::new();
+    let mut delete_ids: Vec<(String, String)> = Vec::new();
     let mut empty_content_ids: Vec<(String, String)> = Vec::new();
 
     for (rel_path, file_entry) in &manifest.files {
         for section in &file_entry.sections {
             match section.state {
                 SectionState::ContentStale => {
-                    // Read content from file
+                    // Check if the section has any body content
                     let file_path = vault_root.join(rel_path);
                     let content = match read_section_content(
                         &file_path,
@@ -300,37 +314,10 @@ async fn phase2_ingest_inner(
                         }
                     };
 
-                    // Skip heading-only sections with no body content
                     if content.is_empty() {
                         empty_content_ids.push((rel_path.clone(), section.memory_id.clone()));
-                        continue;
-                    }
-
-                    // Determine if this is new (no memory in engine) or modified
-                    let memory_id_bytes = parse_ulid_to_bytes(&section.memory_id);
-                    let is_new = memory_id_bytes
-                        .as_ref()
-                        .map(|id| engine.get(id).is_err())
-                        .unwrap_or(true);
-
-                    let work = SectionWorkItem {
-                        heading_path: section.heading_path.clone(),
-                    };
-
-                    if is_new {
-                        new_items.push((
-                            rel_path.clone(),
-                            section.memory_id.clone(),
-                            content,
-                            work,
-                        ));
                     } else {
-                        modified_items.push((
-                            rel_path.clone(),
-                            section.memory_id.clone(),
-                            content,
-                            work,
-                        ));
+                        stale_files.insert(rel_path.clone());
                     }
                 }
                 SectionState::Orphaned => {
@@ -341,268 +328,127 @@ async fn phase2_ingest_inner(
         }
     }
 
-    let total_work = new_items.len() + modified_items.len();
+    let total_files = stale_files.len();
     let total_delete = delete_ids.len();
     info!(
-        "phase2: {} new, {} modified, {} orphaned section(s) to process",
-        new_items.len(),
-        modified_items.len(),
+        "phase2: {} file(s) to extract, {} orphaned section(s) to delete",
+        total_files,
         total_delete
     );
 
-    // Batch embed all new + modified sections
-    let all_texts: Vec<String> = new_items
-        .iter()
-        .chain(modified_items.iter())
-        .map(|(_, _, content, _)| content.clone())
-        .collect();
+    // Process each file: LLM extraction is the primary path
+    let stale_files_sorted: Vec<String> = {
+        let mut v: Vec<String> = stale_files.into_iter().collect();
+        v.sort();
+        v
+    };
 
-    let mut all_embeddings: Vec<Vec<f32>> = Vec::new();
-    if !all_texts.is_empty() {
-        info!("phase2: embedding {} section(s)...", all_texts.len());
-        let batch_size = config.embedding.batch_size;
-        for (batch_i, chunk) in all_texts.chunks(batch_size).enumerate() {
-            info!(
-                "phase2: embedding batch {}/{} ({} sections)",
-                batch_i + 1,
-                (all_texts.len() + batch_size - 1) / batch_size,
-                chunk.len()
-            );
-            let text_refs: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
-            match embedder.embed_batch(&text_refs) {
-                Ok(embeddings) => {
-                    all_embeddings.extend(embeddings);
-                    stats.embed_batches += 1;
-                }
-                Err(e) => {
-                    warn!("embedding batch failed: {}", e);
-                    stats.errors += 1;
-                    // Fill with empty vecs to keep index alignment
-                    all_embeddings.extend(std::iter::repeat_with(Vec::new).take(chunk.len()));
-                }
-            }
-        }
-        stats.sections_embedded = all_embeddings.iter().filter(|e| !e.is_empty()).count();
-        info!("phase2: embedding complete ({} sections embedded)", stats.sections_embedded);
-    }
-
-    // Track successfully processed sections by their ORIGINAL memory_id
-    // (before engine.remember() assigns a new one).
-    let mut processed_ids: HashSet<(String, String)> = HashSet::new();
-
-    // Process new items (remember)
-    let mut embed_idx = 0;
-    for (item_i, (rel_path, memory_id, content, work)) in new_items.iter().enumerate() {
-        info!(
-            "phase2: storing [{}/{}] {} ({})",
-            item_i + 1,
-            total_work,
-            rel_path,
-            work.heading_path.last().unwrap_or(&"root".to_string()),
-        );
-        let embedding = all_embeddings.get(embed_idx).cloned().unwrap_or_default();
-        embed_idx += 1;
-
-        if embedding.is_empty() {
-            stats.errors += 1;
-            continue;
-        }
-
-        // Build context from heading path and file path
-        let mut context = HashMap::new();
-        context.insert(
-            "file_path".to_string(),
-            serde_json::Value::String(rel_path.clone()),
-        );
-        if !work.heading_path.is_empty() {
-            context.insert(
-                "heading_path".to_string(),
-                serde_json::json!(work.heading_path),
-            );
-        }
-
-        let input = hebbs_core::engine::RememberInput {
-            content: content.clone(),
-            importance: Some(0.5),
-            context: Some(context),
-            entity_id: None,
-            edges: Vec::new(),
-            kind: None,
-        };
-
-        match engine.remember(input) {
-            Ok(memory) => {
-                // Update manifest's memory_id to match the engine's assigned ID
-                let engine_id_bytes = &memory.memory_id;
-                let assigned_id = if engine_id_bytes.len() == 16 {
-                    let mut arr = [0u8; 16];
-                    arr.copy_from_slice(engine_id_bytes);
-
-                    // Run contradiction detection on the new memory
-                    if config.contradiction.enabled && run_contradictions {
-                        let core_config = config.contradiction.to_core_config();
-                        match engine.check_contradictions(&arr, &core_config, llm_provider.as_deref()) {
-                            Ok(check_output) => {
-                                let pending_count = check_output.pending.len();
-                                let resolved_count =
-                                    check_output.resolved_contradictions.len();
-
-                                if pending_count > 0 {
-                                    debug!(
-                                        "found {} pending contradiction candidate(s) for memory {}",
-                                        pending_count,
-                                        hex::encode(arr),
-                                    );
-                                    stats.contradictions_found += pending_count;
-                                }
-
-                                if resolved_count > 0 {
-                                    debug!(
-                                        "resolved {} contradiction(s) via LLM for memory {}",
-                                        resolved_count,
-                                        hex::encode(arr),
-                                    );
-                                    stats.contradictions_found += resolved_count;
-
-                                    // Write contradiction files for resolved contradictions
-                                    let outputs: Vec<ContradictionOutput> = check_output
-                                        .resolved_contradictions
-                                        .iter()
-                                        .map(|rc| ContradictionOutput {
-                                            content_a: rc.content_a.clone(),
-                                            content_b: rc.content_b.clone(),
-                                            memory_id_a: rc.memory_id_a,
-                                            memory_id_b: rc.memory_id_b,
-                                            confidence: rc.confidence,
-                                            method: ClassifierMethod::Llm,
-                                        })
-                                        .collect();
-
-                                    let writer = ContradictionWriter::new(
-                                        vault_root, manifest, config,
-                                    );
-                                    match writer.write_contradictions(&outputs) {
-                                        Ok(paths) => {
-                                            for p in &paths {
-                                                info!(
-                                                    "auto-wrote contradiction file: {}",
-                                                    p.display()
-                                                );
-                                            }
-                                        }
-                                        Err(e) => {
-                                            warn!(
-                                                "failed to write contradiction files: {}",
-                                                e
-                                            );
-                                        }
-                                    }
-                                }
-
-                                if check_output.revisions_resolved > 0 {
-                                    debug!(
-                                        "resolved {} revision(s) via LLM for memory {}",
-                                        check_output.revisions_resolved,
-                                        hex::encode(arr),
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                debug!(
-                                    "contradiction check failed for {}: {}",
-                                    hex::encode(arr),
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    let engine_ulid = ulid::Ulid::from_bytes(arr).to_string();
-                    // Find and update the section in manifest
-                    if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
-                        for sec in &mut file_entry.sections {
-                            if sec.memory_id == *memory_id {
-                                sec.memory_id = engine_ulid.clone();
-                                break;
-                            }
-                        }
-                    }
-                    engine_ulid
-                } else {
-                    memory_id.clone()
-                };
-                // Track the NEW (engine-assigned) memory_id since that's what
-                // the manifest section now holds after the update above.
-                processed_ids.insert((rel_path.clone(), assigned_id));
-                stats.sections_remembered += 1;
-            }
+    for (file_idx, rel_path) in stale_files_sorted.iter().enumerate() {
+        let file_path = vault_root.join(rel_path);
+        let file_content = match std::fs::read_to_string(&file_path) {
+            Ok(c) => c,
             Err(e) => {
-                warn!("remember failed for {}: {}", memory_id, e);
-                stats.errors += 1;
-            }
-        }
-    }
-
-    // Process modified items (revise)
-    for (item_i, (rel_path, memory_id, content, work)) in modified_items.iter().enumerate() {
-        info!(
-            "phase2: revising [{}/{}] {} ({})",
-            new_items.len() + item_i + 1,
-            total_work,
-            rel_path,
-            work.heading_path.last().unwrap_or(&"root".to_string()),
-        );
-        let embedding = all_embeddings.get(embed_idx).cloned().unwrap_or_default();
-        embed_idx += 1;
-
-        if embedding.is_empty() {
-            stats.errors += 1;
-            continue;
-        }
-
-        let memory_id_bytes = match parse_ulid_to_bytes(memory_id) {
-            Some(id) => id,
-            None => {
+                warn!("skipping extraction for {}: {}", rel_path, e);
                 stats.errors += 1;
                 continue;
             }
         };
 
-        let mut context = HashMap::new();
-        context.insert(
-            "file_path".to_string(),
-            serde_json::Value::String(rel_path.clone()),
+        // Report progress
+        if let Some(ref cb) = progress {
+            cb(file_idx + 1, total_files, rel_path);
+        }
+        info!(
+            "phase2: extracting [{}/{}] {}",
+            file_idx + 1,
+            total_files,
+            rel_path
         );
-        if !work.heading_path.is_empty() {
-            context.insert(
-                "heading_path".to_string(),
-                serde_json::json!(work.heading_path),
+
+        // Get parsed sections for large-file chunking
+        let split_level = config.split_level();
+        let parsed_sections = match crate::parser::parse_markdown_file(&file_path, split_level) {
+            Ok(mut parsed) => {
+                crate::parser::merge_short_sections(
+                    &mut parsed.sections,
+                    config.chunking.min_section_length,
+                );
+                parsed.sections
+            }
+            Err(_) => Vec::new(),
+        };
+
+        // Get existing extraction data for hash-based merge
+        let (existing_prop_ids, existing_prop_hashes, existing_doc_id) =
+            if let Some(file_entry) = manifest.files.get(rel_path.as_str()) {
+                (
+                    file_entry.proposition_memory_ids.clone(),
+                    file_entry.proposition_hashes.clone(),
+                    file_entry.document_memory_id.clone(),
+                )
+            } else {
+                (Vec::new(), Vec::new(), None)
+            };
+
+        // Delete old document memory (will be replaced by new one)
+        if let Some(ref doc_id_str) = existing_doc_id {
+            if let Ok(ulid) = doc_id_str.parse::<ulid::Ulid>() {
+                let bytes = ulid.0.to_be_bytes();
+                let _ = engine.delete(&bytes);
+            }
+        }
+
+        // Extract and store via LLM (with hash-based merge for propositions)
+        let extraction_result = crate::extract::extract_and_store_file(
+            engine,
+            llm_provider.as_ref(),
+            &file_content,
+            rel_path,
+            &parsed_sections,
+            &config.extraction,
+            &existing_prop_ids,
+            &existing_prop_hashes,
+        );
+
+        // Update manifest with document and proposition IDs
+        if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
+            if let Some(doc_id) = extraction_result.document_memory_id {
+                let ulid_str = ulid::Ulid::from_bytes(doc_id).to_string();
+                file_entry.document_memory_id = Some(ulid_str);
+            }
+            file_entry.proposition_memory_ids = extraction_result
+                .proposition_memory_ids
+                .iter()
+                .map(|id| ulid::Ulid::from_bytes(*id).to_string())
+                .collect();
+            file_entry.proposition_hashes = extraction_result.proposition_hashes.clone();
+
+            // Mark all stale sections as synced for this file
+            let now = Utc::now();
+            for section in &mut file_entry.sections {
+                if section.state == SectionState::ContentStale {
+                    section.state = SectionState::Synced;
+                }
+            }
+            file_entry.last_embedded = Some(now);
+        }
+
+        if !extraction_result.proposition_memory_ids.is_empty() {
+            info!(
+                "extracted {} propositions from {}",
+                extraction_result.proposition_memory_ids.len(),
+                rel_path
             );
         }
 
-        let input = hebbs_core::revise::ReviseInput {
-            memory_id: memory_id_bytes.to_vec(),
-            content: Some(content.clone()),
-            importance: None,
-            context: Some(context),
-            context_mode: hebbs_core::revise::ContextMode::Merge,
-            entity_id: None,
-            edges: Vec::new(),
-        };
-
-        match engine.revise(input) {
-            Ok(_) => {
-                processed_ids.insert((rel_path.clone(), memory_id.clone()));
-                stats.sections_revised += 1;
-            }
-            Err(e) => {
-                warn!("revise failed for {}: {}", memory_id, e);
-                stats.errors += 1;
-            }
+        stats.sections_remembered += extraction_result.proposition_memory_ids.len();
+        if extraction_result.document_memory_id.is_some() {
+            stats.sections_embedded += 1;
         }
+        stats.errors += extraction_result.errors;
     }
 
-    // Process deletions (forget)
+    // Process deletions (forget orphaned sections)
     if !delete_ids.is_empty() {
         info!("phase2: forgetting {} orphaned section(s)...", delete_ids.len());
     }
@@ -626,101 +472,19 @@ async fn phase2_ingest_inner(
         }
     }
 
-    // Triple-layer extraction: when LLM is available, extract propositions and entities
-    // from files that were newly processed. Only runs for files that had new sections.
-    // Skip on first index (run_contradictions=false) for speed -- extraction runs on next change.
-    if let Some(ref provider) = llm_provider {
-        // Collect unique file paths that had new items processed
-        let mut extraction_files: HashSet<String> = HashSet::new();
-        if run_contradictions {
-        for (rel_path, _, _, _) in &new_items {
-            if processed_ids.iter().any(|(rp, _)| rp == rel_path) {
-                extraction_files.insert(rel_path.clone());
-            }
-        }
-        } else {
-            info!("phase2: skipping LLM extraction on first index (will run on file changes)");
-        }
-
-        for rel_path in &extraction_files {
-            let file_path = vault_root.join(rel_path);
-            let file_content = match std::fs::read_to_string(&file_path) {
-                Ok(c) => c,
-                Err(e) => {
-                    debug!("skipping extraction for {}: {}", rel_path, e);
-                    continue;
+    // Mark empty-content sections as synced
+    for (rel_path, memory_id) in &empty_content_ids {
+        if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
+            for section in &mut file_entry.sections {
+                if section.memory_id == *memory_id && section.state == SectionState::ContentStale {
+                    section.state = SectionState::Synced;
                 }
-            };
-
-            // Get parsed sections for large-file chunking
-            let split_level = config.split_level();
-            let parsed_sections = match crate::parser::parse_markdown_file(&file_path, split_level)
-            {
-                Ok(parsed) => parsed.sections,
-                Err(_) => Vec::new(),
-            };
-
-            let extraction_result = crate::extract::extract_and_store_file(
-                engine,
-                provider.as_ref(),
-                &file_content,
-                rel_path,
-                &parsed_sections,
-                &config.extraction,
-            );
-
-            // Update manifest with document and proposition IDs
-            if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
-                if let Some(doc_id) = extraction_result.document_memory_id {
-                    let ulid = ulid::Ulid::from_bytes(doc_id).to_string();
-                    file_entry.document_memory_id = Some(ulid);
-                }
-                file_entry.proposition_memory_ids = extraction_result
-                    .proposition_memory_ids
-                    .iter()
-                    .map(|id| ulid::Ulid::from_bytes(*id).to_string())
-                    .collect();
             }
-
-            if !extraction_result.proposition_memory_ids.is_empty() {
-                info!(
-                    "extracted {} propositions from {}",
-                    extraction_result.proposition_memory_ids.len(),
-                    rel_path
-                );
-            }
-
-            stats.errors += extraction_result.errors;
         }
     }
 
-    // Update manifest: mark processed sections as Synced, remove fully-orphaned files
+    // Remove orphaned sections that have been successfully forgotten
     for (rel_path, file_entry) in manifest.files.iter_mut() {
-        let now = Utc::now();
-        let mut any_embedded = false;
-
-        for section in &mut file_entry.sections {
-            if section.state == SectionState::ContentStale {
-                // Check if we successfully processed it
-                let was_processed =
-                    processed_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
-                // Also mark heading-only sections (empty content) as synced
-                let is_empty_heading =
-                    empty_content_ids.contains(&(rel_path.clone(), section.memory_id.clone()));
-                if was_processed || is_empty_heading {
-                    section.state = SectionState::Synced;
-                    if was_processed {
-                        any_embedded = true;
-                    }
-                }
-            }
-        }
-
-        if any_embedded {
-            file_entry.last_embedded = Some(now);
-        }
-
-        // Remove orphaned sections that have been successfully forgotten
         file_entry.sections.retain(|s| {
             if s.state == SectionState::Orphaned {
                 let was_forgotten = delete_ids
@@ -737,10 +501,6 @@ async fn phase2_ingest_inner(
     manifest.files.retain(|_, entry| !entry.sections.is_empty());
 
     Ok(stats)
-}
-
-struct SectionWorkItem {
-    heading_path: Vec<String>,
 }
 
 /// Read section content from a file at byte offsets.
