@@ -1,0 +1,806 @@
+---
+---
+
+<section id="brain-analogy" class="py-20 md:py-28">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono tracking-widest uppercase text-accent mb-4">Neuroscience</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        That's how the most advanced brains work, too.
+      </h2>
+      <p class="text-muted text-lg max-w-2xl mx-auto">
+        HEBBS didn't invent this architecture. 600 million years of evolution did.
+      </p>
+    </div>
+
+    <!-- Column headers -->
+    <div class="column-headers">
+      <p class="col-header">The Brain</p>
+      <p class="col-header"></p>
+      <p class="col-header">HEBBS</p>
+    </div>
+
+    <div id="brain-split" class="brain-split-container">
+      <!-- Left: Neuroscience explanations -->
+      <div class="neuro-side">
+        <div class="neuro-card" data-region="hippocampus">
+          <div class="neuro-dot" style="background: rgba(180,83,9,0.15); border-color: #B45309;"></div>
+          <div>
+            <p class="neuro-title text-accent">Hippocampus</p>
+            <p class="neuro-desc">The brain's rapid learner. Captures raw experiences instantly before any processing. Your "fast-write" memory buffer.</p>
+          </div>
+        </div>
+
+        <div class="neuro-card" data-region="synapses">
+          <div class="neuro-dot" style="background: rgba(14,116,144,0.15); border-color: #0E7490;"></div>
+          <div>
+            <p class="neuro-title text-cyan">Hebbian Synapses</p>
+            <p class="neuro-desc">"Neurons that fire together wire together." Co-activated neurons strengthen their connections, forming associative memory networks.</p>
+          </div>
+        </div>
+
+        <div class="neuro-card" data-region="acc">
+          <div class="neuro-dot" style="background: rgba(185,28,28,0.15); border-color: #B91C1C;"></div>
+          <div>
+            <p class="neuro-title text-red">Anterior Cingulate Cortex</p>
+            <p class="neuro-desc">The brain's conflict monitor. Fires when simultaneously active representations contradict each other. Flags inconsistencies automatically.</p>
+          </div>
+        </div>
+
+        <div class="neuro-card" data-region="prefrontal">
+          <div class="neuro-dot" style="background: rgba(4,120,87,0.15); border-color: #047857;"></div>
+          <div>
+            <p class="neuro-title text-green">Prefrontal Cortex</p>
+            <p class="neuro-desc">The executive. When the ACC flags a conflict, the PFC resolves it, updating beliefs and deciding which representation wins.</p>
+          </div>
+        </div>
+
+        <div class="neuro-card" data-region="neocortex">
+          <div class="neuro-dot" style="background: rgba(4,120,87,0.15); border-color: #047857;"></div>
+          <div>
+            <p class="neuro-title text-green">Neocortex</p>
+            <p class="neuro-desc">Long-term storage. Episodes gradually transform into semantic knowledge, gist-based facts stripped of time and place context.</p>
+          </div>
+        </div>
+
+        <div class="neuro-card" data-region="sleep">
+          <div class="neuro-dot" style="background: rgba(180,83,9,0.15); border-color: #B45309;"></div>
+          <div>
+            <p class="neuro-title text-accent">Sleep Replay</p>
+            <p class="neuro-desc">During slow-wave sleep, the hippocampus replays compressed sequences. Unreinforced memories decay via Ebbinghaus forgetting curves.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Left connectors -->
+      <div class="connectors-column connectors-left">
+        <svg id="connectors-left-svg" viewBox="0 0 60 420" preserveAspectRatio="none" class="connectors-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- Center: Brain SVG -->
+      <div class="brain-side">
+        <svg viewBox="0 0 400 400" class="brain-svg" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="brain-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="region-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="6" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <pattern id="neural-dots" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="0.5" fill="rgba(120,113,108,0.15)"/>
+            </pattern>
+          </defs>
+
+          <!-- Brain outer shape -->
+          <path class="brain-outline" d="
+            M 200 50
+            C 280 50, 345 82, 360 135
+            C 375 185, 370 225, 355 260
+            C 340 295, 315 318, 285 328
+            C 255 338, 225 342, 200 342
+            C 170 342, 140 338, 115 325
+            C 90 310, 70 285, 60 255
+            C 45 215, 48 170, 60 135
+            C 75 85, 130 50, 200 50 Z
+          " fill="url(#neural-dots)" stroke="var(--color-border)" stroke-width="1.5"/>
+
+          <!-- Cerebral folds -->
+          <path class="brain-fold" d="M 140 90 C 170 105, 220 100, 265 85" />
+          <path class="brain-fold" d="M 115 135 C 160 155, 235 148, 290 125" />
+          <path class="brain-fold" d="M 95 185 C 140 200, 210 195, 260 178" />
+          <path class="brain-fold" d="M 290 155 C 320 180, 330 215, 320 255" />
+          <path class="brain-fold" d="M 82 225 C 110 245, 145 250, 170 240" />
+
+          <!-- Brain stem -->
+          <path class="brain-stem" d="
+            M 180 325 C 175 348, 170 365, 175 378
+            L 195 378
+            C 200 365, 195 348, 190 325
+          " fill="var(--color-surface)" stroke="var(--color-border)" stroke-width="1"/>
+
+          <!-- ═══ BRAIN REGIONS ═══ -->
+
+          <!-- 1. Hippocampus -->
+          <g class="brain-region" data-region="hippocampus">
+            <ellipse cx="200" cy="250" rx="35" ry="20"
+              class="region-shape region-hippocampus"
+              fill="rgba(180,83,9,0.15)" stroke="#B45309" stroke-width="1.5"/>
+            <text x="200" y="254" class="region-label" fill="#B45309">Hippocampus</text>
+          </g>
+
+          <!-- 2. Hebbian Synapses -->
+          <g class="brain-region" data-region="synapses">
+            <circle cx="150" cy="150" r="4" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <circle cx="235" cy="142" r="3.5" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <circle cx="185" cy="185" r="3" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <circle cx="265" cy="190" r="4" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <circle cx="138" cy="215" r="3.5" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <circle cx="255" cy="225" r="3" class="synapse-node" fill="rgba(14,116,144,0.3)" stroke="#0E7490" stroke-width="1"/>
+            <line x1="150" y1="150" x2="235" y2="142" class="synapse-line"/>
+            <line x1="235" y1="142" x2="265" y2="190" class="synapse-line"/>
+            <line x1="150" y1="150" x2="185" y2="185" class="synapse-line"/>
+            <line x1="185" y1="185" x2="265" y2="190" class="synapse-line"/>
+            <line x1="138" y1="215" x2="185" y2="185" class="synapse-line"/>
+            <line x1="255" y1="225" x2="265" y2="190" class="synapse-line"/>
+            <line x1="138" y1="215" x2="200" y2="250" class="synapse-line"/>
+            <line x1="255" y1="225" x2="200" y2="250" class="synapse-line"/>
+            <text x="210" y="172" class="region-label" fill="#0E7490">Hebbian</text>
+            <text x="210" y="186" class="region-label" fill="#0E7490">Synapses</text>
+          </g>
+
+          <!-- 3. ACC -->
+          <g class="brain-region" data-region="acc">
+            <path d="M 168 140 C 155 168, 158 198, 172 218 C 178 205, 182 175, 178 150 Z"
+              class="region-shape region-acc"
+              fill="rgba(185,28,28,0.12)" stroke="#B91C1C" stroke-width="1.5"/>
+            <text x="140" y="188" class="region-label region-label-sm" fill="#B91C1C">ACC</text>
+          </g>
+
+          <!-- 4. Prefrontal Cortex -->
+          <g class="brain-region" data-region="prefrontal">
+            <path d="M 100 140 C 82 170, 72 205, 78 238 C 90 230, 102 200, 110 172 C 118 150, 112 140, 100 140 Z"
+              class="region-shape region-prefrontal"
+              fill="rgba(4,120,87,0.12)" stroke="#047857" stroke-width="1.5"/>
+            <text x="62" y="208" class="region-label region-label-sm" fill="#047857">PFC</text>
+          </g>
+
+          <!-- 5. Neocortex -->
+          <g class="brain-region" data-region="neocortex">
+            <path d="
+              M 200 60
+              C 272 60, 335 90, 350 138
+              C 345 92, 282 65, 200 65
+              C 132 65, 82 92, 68 135
+              C 78 90, 140 60, 200 60 Z
+            " class="region-shape region-neocortex"
+              fill="rgba(4,120,87,0.10)" stroke="#047857" stroke-width="1.5"/>
+            <text x="200" y="80" class="region-label" fill="#047857">Neocortex</text>
+          </g>
+
+          <!-- 6. Sleep Replay -->
+          <g class="brain-region" data-region="sleep">
+            <path class="sleep-wave wave-1" d="M 120 298 C 148 285, 172 310, 200 298 C 228 285, 252 310, 280 298"/>
+            <path class="sleep-wave wave-2" d="M 132 314 C 155 304, 175 322, 200 314 C 225 304, 245 322, 268 314"/>
+            <text x="200" y="338" class="region-label" fill="#B45309">Sleep Replay</text>
+          </g>
+
+          <!-- Ambient pulse particles -->
+          <g id="brain-particles"></g>
+        </svg>
+      </div>
+
+      <!-- Right connectors -->
+      <div class="connectors-column connectors-right">
+        <svg id="connectors-right-svg" viewBox="0 0 60 420" preserveAspectRatio="none" class="connectors-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <!-- Right: HEBBS pipeline stages -->
+      <div class="hebbs-side">
+        <div class="hebbs-mapping" data-maps-to="hippocampus">
+          <div class="mapping-dot" style="background: rgba(180,83,9,0.15); border-color: #B45309;"></div>
+          <div>
+            <p class="mapping-title text-accent">Vault Ingestion</p>
+            <p class="mapping-desc">Fast-write to RocksDB, chunked by heading, embedded, real-time daemon watch</p>
+          </div>
+        </div>
+
+        <div class="hebbs-mapping" data-maps-to="synapses">
+          <div class="mapping-dot" style="background: rgba(14,116,144,0.15); border-color: #0E7490;"></div>
+          <div>
+            <p class="mapping-title text-cyan">Memory Palace</p>
+            <p class="mapping-desc">ONNX embeddings find neighbors. Temporal, causal, similarity edges form an associative graph</p>
+          </div>
+        </div>
+
+        <div class="hebbs-mapping" data-maps-to="acc">
+          <div class="mapping-dot" style="background: rgba(185,28,28,0.15); border-color: #B91C1C;"></div>
+          <div>
+            <p class="mapping-title text-red">Contradiction Detection</p>
+            <p class="mapping-desc">Heuristic detection flags conflicts between memories automatically</p>
+          </div>
+        </div>
+
+        <div class="hebbs-mapping" data-maps-to="prefrontal">
+          <div class="mapping-dot" style="background: rgba(4,120,87,0.15); border-color: #047857;"></div>
+          <div>
+            <p class="mapping-title text-green">Agent Resolution</p>
+            <p class="mapping-desc">LLM agent reviews conflicts, creates CONTRADICTS or REVISED_FROM edges</p>
+          </div>
+        </div>
+
+        <div class="hebbs-mapping" data-maps-to="neocortex">
+          <div class="mapping-dot" style="background: rgba(4,120,87,0.15); border-color: #047857;"></div>
+          <div>
+            <p class="mapping-title text-green">Insight Consolidation</p>
+            <p class="mapping-desc">Episodes cluster into scored, lasting knowledge weighted by relevance and importance</p>
+          </div>
+        </div>
+
+        <div class="hebbs-mapping" data-maps-to="sleep">
+          <div class="mapping-dot" style="background: rgba(180,83,9,0.15); border-color: #B45309;"></div>
+          <div>
+            <p class="mapping-title text-accent">Periodic Reflection</p>
+            <p class="mapping-desc">Batch consolidation with half-life decay. Unreinforced memories fade over time</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom tagline -->
+    <p class="text-center text-muted text-sm mt-14 max-w-xl mx-auto leading-relaxed">
+      The same architecture that lets you recall a childhood memory in milliseconds,
+      forget what you had for lunch last Tuesday, and notice when a friend contradicts
+      themselves mid-sentence.
+    </p>
+  </div>
+</section>
+
+<style>
+  .column-headers {
+    display: grid;
+    grid-template-columns: 1fr 48px minmax(240px, 320px) 48px 1fr;
+    gap: 0;
+    margin-bottom: 1rem;
+  }
+  .col-header {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-muted);
+    text-align: center;
+  }
+  .col-header:nth-child(1) { grid-column: 1; }
+  .col-header:nth-child(2) { grid-column: 3; }
+  .col-header:nth-child(3) { grid-column: 5; }
+
+  .brain-split-container {
+    display: grid;
+    grid-template-columns: 1fr 48px minmax(240px, 320px) 48px 1fr;
+    align-items: center;
+    gap: 0;
+    min-height: 420px;
+  }
+
+  /* Neuroscience side (left) */
+  .neuro-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+  .neuro-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    transition: border-color 0.3s ease, background 0.3s ease;
+    cursor: default;
+  }
+  .neuro-card:hover,
+  .neuro-card.active {
+    border-color: var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  }
+  .neuro-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border-width: 1.5px;
+    border-style: solid;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .neuro-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    line-height: 1.3;
+  }
+  .neuro-desc {
+    font-size: 0.6875rem;
+    color: var(--color-muted);
+    line-height: 1.45;
+    margin-top: 2px;
+  }
+
+  /* Brain SVG (center) */
+  .brain-side {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .brain-svg {
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+  }
+
+  .brain-outline {
+    transition: stroke 0.3s ease;
+  }
+  .brain-fold {
+    fill: none;
+    stroke: var(--color-border);
+    stroke-width: 0.8;
+    opacity: 0.5;
+  }
+
+  /* Brain regions */
+  .region-shape {
+    transition: fill 0.4s ease, filter 0.4s ease;
+    cursor: default;
+  }
+  .brain-region:hover .region-shape,
+  .brain-region.active .region-shape {
+    filter: url(#region-glow);
+  }
+  .brain-region:hover .region-hippocampus,
+  .brain-region.active .region-hippocampus {
+    fill: rgba(180,83,9,0.30);
+  }
+  .brain-region:hover .region-acc,
+  .brain-region.active .region-acc {
+    fill: rgba(185,28,28,0.25);
+  }
+  .brain-region:hover .region-prefrontal,
+  .brain-region.active .region-prefrontal {
+    fill: rgba(4,120,87,0.25);
+  }
+  .brain-region:hover .region-neocortex,
+  .brain-region.active .region-neocortex {
+    fill: rgba(4,120,87,0.22);
+  }
+
+  .region-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    text-anchor: middle;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+  }
+  .region-label-sm {
+    font-size: 8px;
+  }
+
+  /* Synapse lines */
+  .synapse-line {
+    stroke: #0E7490;
+    stroke-width: 0.8;
+    stroke-dasharray: 3 3;
+    opacity: 0.3;
+  }
+  .synapse-node {
+    transition: fill 0.3s ease;
+  }
+  .brain-region[data-region="synapses"]:hover .synapse-node,
+  .brain-region[data-region="synapses"].active .synapse-node {
+    fill: rgba(14,116,144,0.5);
+  }
+  .brain-region[data-region="synapses"]:hover .synapse-line,
+  .brain-region[data-region="synapses"].active .synapse-line {
+    opacity: 0.6;
+  }
+
+  /* Sleep waves */
+  .sleep-wave {
+    fill: none;
+    stroke: #B45309;
+    stroke-width: 1.5;
+    opacity: 0.3;
+    stroke-linecap: round;
+  }
+  .wave-1 { animation: wave-drift 3s ease-in-out infinite; }
+  .wave-2 { animation: wave-drift 3s ease-in-out infinite 0.5s; opacity: 0.2; }
+  .brain-region[data-region="sleep"]:hover .sleep-wave,
+  .brain-region[data-region="sleep"].active .sleep-wave {
+    opacity: 0.6;
+  }
+
+  @keyframes wave-drift {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(5px); }
+  }
+
+  /* Connectors */
+  .connectors-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .connectors-svg {
+    width: 100%;
+    height: 420px;
+  }
+
+  /* HEBBS side (right) */
+  .hebbs-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+  .hebbs-mapping {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    transition: border-color 0.3s ease, background 0.3s ease;
+    cursor: default;
+  }
+  .hebbs-mapping:hover,
+  .hebbs-mapping.active {
+    border-color: var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  }
+  .mapping-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border-width: 1.5px;
+    border-style: solid;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .mapping-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    line-height: 1.3;
+  }
+  .mapping-desc {
+    font-size: 0.6875rem;
+    color: var(--color-muted);
+    line-height: 1.45;
+    margin-top: 2px;
+  }
+
+  /* Mobile: stack vertically */
+  @media (max-width: 900px) {
+    .column-headers {
+      display: none;
+    }
+    .brain-split-container {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 1.5rem;
+    }
+    .connectors-column {
+      display: none;
+    }
+    .brain-svg {
+      max-width: 280px;
+    }
+    .brain-side {
+      order: -1;
+    }
+    .neuro-side,
+    .hebbs-side {
+      gap: 0.5rem;
+    }
+    .neuro-card,
+    .hebbs-mapping {
+      padding: 0.5rem 0.625rem;
+    }
+    /* On mobile show both sides with sub-headers */
+    .neuro-side::before {
+      content: 'The Brain';
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--color-muted);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .hebbs-side::before {
+      content: 'HEBBS';
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--color-muted);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+  }
+</style>
+
+<script>
+  function initBrainAnalogy() {
+    const container = document.getElementById('brain-split');
+    if (!container) return;
+
+    const brainRegions = container.querySelectorAll('.brain-region');
+    const neuroCards = container.querySelectorAll('.neuro-card');
+    const hebbsMappings = container.querySelectorAll('.hebbs-mapping');
+    const leftSvg = document.getElementById('connectors-left-svg');
+    const rightSvg = document.getElementById('connectors-right-svg');
+    if (!leftSvg || !rightSvg) return;
+
+    const regionOrder = ['hippocampus', 'synapses', 'acc', 'prefrontal', 'neocortex', 'sleep'];
+
+    const COLORS: Record<string, string> = {
+      hippocampus: '#B45309',
+      synapses: '#0E7490',
+      acc: '#B91C1C',
+      prefrontal: '#047857',
+      neocortex: '#047857',
+      sleep: '#B45309',
+    };
+
+    // Cross-highlight: all three columns light up together
+    function highlightTriplet(regionName: string, active: boolean) {
+      const region = container!.querySelector(`.brain-region[data-region="${regionName}"]`);
+      const neuro = container!.querySelector(`.neuro-card[data-region="${regionName}"]`);
+      const mapping = container!.querySelector(`.hebbs-mapping[data-maps-to="${regionName}"]`);
+      const leftLine = leftSvg!.querySelector(`.connector-line[data-connector="${regionName}"]`);
+      const rightLine = rightSvg!.querySelector(`.connector-line[data-connector="${regionName}"]`);
+
+      if (region) region.classList.toggle('active', active);
+      if (neuro) neuro.classList.toggle('active', active);
+      if (mapping) mapping.classList.toggle('active', active);
+
+      [leftLine, rightLine].forEach(line => {
+        if (line) {
+          (line as SVGElement).style.opacity = active ? '0.7' : '0.2';
+          (line as SVGElement).style.strokeWidth = active ? '2' : '1';
+        }
+      });
+    }
+
+    // Attach hover listeners to all three columns
+    brainRegions.forEach(el => {
+      const name = (el as HTMLElement).dataset.region || '';
+      el.addEventListener('mouseenter', () => highlightTriplet(name, true));
+      el.addEventListener('mouseleave', () => highlightTriplet(name, false));
+    });
+    neuroCards.forEach(el => {
+      const name = (el as HTMLElement).dataset.region || '';
+      el.addEventListener('mouseenter', () => highlightTriplet(name, true));
+      el.addEventListener('mouseleave', () => highlightTriplet(name, false));
+    });
+    hebbsMappings.forEach(el => {
+      const name = (el as HTMLElement).dataset.mapsTo || '';
+      el.addEventListener('mouseenter', () => highlightTriplet(name, true));
+      el.addEventListener('mouseleave', () => highlightTriplet(name, false));
+    });
+
+    // Draw connector lines between cards and brain regions
+    function drawConnectors() {
+      leftSvg!.innerHTML = '';
+      rightSvg!.innerHTML = '';
+
+      const leftRect = leftSvg!.getBoundingClientRect();
+      const rightRect = rightSvg!.getBoundingClientRect();
+      if (leftRect.width === 0 || rightRect.width === 0) return;
+
+      const vbH = 420;
+
+      regionOrder.forEach((regionName) => {
+        const region = container!.querySelector(`.brain-region[data-region="${regionName}"]`);
+        const neuro = container!.querySelector(`.neuro-card[data-region="${regionName}"]`);
+        const mapping = container!.querySelector(`.hebbs-mapping[data-maps-to="${regionName}"]`);
+        if (!region || !neuro || !mapping) return;
+
+        const regionRect = region.getBoundingClientRect();
+        const neuroRect = neuro.getBoundingClientRect();
+        const mappingRect = mapping.getBoundingClientRect();
+
+        // Left connector: neuro card -> brain region
+        const leftY1 = ((neuroRect.top + neuroRect.height / 2 - leftRect.top) / leftRect.height) * vbH;
+        const leftY2 = ((regionRect.top + regionRect.height / 2 - leftRect.top) / leftRect.height) * vbH;
+
+        const lLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        lLine.setAttribute('d', `M 5 ${leftY1} C 35 ${leftY1}, 35 ${leftY2}, 55 ${leftY2}`);
+        lLine.setAttribute('fill', 'none');
+        lLine.setAttribute('stroke', COLORS[regionName]);
+        lLine.setAttribute('stroke-width', '1');
+        lLine.setAttribute('stroke-dasharray', '4 4');
+        lLine.setAttribute('opacity', '0.2');
+        lLine.setAttribute('class', 'connector-line');
+        lLine.setAttribute('data-connector', regionName);
+        lLine.style.transition = 'opacity 0.3s ease, stroke-width 0.3s ease';
+        leftSvg!.appendChild(lLine);
+
+        // Right connector: brain region -> HEBBS mapping
+        const rightY1 = ((regionRect.top + regionRect.height / 2 - rightRect.top) / rightRect.height) * vbH;
+        const rightY2 = ((mappingRect.top + mappingRect.height / 2 - rightRect.top) / rightRect.height) * vbH;
+
+        const rLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        rLine.setAttribute('d', `M 5 ${rightY1} C 25 ${rightY1}, 35 ${rightY2}, 55 ${rightY2}`);
+        rLine.setAttribute('fill', 'none');
+        rLine.setAttribute('stroke', COLORS[regionName]);
+        rLine.setAttribute('stroke-width', '1');
+        rLine.setAttribute('stroke-dasharray', '4 4');
+        rLine.setAttribute('opacity', '0.2');
+        rLine.setAttribute('class', 'connector-line');
+        rLine.setAttribute('data-connector', regionName);
+        rLine.style.transition = 'opacity 0.3s ease, stroke-width 0.3s ease';
+        rightSvg!.appendChild(rLine);
+      });
+    }
+
+    // Scroll-triggered entrance animation
+    let hasAnimated = false;
+
+    function animateEntrance() {
+      if (hasAnimated) return;
+      hasAnimated = true;
+
+      // Small delay so layout settles
+      requestAnimationFrame(() => {
+        drawConnectors();
+
+        // Animate connector draw-in
+        [leftSvg!, rightSvg!].forEach(svg => {
+          const lines = svg.querySelectorAll('.connector-line');
+          lines.forEach((line, i) => {
+            const pathEl = line as SVGPathElement;
+            const length = pathEl.getTotalLength();
+            pathEl.style.strokeDasharray = `${length}`;
+            pathEl.style.strokeDashoffset = `${length}`;
+            pathEl.style.opacity = '0.2';
+            pathEl.style.transition = 'none';
+
+            setTimeout(() => {
+              pathEl.style.transition = 'stroke-dashoffset 0.8s ease-out, opacity 0.3s ease, stroke-width 0.3s ease';
+              pathEl.style.strokeDashoffset = '0';
+            }, 200 + i * 150);
+          });
+        });
+
+        // Stagger brain regions
+        brainRegions.forEach((el, i) => {
+          (el as HTMLElement).style.opacity = '0';
+          (el as HTMLElement).style.transform = 'scale(0.8)';
+          (el as HTMLElement).style.transition = 'none';
+          setTimeout(() => {
+            (el as HTMLElement).style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            (el as HTMLElement).style.opacity = '1';
+            (el as HTMLElement).style.transform = 'scale(1)';
+          }, 100 + i * 120);
+        });
+
+        // Stagger neuro cards (slide in from left)
+        neuroCards.forEach((el, i) => {
+          (el as HTMLElement).style.opacity = '0';
+          (el as HTMLElement).style.transform = 'translateX(-20px)';
+          (el as HTMLElement).style.transition = 'none';
+          setTimeout(() => {
+            (el as HTMLElement).style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            (el as HTMLElement).style.opacity = '1';
+            (el as HTMLElement).style.transform = 'translateX(0)';
+          }, 200 + i * 130);
+        });
+
+        // Stagger HEBBS cards (slide in from right)
+        hebbsMappings.forEach((el, i) => {
+          (el as HTMLElement).style.opacity = '0';
+          (el as HTMLElement).style.transform = 'translateX(20px)';
+          (el as HTMLElement).style.transition = 'none';
+          setTimeout(() => {
+            (el as HTMLElement).style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            (el as HTMLElement).style.opacity = '1';
+            (el as HTMLElement).style.transform = 'translateX(0)';
+          }, 300 + i * 130);
+        });
+      });
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) animateEntrance();
+      });
+    }, { threshold: 0.15 });
+
+    observer.observe(container);
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      if (hasAnimated) {
+        drawConnectors();
+        [leftSvg!, rightSvg!].forEach(svg => {
+          svg.querySelectorAll('.connector-line').forEach(line => {
+            (line as SVGPathElement).style.strokeDashoffset = '0';
+          });
+        });
+      }
+    });
+
+    // Ambient brain pulses
+    const particlesGroup = document.getElementById('brain-particles');
+    if (particlesGroup) {
+      function createPulse() {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        const region = regionOrder[Math.floor(Math.random() * regionOrder.length)];
+        let cx = 200, cy = 250;
+
+        if (region === 'synapses') { cx = 140 + Math.random() * 125; cy = 140 + Math.random() * 90; }
+        else if (region === 'acc') { cx = 168; cy = 165 + Math.random() * 40; }
+        else if (region === 'prefrontal') { cx = 88; cy = 165 + Math.random() * 60; }
+        else if (region === 'neocortex') { cx = 145 + Math.random() * 110; cy = 62 + Math.random() * 18; }
+        else if (region === 'sleep') { cx = 145 + Math.random() * 90; cy = 298 + Math.random() * 18; }
+
+        circle.setAttribute('cx', String(cx));
+        circle.setAttribute('cy', String(cy));
+        circle.setAttribute('r', '2');
+        circle.setAttribute('fill', COLORS[region]);
+        circle.setAttribute('opacity', '0');
+        particlesGroup!.appendChild(circle);
+
+        let opacity = 0;
+        let r = 2;
+        let phase = 0;
+        const speed = 0.02 + Math.random() * 0.02;
+
+        function tick() {
+          if (phase === 0) {
+            opacity += speed;
+            r += 0.05;
+            if (opacity >= 0.5) phase = 1;
+          } else {
+            opacity -= speed * 0.7;
+            r += 0.03;
+            if (opacity <= 0) {
+              particlesGroup!.removeChild(circle);
+              return;
+            }
+          }
+          circle.setAttribute('opacity', String(opacity));
+          circle.setAttribute('r', String(r));
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }
+
+      setInterval(createPulse, 800);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBrainAnalogy);
+  } else {
+    initBrainAnalogy();
+  }
+</script>

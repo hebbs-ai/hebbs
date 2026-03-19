@@ -184,9 +184,15 @@
   };
 
   const CLUSTER_COLORS = [
-    'rgba(180, 83, 9, 0.08)',
-    'rgba(14, 116, 144, 0.08)',
-    'rgba(4, 120, 87, 0.08)',
+    'rgba(180, 83, 9, 0.05)',
+    'rgba(14, 116, 144, 0.05)',
+    'rgba(4, 120, 87, 0.05)',
+  ];
+
+  const CLUSTER_STROKE_COLORS = [
+    'rgba(180, 83, 9, 0.25)',
+    'rgba(14, 116, 144, 0.25)',
+    'rgba(4, 120, 87, 0.25)',
   ];
 
   // ── Graph renderer ─────────────────────────────────────────────────
@@ -293,8 +299,8 @@
   // ── Physics (ported from graph.js _simulate) ─────────────────────
 
   function simulate() {
-    var repulsion = 800;
-    var springLen = 120;
+    var repulsion = 1000;
+    var springLen = 140;
     var springK = 0.03;
     var gravity = 0.01;
     var damping = 0.85;
@@ -429,7 +435,7 @@
     var minDist = Infinity;
     for (var n of nodes) {
       if (n.fadeIn < 0.3) continue;
-      var radius = 4 + n.importance * 12 + 4;
+      var radius = 2.5 + n.importance * 3.5 + 6;
       var dx = world.x - n.x;
       var dy = world.y - n.y;
       var dist = Math.sqrt(dx * dx + dy * dy);
@@ -532,9 +538,11 @@
       ctx.globalAlpha = clusterFade;
       ctx.fillStyle = cluster.color;
       ctx.fill();
-      ctx.strokeStyle = cluster.color.replace('0.06', '0.15');
+      ctx.strokeStyle = CLUSTER_STROKE_COLORS[cluster.clusterId % CLUSTER_STROKE_COLORS.length];
+      ctx.setLineDash([6, 4]);
       ctx.lineWidth = 1;
       ctx.stroke();
+      ctx.setLineDash([]);
 
       // Cluster label
       if (cluster.label) {
@@ -588,13 +596,13 @@
     for (var n of nodes) {
       if (n.fadeIn < 0.02) continue;
 
-      var radius = 4 + n.importance * 12;
+      var radius = 2.5 + n.importance * 3.5;
       var isHov = (hoveredNode === n);
 
       var r = Math.round(120 + n.recency * 125);
       var g = Math.round(53 + n.recency * 105);
       var bv = Math.round(15 + n.recency * -4);
-      var baseAlpha = 0.5 + n.reinforcement * 0.5;
+      var baseAlpha = 0.7 + n.reinforcement * 0.3;
 
       ctx.globalAlpha = n.fadeIn;
 
@@ -603,9 +611,11 @@
         ctx.fillStyle = 'rgba(16, 185, 129, ' + baseAlpha + ')';
         ctx.fill();
         ctx.strokeStyle = '#F59E0B';
-        ctx.lineWidth = isHov ? 2.5 : 1.5;
-        ctx.shadowColor = '#F59E0B';
-        ctx.shadowBlur = isHov ? 12 : 6;
+        ctx.lineWidth = isHov ? 2 : 1;
+        if (isHov) {
+          ctx.shadowColor = '#F59E0B';
+          ctx.shadowBlur = 8;
+        }
         ctx.stroke();
         ctx.shadowBlur = 0;
       } else {
@@ -613,12 +623,12 @@
         ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
         if (isHov) {
           ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + Math.min(baseAlpha + 0.2, 1) + ')';
-          ctx.shadowColor = 'rgba(' + r + ', ' + g + ', ' + bv + ', 0.5)';
-          ctx.shadowBlur = 12;
+          ctx.shadowColor = 'rgba(' + r + ', ' + g + ', ' + bv + ', 0.4)';
+          ctx.shadowBlur = 6;
           ctx.fill();
           ctx.shadowBlur = 0;
-          ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
+          ctx.lineWidth = 1;
           ctx.stroke();
         } else {
           ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + baseAlpha + ')';
