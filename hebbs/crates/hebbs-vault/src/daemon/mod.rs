@@ -66,6 +66,37 @@ struct IndexingSnapshot {
     files_done: usize,
     /// Currently processing file name (display only).
     current_file: String,
+    /// Who triggered this indexing run (used in status display).
+    #[allow(dead_code)]
+    triggered_by: String,
+}
+
+/// Per-vault indexing lock. Prevents concurrent LLM extraction on the same vault.
+/// Only one code path (Index command or watch loop) can hold the lock at a time.
+/// Others get `INDEXING_IN_PROGRESS` with progress info.
+type IndexingLocks = Arc<Mutex<HashMap<PathBuf, IndexingSnapshot>>>;
+
+/// Status codes for daemon responses. Machine-readable, used by CLI and SDKs.
+pub mod status_code {
+    // Vault states
+    pub const VAULT_READY: &str = "VAULT_READY";
+    pub const VAULT_NOT_INITIALIZED: &str = "VAULT_NOT_INITIALIZED";
+    pub const VAULT_NEEDS_INDEX: &str = "VAULT_NEEDS_INDEX";
+    pub const VAULT_PARTIALLY_INDEXED: &str = "VAULT_PARTIALLY_INDEXED";
+    pub const VAULT_LLM_NOT_CONFIGURED: &str = "VAULT_LLM_NOT_CONFIGURED";
+
+    // Indexing states
+    pub const INDEXING_IDLE: &str = "INDEXING_IDLE";
+    pub const INDEXING_PHASE1: &str = "INDEXING_PHASE1";
+    pub const INDEXING_PHASE2: &str = "INDEXING_PHASE2";
+    pub const INDEXING_IN_PROGRESS: &str = "INDEXING_IN_PROGRESS";
+    pub const INDEXING_COMPLETE: &str = "INDEXING_COMPLETE";
+
+    // Operation results
+    pub const OK: &str = "OK";
+    pub const ERR_LLM_REQUIRED: &str = "ERR_LLM_REQUIRED";
+    pub const ERR_LLM_TIMEOUT: &str = "ERR_LLM_TIMEOUT";
+    pub const ERR_LLM_AUTH: &str = "ERR_LLM_AUTH";
 }
 
 /// Daemon configuration passed to `run_daemon`.
@@ -346,6 +377,7 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     let config_notify_watch = config_notify.clone();
     let event_tx_watch = panel_event_tx.clone();
     let runtime_dir_watch = runtime_dir.to_path_buf();
+    let indexing_progress_watch = indexing_progress.clone();
     tokio::spawn(async move {
         run_watch_loop(
             watch_rx,
@@ -355,6 +387,7 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
             event_tx_watch,
             vaults_json_rx,
             runtime_dir_watch,
+            indexing_progress_watch,
         )
         .await;
     });
@@ -1068,6 +1101,26 @@ async fn dispatch_command(
                 Err(resp) => return resp,
             };
 
+            // Check indexing lock: reject if another extraction is already running
+            {
+                let lock = indexing_progress.lock().await;
+                if let Some(snap) = lock.get(&vault_path) {
+                    return DaemonResponse {
+                        status: ResponseStatus::Error,
+                        error: Some(format!(
+                            "Indexing already in progress ({}/{} files, currently: {}). Run `hebbs status` to check progress.",
+                            snap.files_done, snap.total_files, snap.current_file
+                        )),
+                        data: Some(serde_json::json!({
+                            "status_code": status_code::INDEXING_IN_PROGRESS,
+                            "files_done": snap.files_done,
+                            "total_files": snap.total_files,
+                            "current_file": snap.current_file,
+                        })),
+                    };
+                }
+            }
+
             // Helper: send a progress message (ignore write errors — client may have disconnected)
             macro_rules! send_progress {
                 ($msg:expr) => {
@@ -1098,7 +1151,7 @@ async fn dispatch_command(
             };
             let total_files = all_files.len();
 
-            // Set initial indexing progress
+            // Acquire indexing lock
             {
                 let mut prog = indexing_progress.lock().await;
                 prog.insert(vault_path.clone(), IndexingSnapshot {
@@ -1106,6 +1159,7 @@ async fn dispatch_command(
                     phase: 1,
                     files_done: 0,
                     current_file: String::new(),
+                    triggered_by: "index".to_string(),
                 });
             }
 
@@ -1606,6 +1660,7 @@ async fn run_watch_loop(
     panel_event_tx: broadcast::Sender<PanelEvent>,
     mut vaults_json_rx: tokio::sync::mpsc::Receiver<()>,
     runtime_dir: PathBuf,
+    indexing_progress: IndexingLocks,
 ) {
     let mut states: HashMap<PathBuf, VaultWatchState> = HashMap::new();
 
@@ -1853,6 +1908,22 @@ async fn run_watch_loop(
                     if state.has_stale_sections {
                         if let Some(deadline) = state.phase2_deadline {
                             if tokio::time::Instant::now() >= deadline {
+                                // Check indexing lock: skip if explicit index is running
+                                {
+                                    let lock = indexing_progress.lock().await;
+                                    if lock.contains_key(&state.vault_root) {
+                                        info!(
+                                            "[watch:{}] phase2: skipping, explicit index is running",
+                                            state.vault_root.file_name().unwrap_or_default().to_string_lossy()
+                                        );
+                                        // Re-arm: try again after next debounce window
+                                        state.phase2_deadline = Some(
+                                            tokio::time::Instant::now() + Duration::from_secs(5)
+                                        );
+                                        continue;
+                                    }
+                                }
+
                                 info!("[watch:{}] phase2: starting embed + index",
                                     state.vault_root.file_name().unwrap_or_default().to_string_lossy());
 

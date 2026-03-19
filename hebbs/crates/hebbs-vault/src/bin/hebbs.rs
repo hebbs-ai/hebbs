@@ -765,10 +765,15 @@ async fn run_local(cli: Cli) -> i32 {
             };
             let llm_config = if provider.is_some() || model.is_some() {
                 // Flags provided, use them directly.
+                // Resolve api_key_env to the actual key value so the daemon
+                // (a separate process) can use it without inheriting shell env.
+                let resolved_key = api_key.clone().or_else(|| {
+                    api_key_env.as_ref().and_then(|env_name| std::env::var(env_name).ok())
+                });
                 Some(hebbs_vault::config::LlmConfig {
                     provider: provider.clone().unwrap_or_default(),
                     model: model.clone().unwrap_or_default(),
-                    api_key: api_key.clone(),
+                    api_key: resolved_key,
                     api_key_env: api_key_env.clone(),
                     base_url: base_url.clone(),
                 })
@@ -810,34 +815,15 @@ async fn run_local(cli: Cli) -> i32 {
                     // Count markdown files so user knows what's coming
                     let md_count = count_md_files(&path);
 
-                    // Start daemon in the background (does NOT block on indexing)
+                    // Start daemon (but do NOT auto-index; user runs `hebbs index` explicitly)
                     println!("Starting daemon...");
                     match client::ensure_daemon().await {
-                        Ok(mut daemon) => {
-                            // Fire-and-forget: send Index command without waiting for completion.
-                            // The daemon processes it asynchronously; the CLI returns immediately.
-                            let request = DaemonRequest {
-                                command: DaemonCommand::Index,
-                                vault_path: Some(path.clone()),
-                                vault_paths: None,
-                                caller: "cli".to_string(),
-                            };
-                            // Send the request but don't await the response.
-                            // Drop the connection; the daemon keeps indexing.
-                            match daemon.send_fire_and_forget(&request).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("Warning: could not start indexing: {}", e);
-                                    eprintln!("Run `hebbs index` to index your vault.");
-                                }
-                            }
-
+                        Ok(_) => {
                             println!();
-                            println!("  Your vault is live.");
+                            println!("  Your vault is live. {} file(s) found.", md_count);
                             println!();
-                            println!("  Indexing {} file(s) in the background.", md_count);
-                            println!("  Run `hebbs status` to check progress.");
-                            println!("  Try:  hebbs recall \"your question here\"");
+                            println!("  Run `hebbs index {}` to index your vault.", path.display());
+                            println!("  Then: hebbs recall \"your question here\"");
                         }
                         Err(e) => {
                             eprintln!("Warning: could not start daemon: {}", e);
@@ -3167,10 +3153,13 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
     println!();
     println!("  Using {}/{}", provider, model);
 
+    // Resolve env var to actual key so the daemon can use it
+    let resolved_key = api_key_env.as_ref().and_then(|env_name| std::env::var(env_name).ok());
+
     Some(hebbs_vault::config::LlmConfig {
         provider: provider.to_string(),
         model: model.to_string(),
-        api_key: None,
+        api_key: resolved_key,
         api_key_env,
         base_url: None,
     })

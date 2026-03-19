@@ -96,8 +96,15 @@ pub fn init_with_llm(
                     } else {
                         // Actual validation failure: clean up and return error
                         let _ = std::fs::remove_dir_all(&hebbs_dir);
+                        let hint = if err_str.contains("401") || err_str.contains("auth") {
+                            "Check your API key."
+                        } else if vault_config.llm.provider == "ollama" {
+                            "Is Ollama running? (`ollama serve`)"
+                        } else {
+                            "Check your provider config."
+                        };
                         return Err(VaultError::Config {
-                            reason: format!("Could not connect to LLM. Is {} running? Error: {e}", vault_config.llm.provider),
+                            reason: format!("LLM validation failed. {hint} Error: {e}"),
                         });
                     }
                 } else {
