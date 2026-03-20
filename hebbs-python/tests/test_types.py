@@ -68,3 +68,5 @@ def test_memory_kind_values():
     assert MemoryKind.EPISODE.value == "episode"
     assert MemoryKind.INSIGHT.value == "insight"
     assert MemoryKind.REVISION.value == "revision"
+    assert MemoryKind.DOCUMENT.value == "document"
+    assert MemoryKind.PROPOSITION.value == "proposition"

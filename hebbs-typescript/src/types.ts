@@ -10,6 +10,8 @@ export enum MemoryKind {
   EPISODE = 'episode',
   INSIGHT = 'insight',
   REVISION = 'revision',
+  DOCUMENT = 'document',
+  PROPOSITION = 'proposition',
   UNSPECIFIED = 'unspecified',
 }
 
@@ -20,6 +22,9 @@ export enum EdgeType {
   REVISED_FROM = 'revised_from',
   INSIGHT_FROM = 'insight_from',
   CONTRADICTS = 'contradicts',
+  HAS_ENTITY = 'has_entity',
+  ENTITY_RELATION = 'entity_relation',
+  PROPOSITION_OF = 'proposition_of',
   UNSPECIFIED = 'unspecified',
 }
 
@@ -170,6 +175,7 @@ export interface RememberParams {
   readonly context?: Record<string, unknown>;
   readonly entityId?: string;
   readonly edges?: Edge[];
+  readonly kind?: MemoryKind;
 }
 
 export interface RecallParams {

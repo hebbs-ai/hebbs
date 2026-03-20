@@ -51,6 +51,8 @@ export const MEMORY_KIND_UNSPECIFIED = 0;
 export const MEMORY_KIND_EPISODE = 1;
 export const MEMORY_KIND_INSIGHT = 2;
 export const MEMORY_KIND_REVISION = 3;
+export const MEMORY_KIND_DOCUMENT = 4;
+export const MEMORY_KIND_PROPOSITION = 5;
 
 export const EDGE_TYPE_UNSPECIFIED = 0;
 export const EDGE_TYPE_CAUSED_BY = 1;
@@ -59,6 +61,9 @@ export const EDGE_TYPE_FOLLOWED_BY = 3;
 export const EDGE_TYPE_REVISED_FROM = 4;
 export const EDGE_TYPE_INSIGHT_FROM = 5;
 export const EDGE_TYPE_CONTRADICTS = 6;
+export const EDGE_TYPE_HAS_ENTITY = 7;
+export const EDGE_TYPE_ENTITY_RELATION = 8;
+export const EDGE_TYPE_PROPOSITION_OF = 9;
 
 export const STRATEGY_UNSPECIFIED = 0;
 export const STRATEGY_SIMILARITY = 1;
@@ -77,6 +82,9 @@ const EDGE_TYPE_TO_PROTO: Record<string, number> = {
   [EdgeType.REVISED_FROM]: EDGE_TYPE_REVISED_FROM,
   [EdgeType.INSIGHT_FROM]: EDGE_TYPE_INSIGHT_FROM,
   [EdgeType.CONTRADICTS]: EDGE_TYPE_CONTRADICTS,
+  [EdgeType.HAS_ENTITY]: EDGE_TYPE_HAS_ENTITY,
+  [EdgeType.ENTITY_RELATION]: EDGE_TYPE_ENTITY_RELATION,
+  [EdgeType.PROPOSITION_OF]: EDGE_TYPE_PROPOSITION_OF,
 };
 
 const STRATEGY_TO_PROTO: Record<string, number> = {
@@ -90,6 +98,16 @@ const MEMORY_KIND_FROM_PROTO: Record<number, MemoryKind> = {
   [MEMORY_KIND_EPISODE]: MemoryKind.EPISODE,
   [MEMORY_KIND_INSIGHT]: MemoryKind.INSIGHT,
   [MEMORY_KIND_REVISION]: MemoryKind.REVISION,
+  [MEMORY_KIND_DOCUMENT]: MemoryKind.DOCUMENT,
+  [MEMORY_KIND_PROPOSITION]: MemoryKind.PROPOSITION,
+};
+
+const MEMORY_KIND_TO_PROTO: Record<string, number> = {
+  [MemoryKind.EPISODE]: MEMORY_KIND_EPISODE,
+  [MemoryKind.INSIGHT]: MEMORY_KIND_INSIGHT,
+  [MemoryKind.REVISION]: MEMORY_KIND_REVISION,
+  [MemoryKind.DOCUMENT]: MEMORY_KIND_DOCUMENT,
+  [MemoryKind.PROPOSITION]: MEMORY_KIND_PROPOSITION,
 };
 
 const STRATEGY_FROM_PROTO: Record<number, string> = {
@@ -277,6 +295,10 @@ export function strategyConfigToProto(
 
 export function strategyToProto(s: string): number {
   return STRATEGY_TO_PROTO[s] ?? STRATEGY_UNSPECIFIED;
+}
+
+export function memoryKindToProto(kind: MemoryKind): number {
+  return MEMORY_KIND_TO_PROTO[kind] ?? MEMORY_KIND_UNSPECIFIED;
 }
 
 export function strategyFromProto(n: number): string {

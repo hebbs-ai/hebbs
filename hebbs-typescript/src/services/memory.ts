@@ -10,6 +10,7 @@ import {
   protoToMemory,
   protoToRecallResult,
   edgeToProto,
+  memoryKindToProto,
   scoringWeightsToProto,
   strategyConfigToProto,
   strategyToProto,
@@ -17,6 +18,7 @@ import {
 } from '../proto.js';
 import type {
   Memory,
+  MemoryKind,
   RecallOutput,
   PrimeOutput,
   ForgetResult,
@@ -41,6 +43,7 @@ export class MemoryService {
     context?: Record<string, unknown>,
     entityId?: string,
     edges?: Edge[],
+    kind?: MemoryKind,
   ): Promise<Memory> {
     const req: any = { content };
     if (importance !== undefined) req.importance = importance;
@@ -51,6 +54,7 @@ export class MemoryService {
     if (edges && edges.length > 0) {
       req.edges = edges.map(edgeToProto);
     }
+    if (kind) req.kind = memoryKindToProto(kind);
 
     try {
       const resp = await grpcUnary<any>((cb) =>

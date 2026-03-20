@@ -33,6 +33,9 @@ class TestEdgeType:
         assert EdgeType.REVISED_FROM.value == "revised_from"
         assert EdgeType.INSIGHT_FROM.value == "insight_from"
         assert EdgeType.CONTRADICTS.value == "contradicts"
+        assert EdgeType.HAS_ENTITY.value == "has_entity"
+        assert EdgeType.ENTITY_RELATION.value == "entity_relation"
+        assert EdgeType.PROPOSITION_OF.value == "proposition_of"
         assert EdgeType.UNSPECIFIED.value == "unspecified"
 
     def test_contradicts_is_present(self):
@@ -46,6 +49,8 @@ class TestMemoryKind:
         assert MemoryKind.EPISODE.value == "episode"
         assert MemoryKind.INSIGHT.value == "insight"
         assert MemoryKind.REVISION.value == "revision"
+        assert MemoryKind.DOCUMENT.value == "document"
+        assert MemoryKind.PROPOSITION.value == "proposition"
         assert MemoryKind.UNSPECIFIED.value == "unspecified"
 
 

@@ -30,6 +30,10 @@ _EDGE_TYPE_MAP = {
     EdgeType.FOLLOWED_BY: hebbs_pb2.EDGE_TYPE_FOLLOWED_BY,
     EdgeType.REVISED_FROM: hebbs_pb2.EDGE_TYPE_REVISED_FROM,
     EdgeType.INSIGHT_FROM: hebbs_pb2.EDGE_TYPE_INSIGHT_FROM,
+    EdgeType.CONTRADICTS: hebbs_pb2.EDGE_TYPE_CONTRADICTS,
+    EdgeType.HAS_ENTITY: hebbs_pb2.EDGE_TYPE_HAS_ENTITY,
+    EdgeType.ENTITY_RELATION: hebbs_pb2.EDGE_TYPE_ENTITY_RELATION,
+    EdgeType.PROPOSITION_OF: hebbs_pb2.EDGE_TYPE_PROPOSITION_OF,
 }
 
 _STRATEGY_MAP = {
@@ -39,10 +43,20 @@ _STRATEGY_MAP = {
     "analogical": hebbs_pb2.ANALOGICAL,
 }
 
+_MEMORY_KIND_MAP = {
+    MemoryKind.EPISODE: hebbs_pb2.MEMORY_KIND_EPISODE,
+    MemoryKind.INSIGHT: hebbs_pb2.MEMORY_KIND_INSIGHT,
+    MemoryKind.REVISION: hebbs_pb2.MEMORY_KIND_REVISION,
+    MemoryKind.DOCUMENT: hebbs_pb2.MEMORY_KIND_DOCUMENT,
+    MemoryKind.PROPOSITION: hebbs_pb2.MEMORY_KIND_PROPOSITION,
+}
+
 _MEMORY_KIND_REVERSE: dict[int, MemoryKind] = {
     hebbs_pb2.MEMORY_KIND_EPISODE: MemoryKind.EPISODE,
     hebbs_pb2.MEMORY_KIND_INSIGHT: MemoryKind.INSIGHT,
     hebbs_pb2.MEMORY_KIND_REVISION: MemoryKind.REVISION,
+    hebbs_pb2.MEMORY_KIND_DOCUMENT: MemoryKind.DOCUMENT,
+    hebbs_pb2.MEMORY_KIND_PROPOSITION: MemoryKind.PROPOSITION,
 }
 
 _STRATEGY_REVERSE: dict[int, str] = {
@@ -168,6 +182,7 @@ class MemoryServiceClient:
         context: dict[str, Any] | None = None,
         entity_id: str | None = None,
         edges: list[Edge] | None = None,
+        kind: MemoryKind | None = None,
     ) -> Memory:
         req = hebbs_pb2.RememberRequest(content=content)
         if importance is not None:
@@ -179,6 +194,8 @@ class MemoryServiceClient:
             req.entity_id = entity_id
         if self._tenant_id:
             req.tenant_id = self._tenant_id
+        if kind is not None:
+            req.kind = _MEMORY_KIND_MAP.get(kind, hebbs_pb2.MEMORY_KIND_UNSPECIFIED)
         if edges:
             for e in edges:
                 proto_edge = hebbs_pb2.Edge(

@@ -175,6 +175,7 @@ export class HebbsClient {
         p.context,
         p.entityId,
         p.edges,
+        p.kind,
       );
     }
     return this.memoryService!.remember(

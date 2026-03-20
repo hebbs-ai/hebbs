@@ -31,6 +31,8 @@ describe('MemoryKind', () => {
     expect(MemoryKind.EPISODE).toBe('episode');
     expect(MemoryKind.INSIGHT).toBe('insight');
     expect(MemoryKind.REVISION).toBe('revision');
+    expect(MemoryKind.DOCUMENT).toBe('document');
+    expect(MemoryKind.PROPOSITION).toBe('proposition');
     expect(MemoryKind.UNSPECIFIED).toBe('unspecified');
   });
 });
@@ -43,6 +45,9 @@ describe('EdgeType', () => {
     expect(EdgeType.REVISED_FROM).toBe('revised_from');
     expect(EdgeType.INSIGHT_FROM).toBe('insight_from');
     expect(EdgeType.CONTRADICTS).toBe('contradicts');
+    expect(EdgeType.HAS_ENTITY).toBe('has_entity');
+    expect(EdgeType.ENTITY_RELATION).toBe('entity_relation');
+    expect(EdgeType.PROPOSITION_OF).toBe('proposition_of');
     expect(EdgeType.UNSPECIFIED).toBe('unspecified');
   });
 });

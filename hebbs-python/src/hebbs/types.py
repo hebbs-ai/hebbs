@@ -14,6 +14,8 @@ class MemoryKind(Enum):
     EPISODE = "episode"
     INSIGHT = "insight"
     REVISION = "revision"
+    DOCUMENT = "document"
+    PROPOSITION = "proposition"
     UNSPECIFIED = "unspecified"
 
 
@@ -24,6 +26,9 @@ class EdgeType(Enum):
     REVISED_FROM = "revised_from"
     INSIGHT_FROM = "insight_from"
     CONTRADICTS = "contradicts"
+    HAS_ENTITY = "has_entity"
+    ENTITY_RELATION = "entity_relation"
+    PROPOSITION_OF = "proposition_of"
     UNSPECIFIED = "unspecified"
 
 

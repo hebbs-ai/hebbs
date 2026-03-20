@@ -554,6 +554,16 @@ class ReflectServiceStub(object):
                 request_serializer=hebbs__pb2.ReflectCommitRequest.SerializeToString,
                 response_deserializer=hebbs__pb2.ReflectCommitResponse.FromString,
                 _registered_method=True)
+        self.ContradictionPrepare = channel.unary_unary(
+                '/hebbs.v1.ReflectService/ContradictionPrepare',
+                request_serializer=hebbs__pb2.ContradictionPrepareRequest.SerializeToString,
+                response_deserializer=hebbs__pb2.ContradictionPrepareResponse.FromString,
+                _registered_method=True)
+        self.ContradictionCommit = channel.unary_unary(
+                '/hebbs.v1.ReflectService/ContradictionCommit',
+                request_serializer=hebbs__pb2.ContradictionCommitRequest.SerializeToString,
+                response_deserializer=hebbs__pb2.ContradictionCommitResponse.FromString,
+                _registered_method=True)
 
 
 class ReflectServiceServicer(object):
@@ -583,6 +593,18 @@ class ReflectServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ContradictionPrepare(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ContradictionCommit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ReflectServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -605,6 +627,16 @@ def add_ReflectServiceServicer_to_server(servicer, server):
                     servicer.ReflectCommit,
                     request_deserializer=hebbs__pb2.ReflectCommitRequest.FromString,
                     response_serializer=hebbs__pb2.ReflectCommitResponse.SerializeToString,
+            ),
+            'ContradictionPrepare': grpc.unary_unary_rpc_method_handler(
+                    servicer.ContradictionPrepare,
+                    request_deserializer=hebbs__pb2.ContradictionPrepareRequest.FromString,
+                    response_serializer=hebbs__pb2.ContradictionPrepareResponse.SerializeToString,
+            ),
+            'ContradictionCommit': grpc.unary_unary_rpc_method_handler(
+                    servicer.ContradictionCommit,
+                    request_deserializer=hebbs__pb2.ContradictionCommitRequest.FromString,
+                    response_serializer=hebbs__pb2.ContradictionCommitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -715,6 +747,60 @@ class ReflectService(object):
             '/hebbs.v1.ReflectService/ReflectCommit',
             hebbs__pb2.ReflectCommitRequest.SerializeToString,
             hebbs__pb2.ReflectCommitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ContradictionPrepare(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hebbs.v1.ReflectService/ContradictionPrepare',
+            hebbs__pb2.ContradictionPrepareRequest.SerializeToString,
+            hebbs__pb2.ContradictionPrepareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ContradictionCommit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hebbs.v1.ReflectService/ContradictionCommit',
+            hebbs__pb2.ContradictionCommitRequest.SerializeToString,
+            hebbs__pb2.ContradictionCommitResponse.FromString,
             options,
             channel_credentials,
             insecure,
