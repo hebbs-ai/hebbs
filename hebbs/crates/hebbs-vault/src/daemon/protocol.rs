@@ -178,6 +178,10 @@ pub struct EdgeSpec {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DaemonResponse {
     pub status: ResponseStatus,
+    /// Machine-readable status code for programmatic handling by CLIs and SDKs.
+    /// Set on every response (both ok and error).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -197,6 +201,16 @@ impl DaemonResponse {
     pub fn ok(data: serde_json::Value) -> Self {
         Self {
             status: ResponseStatus::Ok,
+            status_code: Some("OK".to_string()),
+            data: Some(data),
+            error: None,
+        }
+    }
+
+    pub fn ok_with_code(data: serde_json::Value, code: &str) -> Self {
+        Self {
+            status: ResponseStatus::Ok,
+            status_code: Some(code.to_string()),
             data: Some(data),
             error: None,
         }
@@ -205,14 +219,27 @@ impl DaemonResponse {
     pub fn ok_empty() -> Self {
         Self {
             status: ResponseStatus::Ok,
+            status_code: Some("OK".to_string()),
             data: None,
             error: None,
         }
     }
 
     pub fn err(msg: impl Into<String>) -> Self {
+        let message = msg.into();
+        let code = classify_error_code(&message);
         Self {
             status: ResponseStatus::Error,
+            status_code: Some(code),
+            data: None,
+            error: Some(message),
+        }
+    }
+
+    pub fn err_with_code(msg: impl Into<String>, code: &str) -> Self {
+        Self {
+            status: ResponseStatus::Error,
+            status_code: Some(code.to_string()),
             data: None,
             error: Some(msg.into()),
         }
@@ -221,10 +248,43 @@ impl DaemonResponse {
     pub fn progress(msg: impl Into<String>) -> Self {
         Self {
             status: ResponseStatus::Progress,
+            status_code: None,
             data: Some(serde_json::json!({ "message": msg.into() })),
             error: None,
         }
     }
+}
+
+/// Classify an error message into a machine-readable status code.
+fn classify_error_code(msg: &str) -> String {
+    let lower = msg.to_lowercase();
+
+    if lower.contains("not initialized") || lower.contains("run `hebbs init`") {
+        return "VAULT_NOT_INITIALIZED".to_string();
+    }
+    if lower.contains("llm provider not configured") || lower.contains("llm provider required") {
+        return "ERR_LLM_REQUIRED".to_string();
+    }
+    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid api key") || lower.contains("auth") {
+        return "ERR_LLM_AUTH".to_string();
+    }
+    if lower.contains("429") || lower.contains("rate limit") || lower.contains("too many requests") {
+        return "ERR_LLM_RATE_LIMITED".to_string();
+    }
+    if lower.contains("timeout") || lower.contains("timed out") {
+        return "ERR_LLM_TIMEOUT".to_string();
+    }
+    if lower.contains("manifest") && (lower.contains("corrupt") || lower.contains("parse") || lower.contains("failed to load")) {
+        return "ERR_MANIFEST_CORRUPT".to_string();
+    }
+    if lower.contains("rocksdb") || lower.contains("lock") && lower.contains("resource temporarily unavailable") {
+        return "ERR_ENGINE_UNAVAILABLE".to_string();
+    }
+    if lower.contains("indexing already in progress") {
+        return "INDEXING_IN_PROGRESS".to_string();
+    }
+
+    "ERR_UNKNOWN".to_string()
 }
 
 // ── Wire helpers ─────────────────────────────────────────────────────

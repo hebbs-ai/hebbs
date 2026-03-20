@@ -81,6 +81,56 @@ pub fn humanize_error(err: &str) -> String {
     cleaned.to_string()
 }
 
+/// Convert an error string + status code into an actionable user message.
+///
+/// Uses the status code for structured dispatch, falls back to `humanize_error`
+/// for unknown codes. Every message follows: what happened, why, what to do.
+pub fn humanize_error_with_code(err: &str, code: &str) -> String {
+    match code {
+        "VAULT_NOT_INITIALIZED" => {
+            format!("Vault not initialized. Run `hebbs init <path>` to set up your vault.")
+        }
+        "ERR_LLM_REQUIRED" => {
+            format!("LLM provider not configured. Run `hebbs init` with --provider and --model, or `hebbs config set llm.provider <provider>`.")
+        }
+        "ERR_LLM_AUTH" => {
+            // Extract HTTP status if present
+            if err.contains("401") {
+                format!("LLM authentication failed (HTTP 401). Check your API key is valid and has not expired.")
+            } else {
+                format!("LLM authentication failed. Check your API key. Detail: {}", humanize_error(err))
+            }
+        }
+        "ERR_LLM_RATE_LIMITED" => {
+            if err.contains("429") {
+                format!("LLM rate limited (HTTP 429). Wait a moment and retry, or upgrade your API plan.")
+            } else {
+                format!("LLM rate limited. Wait a moment and retry. Detail: {}", humanize_error(err))
+            }
+        }
+        "ERR_LLM_TIMEOUT" => {
+            format!("LLM request timed out. The provider may be overloaded. Retry or try a different model.")
+        }
+        "ERR_MANIFEST_CORRUPT" => {
+            format!("Manifest is corrupt or unreadable. Run `hebbs rebuild` to recover from source files.")
+        }
+        "ERR_ENGINE_UNAVAILABLE" => {
+            if err.contains("Resource temporarily unavailable") || err.contains("LOCK") {
+                format!("Database locked by another process. Run `hebbs stop` first, then retry.")
+            } else {
+                format!("Database unavailable. Run `hebbs stop` and retry. Detail: {}", humanize_error(err))
+            }
+        }
+        "INDEXING_IN_PROGRESS" => {
+            format!("Indexing already in progress. Run `hebbs status` to check progress.")
+        }
+        _ => {
+            // Fall back to pattern-matching for unknown codes
+            format!("Error: {}", humanize_error(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +207,57 @@ mod tests {
         let input = "something unexpected happened";
         let result = humanize_error(input);
         assert_eq!(result, "something unexpected happened");
+    }
+
+    // --- humanize_error_with_code tests ---
+
+    #[test]
+    fn code_vault_not_initialized() {
+        let result = humanize_error_with_code("not initialized at /foo", "VAULT_NOT_INITIALIZED");
+        assert!(result.contains("hebbs init"));
+    }
+
+    #[test]
+    fn code_llm_auth_401() {
+        let result = humanize_error_with_code("HTTP 401 Unauthorized", "ERR_LLM_AUTH");
+        assert!(result.contains("401"));
+        assert!(result.contains("API key"));
+    }
+
+    #[test]
+    fn code_llm_rate_limited() {
+        let result = humanize_error_with_code("HTTP 429 Too Many Requests", "ERR_LLM_RATE_LIMITED");
+        assert!(result.contains("rate limited"));
+        assert!(result.contains("retry"));
+    }
+
+    #[test]
+    fn code_llm_timeout() {
+        let result = humanize_error_with_code("request timed out", "ERR_LLM_TIMEOUT");
+        assert!(result.contains("timed out"));
+    }
+
+    #[test]
+    fn code_manifest_corrupt() {
+        let result = humanize_error_with_code("manifest parse error", "ERR_MANIFEST_CORRUPT");
+        assert!(result.contains("hebbs rebuild"));
+    }
+
+    #[test]
+    fn code_engine_locked() {
+        let result = humanize_error_with_code("Resource temporarily unavailable LOCK", "ERR_ENGINE_UNAVAILABLE");
+        assert!(result.contains("hebbs stop"));
+    }
+
+    #[test]
+    fn code_indexing_in_progress() {
+        let result = humanize_error_with_code("indexing already in progress", "INDEXING_IN_PROGRESS");
+        assert!(result.contains("hebbs status"));
+    }
+
+    #[test]
+    fn code_unknown_falls_back() {
+        let result = humanize_error_with_code("something weird", "ERR_UNKNOWN");
+        assert!(result.contains("something weird"));
     }
 }

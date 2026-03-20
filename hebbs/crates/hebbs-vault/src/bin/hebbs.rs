@@ -560,7 +560,7 @@ fn resolve_vault_path(
         if let Some(home) = dirs::home_dir() {
             let global = home.join(".hebbs");
             if global.exists() {
-                return Some(home.clone());
+                return Some(home.canonicalize().unwrap_or(home));
             }
         }
         return None;
@@ -568,12 +568,13 @@ fn resolve_vault_path(
 
     // 1. Explicit positional arg from the command
     if let Some(p) = explicit {
-        return Some(p.clone());
+        // Canonicalize so the daemon gets an absolute path regardless of CWD
+        return Some(p.canonicalize().unwrap_or_else(|_| p.clone()));
     }
 
     // 2. Global --vault flag or HEBBS_VAULT env var
     if let Some(p) = cli_vault {
-        return Some(p.clone());
+        return Some(p.canonicalize().unwrap_or_else(|_| p.clone()));
     }
 
     // 3. Walk up from current directory looking for .hebbs/
@@ -581,7 +582,7 @@ fn resolve_vault_path(
         let mut dir = cwd.as_path();
         loop {
             if dir.join(".hebbs").exists() {
-                return Some(dir.to_path_buf());
+                return Some(dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf()));
             }
             match dir.parent() {
                 Some(parent) => dir = parent,
@@ -594,7 +595,7 @@ fn resolve_vault_path(
     if let Some(home) = dirs::home_dir() {
         let global = home.join(".hebbs");
         if global.exists() {
-            return Some(home.clone());
+            return Some(home.canonicalize().unwrap_or(home));
         }
     }
 
@@ -2444,15 +2445,17 @@ fn build_daemon_command(cli: &Cli) -> Option<DaemonCommand> {
 }
 
 /// Convert Rust error strings into user-friendly sentences.
-fn humanize_error(err: &str) -> String {
-    hebbs_vault::error::humanize_error(err)
+fn humanize_error_with_code(err: &str, code: &str) -> String {
+    hebbs_vault::error::humanize_error_with_code(err, code)
 }
 
 /// Render a daemon response for CLI output.
 fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
     if response.status == ResponseStatus::Error {
         let raw = response.error.unwrap_or_else(|| "unknown error".to_string());
-        eprintln!("Error: {}", humanize_error(&raw));
+        let code = response.status_code.as_deref().unwrap_or("ERR_UNKNOWN");
+        let human = humanize_error_with_code(&raw, code);
+        eprintln!("{}", human);
         return 1;
     }
 

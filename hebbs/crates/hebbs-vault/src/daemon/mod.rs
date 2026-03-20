@@ -1081,15 +1081,23 @@ async fn dispatch_command(
                         "daemon_watching": is_watched,
                     });
                     // Include live indexing progress if indexing is in progress
-                    if let Some(snap) = idx_snap {
+                    let vault_code = if let Some(ref snap) = idx_snap {
                         resp["indexing"] = serde_json::json!({
                             "phase": snap.phase,
                             "total_files": snap.total_files,
                             "files_done": snap.files_done,
                             "current_file": snap.current_file,
                         });
-                    }
-                    DaemonResponse::ok(resp)
+                        if snap.phase == 1 { status_code::INDEXING_PHASE1 }
+                        else { status_code::INDEXING_PHASE2 }
+                    } else if s.content_stale > 0 || s.orphaned > 0 {
+                        status_code::VAULT_PARTIALLY_INDEXED
+                    } else if s.synced == 0 && s.total_files > 0 {
+                        status_code::VAULT_NEEDS_INDEX
+                    } else {
+                        status_code::VAULT_READY
+                    };
+                    DaemonResponse::ok_with_code(resp, vault_code)
                 }
                 Err(e) => DaemonResponse::err(format!("{}", e)),
             }
@@ -1105,19 +1113,13 @@ async fn dispatch_command(
             {
                 let lock = indexing_progress.lock().await;
                 if let Some(snap) = lock.get(&vault_path) {
-                    return DaemonResponse {
-                        status: ResponseStatus::Error,
-                        error: Some(format!(
+                    return DaemonResponse::err_with_code(
+                        format!(
                             "Indexing already in progress ({}/{} files, currently: {}). Run `hebbs status` to check progress.",
                             snap.files_done, snap.total_files, snap.current_file
-                        )),
-                        data: Some(serde_json::json!({
-                            "status_code": status_code::INDEXING_IN_PROGRESS,
-                            "files_done": snap.files_done,
-                            "total_files": snap.total_files,
-                            "current_file": snap.current_file,
-                        })),
-                    };
+                        ),
+                        status_code::INDEXING_IN_PROGRESS,
+                    );
                 }
             }
 
@@ -1223,7 +1225,7 @@ async fn dispatch_command(
             // Clear indexing progress (done)
             indexing_progress.lock().await.remove(&vault_path);
 
-            DaemonResponse::ok(serde_json::json!({
+            DaemonResponse::ok_with_code(serde_json::json!({
                 "total_files": total_files,
                 "sections_new": p1_stats.sections_new,
                 "sections_modified": p1_stats.sections_modified,
@@ -1231,7 +1233,7 @@ async fn dispatch_command(
                 "sections_remembered": p2_stats.sections_remembered,
                 "sections_revised": p2_stats.sections_revised,
                 "sections_forgotten": p2_stats.sections_forgotten,
-            }))
+            }), status_code::INDEXING_COMPLETE)
         }
 
         Command::List { sections } => {
