@@ -673,12 +673,14 @@ fn register_vault(vault_path: &Path) {
 
     let global_hebbs = home.join(".hebbs");
     if !global_hebbs.exists() {
-        // Do not create ~/.hebbs/ just for the registry.
-        // It will be created when the user runs `hebbs init ~/.hebbs`.
-        // Writing vaults.json into a non-existent ~/.hebbs/ would create
-        // a directory that looks like a broken vault to discovery logic.
-        tracing::debug!("~/.hebbs does not exist yet, skipping vault registration");
-        return;
+        // Create ~/.hebbs/ for the vault registry. This directory only
+        // contains vaults.json and daemon state -- it is not a vault
+        // itself (no config.toml), so discovery logic won't mistake it
+        // for one.
+        if let Err(e) = std::fs::create_dir_all(&global_hebbs) {
+            tracing::debug!("failed to create ~/.hebbs for registry: {}", e);
+            return;
+        }
     }
 
     let registry_path = global_hebbs.join("vaults.json");
