@@ -3483,12 +3483,28 @@ fn parse_produced_insights(json_str: &str) -> Result<Vec<hebbs_reflect::Produced
 }
 
 fn memory_to_json(m: &hebbs_core::memory::Memory) -> serde_json::Value {
+    // Local-mode fallback: uses default half-life since vault config is not
+    // threaded here. Most commands route through the daemon which uses the
+    // vault's configured values.
     let id = format_memory_id(&m.memory_id);
     let context: Option<serde_json::Value> = if m.context_bytes.is_empty() {
         None
     } else {
         serde_json::from_slice(&m.context_bytes).ok()
     };
+
+    let now_us = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros() as u64;
+    let decay_score = hebbs_core::decay::compute_decay_score(
+        m.importance,
+        m.last_accessed_at,
+        m.access_count,
+        now_us,
+        hebbs_core::decay::DEFAULT_HALF_LIFE_US,
+        hebbs_core::decay::DEFAULT_REINFORCEMENT_CAP,
+    );
 
     serde_json::json!({
         "memory_id": id,
@@ -3499,6 +3515,7 @@ fn memory_to_json(m: &hebbs_core::memory::Memory) -> serde_json::Value {
         "created_at_us": m.created_at,
         "last_accessed_at_us": m.last_accessed_at,
         "access_count": m.access_count,
+        "decay_score": decay_score,
     })
 }
 

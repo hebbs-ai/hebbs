@@ -171,7 +171,7 @@ async fn switch_vault(
         .as_ref()
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
-    let (engine, _embedder) = vault_manager
+    let (engine, _embedder, _dp) = vault_manager
         .lock()
         .await
         .get_or_open(&vault_path)

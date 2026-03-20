@@ -98,6 +98,8 @@ Keep the current brute-force for entities with < N memories (where N ~ 200-500),
 
 **Trigger to reprioritize:** When benchmarks or production telemetry show prime latency > 10ms at p99 due to entity scan, or when `--all` multi-vault merge pushes candidate sets above 500.
 
+**Last reviewed (2026-03-19, commit 452bf15):** All five issues confirmed still present. Brute-force scan active in `engine.rs:1046-1084`, no filtered HNSW implemented, post-filter fragility in `execute_similarity()` unchanged, 500 cap in place. No action needed at current scale.
+
 ## Scope
 
 ### Files Affected

@@ -110,6 +110,10 @@ pub struct DecayConfig {
     /// Maximum access count that affects reinforcement scoring.
     #[serde(default = "default_reinforcement_cap")]
     pub reinforcement_cap: u64,
+    /// Sweep interval in seconds. How often the decay engine recalculates scores.
+    /// Default: 3600 (1 hour). Minimum: 1 second.
+    #[serde(default = "default_sweep_interval_secs")]
+    pub sweep_interval_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -334,6 +338,9 @@ fn default_auto_forget_threshold() -> f32 {
 fn default_reinforcement_cap() -> u64 {
     100
 }
+fn default_sweep_interval_secs() -> u64 {
+    3600
+}
 
 fn default_split_on() -> String {
     "##".to_string()
@@ -439,6 +446,7 @@ impl Default for DecayConfig {
             half_life_days: default_half_life_days(),
             auto_forget_threshold: default_auto_forget_threshold(),
             reinforcement_cap: default_reinforcement_cap(),
+            sweep_interval_secs: default_sweep_interval_secs(),
         }
     }
 }
@@ -576,14 +584,27 @@ impl VaultConfig {
         errors
     }
 
-    /// Returns ignore patterns with output directories dynamically injected.
-    /// Ensures contradiction_dir is always excluded from the watcher even if
-    /// the user changed it from the default.
-    pub fn effective_ignore_patterns(&self) -> Vec<String> {
+    /// Returns ignore patterns with output directories and `.hebbsignore`
+    /// entries merged in. Ensures contradiction_dir is always excluded from
+    /// the watcher even if the user changed it from the default.
+    pub fn effective_ignore_patterns(&self, vault_root: &Path) -> Vec<String> {
         let mut patterns = self.watch.ignore_patterns.clone();
         let cdir = &self.output.contradiction_dir;
         if !patterns.iter().any(|p| p == cdir) {
             patterns.push(cdir.clone());
+        }
+        // Merge patterns from .hebbsignore (gitignore-style, one pattern per line)
+        let ignore_file = vault_root.join(".hebbsignore");
+        if let Ok(contents) = std::fs::read_to_string(&ignore_file) {
+            for line in contents.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                if !patterns.iter().any(|p| p == trimmed) {
+                    patterns.push(trimmed.to_string());
+                }
+            }
         }
         patterns
     }
@@ -632,7 +653,8 @@ mod tests {
     #[test]
     fn test_effective_ignore_patterns_includes_contradiction_dir() {
         let config = VaultConfig::default();
-        let patterns = config.effective_ignore_patterns();
+        let tmp = std::env::temp_dir();
+        let patterns = config.effective_ignore_patterns(&tmp);
         assert!(patterns.contains(&"contradictions/".to_string()));
         // No duplicates
         let count = patterns.iter().filter(|p| *p == "contradictions/").count();
@@ -643,11 +665,42 @@ mod tests {
     fn test_effective_ignore_patterns_custom_contradiction_dir() {
         let mut config = VaultConfig::default();
         config.output.contradiction_dir = "my_contradictions/".to_string();
-        let patterns = config.effective_ignore_patterns();
+        let tmp = std::env::temp_dir();
+        let patterns = config.effective_ignore_patterns(&tmp);
         assert!(
             patterns.contains(&"my_contradictions/".to_string()),
             "effective patterns should include custom contradiction_dir"
         );
+    }
+
+    #[test]
+    fn test_hebbsignore_file_merged() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault_root = dir.path();
+        std::fs::write(
+            vault_root.join(".hebbsignore"),
+            "# comment\ntemplates/\ndrafts/*.md\n\n",
+        )
+        .unwrap();
+        let config = VaultConfig::default();
+        let patterns = config.effective_ignore_patterns(vault_root);
+        assert!(patterns.contains(&"templates/".to_string()));
+        assert!(patterns.contains(&"drafts/*.md".to_string()));
+        // Comments and blank lines should not appear
+        assert!(!patterns.iter().any(|p| p.starts_with('#')));
+        assert!(!patterns.iter().any(|p| p.is_empty()));
+    }
+
+    #[test]
+    fn test_hebbsignore_no_duplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault_root = dir.path();
+        // .hebbsignore contains a pattern already in defaults
+        std::fs::write(vault_root.join(".hebbsignore"), ".git/\n").unwrap();
+        let config = VaultConfig::default();
+        let patterns = config.effective_ignore_patterns(vault_root);
+        let count = patterns.iter().filter(|p| *p == ".git/").count();
+        assert_eq!(count, 1, "should not duplicate patterns from .hebbsignore");
     }
 
     #[test]

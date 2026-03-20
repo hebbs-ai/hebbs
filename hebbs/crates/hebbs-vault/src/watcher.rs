@@ -74,7 +74,7 @@ pub async fn watch_vault(
     }
 
     // Build ignore glob set
-    let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
+    let ignore_set = build_ignore_set(&config.effective_ignore_patterns(&vault_root))?;
 
     // Startup catch-up: index any files changed since last run
     info!("running startup catch-up");
@@ -422,7 +422,7 @@ fn walk_md_files(
 
 /// Walk all .md files in the vault. Public API for index command.
 pub fn collect_md_files(vault_root: &Path, config: &VaultConfig) -> Result<Vec<PathBuf>> {
-    let ignore_set = build_ignore_set(&config.effective_ignore_patterns())?;
+    let ignore_set = build_ignore_set(&config.effective_ignore_patterns(vault_root))?;
     let mut files = Vec::new();
     walk_md_files(vault_root, vault_root, &ignore_set, &mut |path| {
         files.push(path);

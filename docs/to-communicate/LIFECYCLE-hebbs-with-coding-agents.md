@@ -24,6 +24,17 @@ hebbs watch .
 
 The watcher indexes every `.md` file in the project. Each heading section becomes a memory. Wiki-links become graph edges. Tags become memory kinds. The developer's existing notes, ADRs, meeting logs, and design docs are now searchable by semantic meaning, not just keywords.
 
+To exclude files from indexing (templates, drafts, generated docs), the developer creates a `.hebbsignore` file at the vault root -- same syntax as `.gitignore`:
+
+```
+# .hebbsignore
+templates/
+drafts/*.md
+api-reference/
+```
+
+See [hebbsignore.md](../hebbsignore.md) for the full reference.
+
 ---
 
 ## Day 1: The Agent Arrives

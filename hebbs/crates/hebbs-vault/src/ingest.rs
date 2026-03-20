@@ -269,7 +269,7 @@ async fn phase2_ingest_inner(
     engine: &Engine,
     _embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
-    _run_contradictions: bool,
+    run_contradictions: bool,
     progress: Option<Box<dyn Fn(usize, usize, &str) + Send>>,
 ) -> Result<Phase2Stats> {
     // LLM provider is required for extraction
@@ -446,6 +446,32 @@ async fn phase2_ingest_inner(
             stats.sections_embedded += 1;
         }
         stats.errors += extraction_result.errors;
+
+        // Run contradiction detection on the document memory.
+        // Document memories represent file-level content and are the right
+        // granularity for pairwise contradiction detection. Propositions are
+        // atomic facts checked only if no document memory exists.
+        if run_contradictions && config.contradiction.enabled {
+            let contra_config = hebbs_core::contradict::ContradictionConfig {
+                candidates_k: config.contradiction.candidates_k,
+                min_similarity: config.contradiction.min_similarity,
+                min_confidence: config.contradiction.min_confidence,
+                enabled: true,
+            };
+            let llm_ref: Option<&dyn hebbs_llm::LlmProvider> = Some(llm_provider.as_ref());
+
+            if let Some(doc_id) = extraction_result.document_memory_id {
+                match engine.check_contradictions(&doc_id, &contra_config, llm_ref) {
+                    Ok(result) => {
+                        stats.contradictions_found += result.resolved_contradictions.len()
+                            + result.pending.len();
+                    }
+                    Err(e) => {
+                        warn!("contradiction check failed for document in {}: {}", rel_path, e);
+                    }
+                }
+            }
+        }
     }
 
     // Process deletions (forget orphaned sections)

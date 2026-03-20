@@ -407,7 +407,7 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
         });
         let panel_engine = if panel_vault_root.join(".hebbs").exists() {
             match vault_manager.lock().await.get_or_open(&panel_vault_root) {
-                Ok((engine, panel_embedder)) => Some((engine, panel_embedder, panel_vault_root)),
+                Ok((engine, panel_embedder, _dp)) => Some((engine, panel_embedder, panel_vault_root)),
                 Err(e) => {
                     warn!("panel: failed to open vault at {}: {}, panel disabled", panel_vault_root.display(), e);
                     None
@@ -560,8 +560,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -584,7 +584,7 @@ async fn dispatch_command(
         };
 
             match engine.remember(input) {
-                Ok(memory) => DaemonResponse::ok(memory_to_json(&memory)),
+                Ok(memory) => DaemonResponse::ok(memory_to_json(&memory, &dp)),
                 Err(e) => DaemonResponse::err(format!("{}", e)),
             }
         }
@@ -594,8 +594,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -605,7 +605,7 @@ async fn dispatch_command(
             };
 
             match engine.get(&memory_id) {
-                Ok(memory) => DaemonResponse::ok(memory_to_json(&memory)),
+                Ok(memory) => DaemonResponse::ok(memory_to_json(&memory, &dp)),
                 Err(e) => DaemonResponse::err(format!("{}", e)),
             }
         }
@@ -678,12 +678,12 @@ async fn dispatch_command(
             }
 
             // Open all vault engines
-            let mut engines = Vec::new();
+            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> = Vec::new();
             {
                 let mut mgr = vault_manager.lock().await;
                 for vp in &all_vault_paths {
                     match mgr.get_or_open(vp) {
-                        Ok((engine, _)) => engines.push(engine),
+                        Ok((engine, _, dp)) => engines.push((engine, dp)),
                         Err(e) => return DaemonResponse::err(e),
                     }
                 }
@@ -691,12 +691,12 @@ async fn dispatch_command(
 
             // Run recall on all engines and merge results
             let mut all_results: Vec<(serde_json::Value, f64)> = Vec::new();
-            for engine in &engines {
+            for (engine, dp) in &engines {
                 let input = build_input(entity_id.clone());
                 match engine.recall(input) {
                     Ok(output) => {
                         for r in &output.results {
-                            let mut m = memory_to_json(&r.memory);
+                            let mut m = memory_to_json(&r.memory, dp);
                             m["score"] = serde_json::json!(r.score);
                             all_results.push((m, r.score as f64));
                         }
@@ -739,7 +739,7 @@ async fn dispatch_command(
                     latency_us,
                     Some(&vault_path.to_string_lossy()),
                 );
-                if let Err(e) = crate::query_log::append_to_storage(engine.storage(), &entry) {
+                if let Err(e) = crate::query_log::append_to_storage(engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(), &entry) {
                     warn!("failed to write query log: {}", e);
                 }
             }
@@ -764,7 +764,7 @@ async fn dispatch_command(
                     })
                 }).collect();
 
-                if let Some(engine) = engines.first() {
+                if let Some((engine, _)) = engines.first() {
                     let mut seen_pairs: HashSet<([u8; 16], [u8; 16])> = HashSet::new();
                     for id in &result_id_set {
                         if let Ok(edges) = engine.contradictions(id) {
@@ -822,8 +822,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -886,12 +886,12 @@ async fn dispatch_command(
             }
 
             // Open all vault engines
-            let mut engines = Vec::new();
+            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> = Vec::new();
             {
                 let mut mgr = vault_manager.lock().await;
                 for vp in &all_vault_paths {
                     match mgr.get_or_open(vp) {
-                        Ok((engine, _)) => engines.push(engine),
+                        Ok((engine, _, dp)) => engines.push((engine, dp)),
                         Err(e) => return DaemonResponse::err(e),
                     }
                 }
@@ -903,7 +903,7 @@ async fn dispatch_command(
             let mut total_similarity = 0u64;
             let max_mem = max_memories.map(|m| m as usize);
 
-            for engine in &engines {
+            for (engine, dp) in &engines {
                 let input = PrimeInput {
                     entity_id: entity_id.clone(),
                     context: ctx.clone(),
@@ -918,7 +918,7 @@ async fn dispatch_command(
                         total_temporal += output.temporal_count as u64;
                         total_similarity += output.similarity_count as u64;
                         for r in &output.results {
-                            let mut m = memory_to_json(&r.memory);
+                            let mut m = memory_to_json(&r.memory, &dp);
                             m["score"] = serde_json::json!(r.score);
                             all_results.push((m, r.score as f64));
                         }
@@ -961,7 +961,7 @@ async fn dispatch_command(
                     latency_us,
                     Some(&vault_path.to_string_lossy()),
                 );
-                if let Err(e) = crate::query_log::append_to_storage(engine.storage(), &entry) {
+                if let Err(e) = crate::query_log::append_to_storage(engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(), &entry) {
                     warn!("failed to write query log: {}", e);
                 }
             }
@@ -978,8 +978,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -990,7 +990,7 @@ async fn dispatch_command(
 
             match engine.get(&memory_id) {
                 Ok(memory) => {
-                    let mut result = memory_to_json(&memory);
+                    let mut result = memory_to_json(&memory, &dp);
                     // Add graph edges
                     let mut arr = [0u8; 16];
                     arr.copy_from_slice(&memory_id);
@@ -1018,8 +1018,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1047,7 +1047,7 @@ async fn dispatch_command(
                     let memories: Vec<serde_json::Value> = output
                         .results
                         .iter()
-                        .map(|r| memory_to_json(&r.memory))
+                        .map(|r| memory_to_json(&r.memory, &dp))
                         .collect();
                     DaemonResponse::ok(serde_json::json!({
                         "memories": memories,
@@ -1129,8 +1129,8 @@ async fn dispatch_command(
             }
 
             send_progress!("Opening vault...");
-            let (engine, embedder) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, embedder, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1296,8 +1296,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1345,8 +1345,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1368,8 +1368,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1403,8 +1403,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1474,8 +1474,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1488,7 +1488,7 @@ async fn dispatch_command(
             match engine.insights(filter) {
                 Ok(memories) => {
                     let results: Vec<serde_json::Value> =
-                        memories.iter().map(memory_to_json).collect();
+                        memories.iter().map(|m| memory_to_json(m, &dp)).collect();
                     DaemonResponse::ok(serde_json::json!({
                         "insights": results,
                         "count": memories.len(),
@@ -1508,8 +1508,8 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _) = match vault_manager.lock().await.get_or_open(&vault_path) {
-                Ok(pair) => pair,
+            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+                Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
 
@@ -1629,7 +1629,7 @@ impl VaultWatchState {
         let hebbs_dir = vault_root.join(".hebbs");
         let config = VaultConfig::load(&hebbs_dir).ok()?;
         let manifest = Manifest::load(&hebbs_dir).ok()?;
-        let ignore_set = build_ignore_set(&config.effective_ignore_patterns()).ok()?;
+        let ignore_set = build_ignore_set(&config.effective_ignore_patterns(&vault_root)).ok()?;
         Some(Self {
             vault_root,
             config,
@@ -1691,7 +1691,7 @@ async fn run_watch_loop(
                     match VaultConfig::load(&hebbs_dir) {
                         Ok(new_config) => {
                             // Rebuild ignore set from updated patterns
-                            match build_ignore_set(&new_config.effective_ignore_patterns()) {
+                            match build_ignore_set(&new_config.effective_ignore_patterns(&state.vault_root)) {
                                 Ok(new_ignore) => {
                                     state.ignore_set = new_ignore;
                                 }
@@ -1935,7 +1935,7 @@ async fn run_watch_loop(
                                 let pair = vault_manager.lock().await
                                     .get_or_open(&state.vault_root);
                                 match pair {
-                                    Ok((engine, embedder_ref)) => {
+                                    Ok((engine, embedder_ref, _dp)) => {
                                         match phase2_ingest(
                                             &state.vault_root,
                                             &mut state.manifest,
@@ -2087,13 +2087,28 @@ fn parse_memory_id(input: &str) -> Result<Vec<u8>, String> {
     ))
 }
 
-fn memory_to_json(m: &Memory) -> serde_json::Value {
+fn memory_to_json(m: &Memory, dp: &vault_manager::DecayParams) -> serde_json::Value {
     let id = format_memory_id(&m.memory_id);
     let context: Option<serde_json::Value> = if m.context_bytes.is_empty() {
         None
     } else {
         serde_json::from_slice(&m.context_bytes).ok()
     };
+
+    // Compute decay_score fresh from current time using the vault's configured
+    // half-life and reinforcement cap (not the hardcoded defaults).
+    let now_us = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros() as u64;
+    let decay_score = hebbs_core::decay::compute_decay_score(
+        m.importance,
+        m.last_accessed_at,
+        m.access_count,
+        now_us,
+        dp.half_life_us,
+        dp.reinforcement_cap,
+    );
 
     serde_json::json!({
         "memory_id": id,
@@ -2104,6 +2119,7 @@ fn memory_to_json(m: &Memory) -> serde_json::Value {
         "created_at_us": m.created_at,
         "last_accessed_at_us": m.last_accessed_at,
         "access_count": m.access_count,
+        "decay_score": decay_score,
     })
 }
 

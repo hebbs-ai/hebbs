@@ -38,10 +38,28 @@ pub struct VaultFsEvent {
     pub event: Event,
 }
 
+/// Decay parameters extracted from vault config for use in serialization.
+/// Avoids threading the full VaultConfig through response handlers.
+#[derive(Debug, Clone, Copy)]
+pub struct DecayParams {
+    pub half_life_us: u64,
+    pub reinforcement_cap: u64,
+}
+
+impl Default for DecayParams {
+    fn default() -> Self {
+        Self {
+            half_life_us: hebbs_core::decay::DEFAULT_HALF_LIFE_US,
+            reinforcement_cap: hebbs_core::decay::DEFAULT_REINFORCEMENT_CAP,
+        }
+    }
+}
+
 /// A single open vault with its engine handle and last-access timestamp.
 struct OpenVault {
     engine: Arc<Engine>,
     embedder: Arc<dyn Embedder>,
+    decay_params: DecayParams,
     last_accessed: Instant,
     /// Vault epoch from `.hebbs/epoch`. Used to detect vault re-initialization.
     epoch: String,
@@ -89,7 +107,7 @@ impl VaultManager {
     pub fn get_or_open(
         &mut self,
         vault_path: &Path,
-    ) -> Result<(Arc<Engine>, Arc<dyn Embedder>), String> {
+    ) -> Result<(Arc<Engine>, Arc<dyn Embedder>, DecayParams), String> {
         let canonical = vault_path
             .canonicalize()
             .unwrap_or_else(|_| vault_path.to_path_buf());
@@ -101,7 +119,7 @@ impl VaultManager {
                 // Same vault instance, reuse
                 let entry = self.open_vaults.get_mut(&canonical).unwrap();
                 entry.last_accessed = Instant::now();
-                return Ok((entry.engine.clone(), entry.embedder.clone()));
+                return Ok((entry.engine.clone(), entry.embedder.clone(), entry.decay_params));
             }
             // Vault was re-initialized (epoch changed). Evict stale handle.
             info!("vault epoch changed for {}, reopening", canonical.display());
@@ -137,15 +155,18 @@ impl VaultManager {
         );
 
         // Start decay worker if vault config enables it
-        match VaultConfig::load(&hebbs_dir) {
+        let decay_params = match VaultConfig::load(&hebbs_dir) {
             Ok(vault_config) => {
                 let half_life_us =
                     (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0)
                         as u64;
+                let sweep_interval_us =
+                    vault_config.decay.sweep_interval_secs.max(1) * 1_000_000;
                 let core_decay = CoreDecayConfig {
                     half_life_us,
                     auto_forget_threshold: vault_config.decay.auto_forget_threshold,
                     reinforcement_cap: vault_config.decay.reinforcement_cap,
+                    sweep_interval_us,
                     ..CoreDecayConfig::default()
                 };
                 engine.start_decay(core_decay);
@@ -162,6 +183,11 @@ impl VaultManager {
                     engine.start_reflect(reflect_config);
                     info!("reflect worker started for {}", canonical.display());
                 }
+
+                DecayParams {
+                    half_life_us,
+                    reinforcement_cap: vault_config.decay.reinforcement_cap,
+                }
             }
             Err(e) => {
                 warn!(
@@ -169,8 +195,9 @@ impl VaultManager {
                     e
                 );
                 engine.start_decay(CoreDecayConfig::default());
+                DecayParams::default()
             }
-        }
+        };
 
         // Start file watcher for this vault
         let watcher = self.start_watcher(&canonical);
@@ -182,13 +209,14 @@ impl VaultManager {
         let entry = OpenVault {
             engine: engine.clone(),
             embedder: self.embedder.clone(),
+            decay_params,
             last_accessed: Instant::now(),
             epoch,
             _watcher: watcher,
         };
         self.open_vaults.insert(canonical, entry);
 
-        Ok((engine, self.embedder.clone()))
+        Ok((engine, self.embedder.clone(), decay_params))
     }
 
     /// Start a file watcher for a vault directory.

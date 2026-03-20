@@ -132,6 +132,22 @@ hebbs recall "hello"                  # recall it
 hebbs config show                     # view configuration
 ```
 
+### Controlling What Gets Indexed
+
+By default HEBBS indexes every `.md` file in your vault, skipping `.git/`, `.obsidian/`, `node_modules/`, and `.hebbs/`. To exclude additional files or directories, create a `.hebbsignore` file at the vault root:
+
+```
+# .hebbsignore -- same syntax as .gitignore
+templates/
+drafts/*.md
+archive/
+*.template.md
+```
+
+Patterns from `.hebbsignore` are merged with the built-in defaults and any patterns in `.hebbs/config.toml`. Comments (`#`) and blank lines are supported. The daemon picks up changes to `.hebbsignore` automatically on its next config reload -- no restart needed.
+
+See [docs/hebbsignore.md](../docs/hebbsignore.md) for the full reference.
+
 ### Start a Server (Optional, for teams)
 
 ```bash
