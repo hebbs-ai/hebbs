@@ -148,7 +148,7 @@ The heuristic classifier uses three signals:
 
 **Negation asymmetry.** One statement uses negation words ("not", "didn't", "never", "failed") and the other doesn't. Asymmetric negation between semantically similar statements is a strong contradiction signal.
 
-**Antonym detection.** 37 built-in antonym pairs: reliable/unreliable, success/failure, safe/unsafe, fast/slow, increase/decrease, and more. Each detected pair increases confidence.
+**Antonym detection.** 25 built-in antonym pairs: reliable/unreliable, success/failure, safe/unsafe, fast/slow, increase/decrease, and more. Each detected pair increases confidence.
 
 **Numeric disagreement.** Both statements contain numbers in a similar context but the numbers differ significantly. "$5,000 per tenant" vs "$2,000 per tenant" triggers this.
 

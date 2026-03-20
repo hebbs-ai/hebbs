@@ -22,20 +22,22 @@ The entire interface comes down to two commands.
 Store something the user said or decided:
 
 ```bash
-hebbs-cli remember "The user prefers dark mode" \
+hebbs remember "The user prefers dark mode" \
   --importance 0.8 --entity-id user_prefs --format json
 ```
 
 Retrieve context before answering a question:
 
 ```bash
-hebbs-cli recall "What are the user's UI preferences?" \
+hebbs recall "What are the user's UI preferences?" \
   --strategy similarity --top-k 5 --format json
 ```
 
 That's it. `remember` writes. `recall` reads. Everything else in the system supports these two operations.
 
 The principle behind both: **knowing is not storing.** An agent that skips the write because it "already knows" a fact from the current conversation defeats the purpose of persistent memory. If the user states a preference, it gets stored. Every time. Unconditionally.
+
+> **Note**: HEBBS ships as a single binary called `hebbs`. All commands use the `hebbs` prefix.
 
 ## Recall Is Not Just Search
 
@@ -66,18 +68,18 @@ The weights are configurable. Need pure semantic search? Set weights to `1:0:0:0
 
 Raw memories accumulate. After 20 or 30 observations about a user's preferences, you don't need all 30 individual entries. You need the pattern.
 
-HEBBS handles this through a two-step reflection pipeline that requires no external LLM, no API key, and no server-side configuration. The agent is the LLM.
+HEBBS handles this through a two-step reflection pipeline. In the agent-driven route, HEBBS requires no external LLM, no API key, and no server-side configuration: the calling agent is the LLM. Alternatively, if an LLM provider is configured on the server (OpenAI, Anthropic, Gemini, Ollama), reflection runs fully automatically in a single command.
 
 **Step 1: Prepare.** HEBBS clusters related memories by embedding similarity and returns the clusters with pre-built prompts:
 
 ```bash
-hebbs-cli reflect-prepare --entity-id user_prefs --format json
+hebbs reflect-prepare --entity-id user_prefs --format json
 ```
 
 **Step 2: Reason and commit.** The agent reads the clusters, identifies patterns, and writes back consolidated insights:
 
 ```bash
-hebbs-cli reflect-commit --session-id <id> \
+hebbs reflect-commit --session-id <id> \
   --insights '[{
     "content": "User consistently prefers dark themes across all applications",
     "confidence": 0.9,
@@ -92,7 +94,7 @@ Old memories naturally decay. An unaccessed memory's score halves every 30 days.
 
 ## Privacy-First, Local-First
 
-HEBBS runs entirely on your machine. No data leaves your device. No cloud service. No API key required.
+HEBBS runs entirely on your machine. No data leaves your device. No cloud service. No API key required for core operations (remember, recall, prime, index). An API key is only needed if you configure a server-side LLM provider for automated reflection or contradiction classification.
 
 On first use, the agent asks a simple set of questions: what should it store, what should it skip, whether to store proactively or only on request, and any privacy boundaries. Those answers become the memory policy, stored in HEBBS itself and applied in every future session.
 
@@ -100,30 +102,37 @@ Users have full control. The `forget` command removes memories by ID, by entity,
 
 ## Running in Under a Minute
 
-Install the binaries:
+Install:
 
 ```bash
 brew install hebbs-ai/tap/hebbs
 ```
 
-Start the server:
+Or via the install script:
 
 ```bash
-brew services start hebbs
+curl -sSf https://hebbs.ai/install | sh
 ```
 
-Wait for the ONNX embedding model to load (10 to 30 seconds on first start), then verify:
+Initialize a vault and index it:
 
 ```bash
-hebbs-cli status --format json
+hebbs init ~/notes
+hebbs index ~/notes
+```
+
+The daemon auto-starts on first use and loads the ONNX embedding model (EmbeddingGemma-300M, 768 dimensions). Verify:
+
+```bash
+hebbs status --format json
 ```
 
 Once status shows `SERVING`, you're live. Store a test memory, recall it, clean it up:
 
 ```bash
-hebbs-cli remember "setup verified" --importance 0.1 --entity-id _system --format json
-hebbs-cli recall "setup verified" --top-k 1 --format json
-hebbs-cli forget --entity-id _system
+hebbs remember "setup verified" --importance 0.1 --entity-id _system --format json
+hebbs recall "setup verified" --top-k 1 --format json
+hebbs forget --entity-id _system
 ```
 
 If all three succeed, the full pipeline (store, embed, index, retrieve) is working. Your agent now has memory.
@@ -131,6 +140,8 @@ If all three succeed, the full pipeline (store, embed, index, retrieve) is worki
 ## What Changes
 
 An agent with HEBBS doesn't ask you to repeat yourself. It loads context at the start of every session with `prime`. It stores your decisions as you make them. It recalls relevant history before answering questions. It consolidates raw observations into insights over time. And it forgets what no longer matters.
+
+HEBBS also operates as a cognitive layer over your existing markdown files. Initialize a vault, and every heading-level section becomes a searchable, scored memory. Wiki-links become graph edges. Insights are written back as markdown files. Your files stay human-readable, git-tracked, and portable. The index is rebuildable from scratch.
 
 This is what memory should look like: scored, structured, self-organizing, and entirely yours.
 

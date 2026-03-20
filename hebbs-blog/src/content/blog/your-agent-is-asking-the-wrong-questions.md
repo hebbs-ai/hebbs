@@ -13,9 +13,9 @@ The retrieval model is not broken. The agent is asking the wrong question.
 
 ## The Problem: Conversational Queries Hit Retrieval Models
 
-BGE-small-en-v1.5 is a retrieval embedding model. It was trained on query-document pairs, not conversations. When you give it a well-formed retrieval cue, it performs excellently. When you give it a conversational question, it struggles.
+Dense retrieval embedding models are trained on query-document pairs, not conversations. When you give them a well-formed retrieval cue, they perform excellently. When you give them a conversational question, they struggle.
 
-We measured this across a real vault with 13 indexed sections:
+We measured this across a real vault with 13 indexed sections (using BGE-small-en-v1.5; results are directionally similar with the current default model, EmbeddingGemma-300M):
 
 | Query | Relevance | Grade |
 |---|---|---|
@@ -27,7 +27,7 @@ We measured this across a real vault with 13 indexed sections:
 
 The gap between 0.87 and 0.49 is the difference between a useful answer and a coin flip. The top three queries use vocabulary that matches the document content. The bottom two use conversational phrasing that has low lexical overlap with the factual text in the files.
 
-This is not a limitation of HEBBS. It is a fundamental property of dense retrieval models. BERT-family encoders compress text into fixed-dimension vectors that capture semantic meaning, but "what was discussed" and "standup meeting decisions on API versioning and deployment timeline" live in very different parts of the embedding space.
+This is not a limitation of HEBBS. It is a fundamental property of dense retrieval models. Encoders compress text into fixed-dimension vectors that capture semantic meaning, but "what was discussed" and "standup meeting decisions on API versioning and deployment timeline" live in very different parts of the embedding space.
 
 ## The Fix: The Agent is the Intelligence Layer
 
@@ -51,7 +51,7 @@ The agent should never pass a raw user question to recall. Instead, decompose th
 **Agent queries:**
 
 ```bash
-hv recall $VAULT \
+hebbs recall $VAULT \
   --query "meeting discussion agenda decisions action items" \
   -k 5
 ```
@@ -69,12 +69,12 @@ The rewritten cue uses words that actually appear in meeting notes. "discussion"
 
 ```bash
 # Recall 1: Find content about Jasen
-hv recall $VAULT \
+hebbs recall $VAULT \
   --query "jasen responsibilities deliverables owner assigned" \
   -k 5
 
 # Recall 2: Find task lists
-hv recall $VAULT \
+hebbs recall $VAULT \
   --query "action items tasks TODO deliverables due deadline" \
   -k 5
 ```
@@ -96,16 +96,23 @@ HEBBS supports four recall strategies. Each one answers a different kind of ques
 
 The default is similarity, and for most lookups it is correct. But when the user asks about recency ("what changed since yesterday?"), the agent should switch to temporal. When the user asks about causation ("why did we pick RocksDB?"), the agent should first find the decision with similarity, then trace its causal chain.
 
-Strategies can be combined:
+Strategies can be combined by running multiple recalls:
 
 ```bash
-hv recall $VAULT \
+# First: semantic match
+hebbs recall $VAULT \
   --query "meeting discussion decisions" \
-  --strategy similarity,temporal \
+  --strategy similarity \
+  -k 5
+
+# Second: recent activity
+hebbs recall $VAULT \
+  --query "meeting discussion decisions" \
+  --strategy temporal --entity-id project_x \
   -k 5
 ```
 
-This returns results scored by both semantic relevance and recency. For "last meeting" queries, this is the right combination.
+The agent cross-references both result sets. For "last meeting" queries, combining semantic relevance with temporal recency gives the best results.
 
 ### 3. Weight Tuning
 
@@ -141,15 +148,15 @@ The agent should run multiple queries with different weight profiles:
 
 ```bash
 # Step 1: Get factual overview (pure relevance)
-hv recall $VAULT --query "HEBBS architecture components" \
+hebbs recall $VAULT --query "HEBBS architecture components" \
   --w-relevance 1.0 -k 5
 
 # Step 2: Get recent changes (recency-heavy)
-hv recall $VAULT --query "architecture changes decisions migration" \
+hebbs recall $VAULT --query "architecture changes decisions migration" \
   --w-relevance 0.3 --w-recency 0.6 --w-importance 0.1 -k 5
 
 # Step 3: Get open risks (importance-heavy)
-hv recall $VAULT --query "risks concerns blockers technical debt" \
+hebbs recall $VAULT --query "risks concerns blockers technical debt" \
   --w-relevance 0.4 --w-importance 0.5 --w-recency 0.1 -k 3
 ```
 
@@ -191,7 +198,7 @@ The agent is doing the work that a conversational search engine would do interna
 
 ## What We Learned from Testing
 
-We ran 8 structured tests against a real vault with BGE-small ONNX embeddings. Key findings:
+We ran 8 structured tests against a real vault with ONNX embeddings. Key findings:
 
 **Direct concept lookups work excellently.** Queries with technical vocabulary matching the content consistently score 0.71 to 0.87 relevance. No tricks needed. Just expand the query with related terms.
 

@@ -52,8 +52,8 @@ This is intentionally simple. Complex recency curves add tuning burden without c
 Every memory has an importance score in [0.0, 1.0], set at creation time. For episode memories (raw observations), this comes from the caller. The agent or application decides what matters:
 
 ```python
-engine.remember("Customer mentioned they're evaluating competitors", importance=0.9)
-engine.remember("Weather was nice during the call", importance=0.2)
+hebbs.remember("Customer mentioned they're evaluating competitors", importance=0.9)
+hebbs.remember("Weather was nice during the call", importance=0.2)
 ```
 
 Default importance is 0.5 if not specified. This value is immutable: once set, it doesn't change. But as we'll see, the *effective* importance changes over time through decay and reinforcement.

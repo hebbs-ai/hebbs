@@ -11,7 +11,9 @@ The HEBBS homepage got three significant changes today. Each one addresses the s
 
 ## Interactive Memory Palace Demo
 
-The Memory Palace is HEBBS's force-directed graph visualization. It shows how memories cluster, connect, and contradict each other in real time. Until today, the homepage only described it in a text card. Now there's a live, interactive demo directly on the page.
+The Memory Palace is HEBBS's visualization of how memories cluster, connect, and contradict each other in real time. Until this update, the homepage only described it in a text card. Now there's a live, interactive demo directly on the page.
+
+> **Update**: The in-app Memory Palace panel has since evolved into a bioluminescent brain visualization with organic tendrils, spreading activation, and ambient drift. The homepage demo retains the force-directed graph style described below.
 
 The demo renders 42 pre-baked nodes organized in three clusters:
 

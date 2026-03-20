@@ -1,6 +1,6 @@
 ---
 title: "How HEBBS Works: From Markdown to Memory Palace"
-description: "The complete technical walkthrough. Two-phase ingest pipeline, RocksDB storage schema with five column families, four recall strategies with documented complexity, and how an AI agent uses HEBBS end-to-end in a real conversation loop."
+description: "The complete technical walkthrough. Two-phase ingest pipeline, RocksDB storage schema with eight column families, four recall strategies with documented complexity, and how an AI agent uses HEBBS end-to-end in a real conversation loop."
 pubDate: 2026-03-16
 tags: ["engineering", "architecture", "deep-dive", "agents"]
 heroImage: "/images/how-hebbs-works.png"
@@ -15,7 +15,7 @@ This post walks through the entire HEBBS system: how files become memories, how 
 .md files
   → Phase 1: Parse (cheap, fast)
   → Phase 2: Embed + Index (expensive, async)
-  → RocksDB (5 column families)
+  → RocksDB (8 column families)
   → 4 recall strategies
   → agent.recall()
 ```
@@ -24,7 +24,7 @@ Everything starts with markdown files.
 
 ## Phase 1: Parse and Manifest
 
-When you run `hebbs index`, the first phase walks your directory for `.md` files. For each file it:
+When you run `hebbs index`, the first phase walks your vault directory for `.md` files. For each file it:
 
 1. Computes a SHA-256 checksum
 2. Skips if the checksum matches the manifest (idempotent reruns are free)
@@ -41,7 +41,7 @@ The manifest is saved atomically: write to `.tmp`, then rename. If `kill -9` hit
 
 The second phase collects all `ContentStale` and `Orphaned` sections, then:
 
-1. **Batch embeds** all content using a local ONNX model (BGE-small, 384 dimensions by default)
+1. **Batch embeds** all content using a local ONNX model (EmbeddingGemma-300M, 768 dimensions by default)
 2. L2-normalizes all vectors
 3. For new sections: `engine.remember()` writes to RocksDB
 4. For modified sections: `engine.revise()` updates content while preserving history
@@ -49,13 +49,13 @@ The second phase collects all `ContentStale` and `Orphaned` sections, then:
 6. Resolves wiki-links to `RELATED_TO` edges in the graph
 7. Runs contradiction detection (optional): finds semantically similar memories, classifies whether they conflict
 
-Embedding batches are capped at 256 sections per batch to prevent OOM. The ONNX runtime picks the best available backend automatically: CoreML on Apple Silicon (~1ms per embed), CUDA on NVIDIA GPUs (~2ms), CPU fallback (~3-5ms).
+Embedding batches are capped at 256 sections per batch to prevent OOM. The ONNX runtime picks the best available backend automatically: CoreML on Apple Silicon, CUDA on NVIDIA GPUs, or CPU fallback.
 
 **Complexity**: O(N * D) for embedding, where N = sections and D = embedding dimensions.
 
-## Storage: Five Column Families in RocksDB
+## Storage: Eight Column Families in RocksDB
 
-HEBBS stores everything in a single embedded RocksDB instance with five column families. No external database. No network calls to a storage layer.
+HEBBS stores everything in a single embedded RocksDB instance with eight column families. No external database. No network calls to a storage layer.
 
 ### 1. `default`: Memory Records
 
@@ -74,7 +74,7 @@ This layout means a range scan on `entity_id + start_time .. entity_id + end_tim
 ### 3. `vectors`: Embedding Storage
 
 Key: `[0x00][memory_id 16B]`
-Value: f32 array (384 * 4 = 1,536 bytes per vector)
+Value: f32 array (768 * 4 = 3,072 bytes per vector with default EmbeddingGemma-300M)
 
 Vectors live in their own column family so the HNSW graph can load them without touching memory records.
 
@@ -89,6 +89,18 @@ Bidirectional encoding means "what did this memory cause?" and "what caused this
 ### 5. `meta`: System State
 
 Schema version, sweep cursors, config, auto-forget candidates.
+
+### 6. `vectors_associative`: Associative Embedding Storage
+
+Stores embeddings used by the analogical recall strategy for structural similarity comparisons, separate from the primary vector index.
+
+### 7. `query_log`: Query Audit Log
+
+Records recall queries with timestamps, strategies, weights, and result counts. Powers the `hebbs queries` command for debugging and tuning retrieval patterns.
+
+### 8. `pending`: Pending Contradiction Candidates
+
+Stores heuristic-flagged contradiction candidates awaiting agent review via the `contradiction-prepare` / `contradiction-commit` workflow.
 
 ### Tuning
 
@@ -142,7 +154,7 @@ score = w_relevance * relevance
 ```
 
 - **Relevance**: Strategy-specific signal (cosine distance, temporal position, graph depth, structural match)
-- **Recency**: Exponential decay from `last_accessed_at`, max age 30 days
+- **Recency**: Linear decay from `created_at`, max age 30 days
 - **Importance**: Stored in the memory record at write time
 - **Reinforcement**: `log2(1 + access_count)` capped at `reinforcement_cap` (default 100)
 
@@ -152,7 +164,7 @@ The agent controls all four weights on every call. "Show me the closest match" s
 
 During ingest, each new section is checked against semantically similar existing memories. HEBBS supports two classification modes:
 
-**Heuristic mode** (default, no external calls): detects negation asymmetry, antonym pairs (37 built-in pairs like reliable/unreliable, success/failure), numeric disagreement, and revision markers. Confidence capped at 0.75.
+**Heuristic mode** (default, no external calls): detects negation asymmetry, antonym pairs (25 built-in pairs like reliable/unreliable, success/failure, fast/slow), numeric disagreement, and revision markers. Confidence capped at 0.75.
 
 **LLM mode** (when a provider is configured): sends both statements to an LLM for entailment classification. Returns CONTRADICTION, REVISION, or NEUTRAL with full confidence range.
 
@@ -177,13 +189,13 @@ A background decay worker sweeps memories hourly in batches of 10,000. Memories 
 `hebbs watch` monitors your directory using the `notify` crate for cross-platform filesystem events. When a file changes, it doesn't immediately re-embed. Instead:
 
 ```
-FS event → burst detection → Phase 1 debounce (500ms) → Phase 2 debounce (2000ms)
+FS event → burst detection → Phase 1 debounce (500ms) → Phase 2 debounce (3000ms)
                               parse into manifest         embed and index
 ```
 
 Phase 1 is cheap (parse, checksum). Phase 2 is expensive (embed, index, contradiction check). The split prevents the embedding pipeline from being overwhelmed during rapid edits.
 
-Burst detection: if more than 10 events arrive during Phase 1, the Phase 2 debounce extends to 5 seconds. This handles `git checkout` and bulk file operations gracefully.
+Burst detection: if more than 20 events arrive during Phase 1, the Phase 2 debounce extends to 10 seconds. This handles `git checkout` and bulk file operations gracefully.
 
 ## The Daemon
 

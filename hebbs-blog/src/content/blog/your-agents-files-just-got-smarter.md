@@ -47,7 +47,7 @@ Four commands. That is the entire surface area.
 ### Initialize a vault
 
 ```bash
-hebbs-vault init --vault /path/to/knowledge-base
+hebbs init --vault /path/to/knowledge-base
 ```
 
 Creates `.hebbs/` with a default config. If the directory is a git repo, `.hebbs/` is automatically added to `.gitignore`.
@@ -55,7 +55,7 @@ Creates `.hebbs/` with a default config. If the directory is a git repo, `.hebbs
 ### Index all files
 
 ```bash
-hebbs-vault index --vault /path/to/knowledge-base
+hebbs index --vault /path/to/knowledge-base
 ```
 
 Two-phase pipeline. Phase 1 parses every `.md` file into heading-level sections, extracts frontmatter, wiki-links, and tags, and writes the manifest. Phase 2 embeds all sections and pushes them into the HNSW index. For 500 files, phase 1 takes under 2 seconds. Phase 2 depends on section count and embedding model, but it is batched (not one call per section) and runs in the background.
@@ -65,7 +65,7 @@ After indexing, every `##` heading in every file becomes an independently retrie
 ### Watch for changes
 
 ```bash
-hebbs-vault watch --vault /path/to/knowledge-base
+hebbs watch --vault /path/to/knowledge-base
 ```
 
 A daemon that bridges the two planes in real time. When a file changes, the watcher:
@@ -76,12 +76,12 @@ A daemon that bridges the two planes in real time. When a file changes, the watc
 
 Between phase 1 and phase 2, the system is in a content-stale state. This is intentional. Queries during this window return the current file content (read from the file at query time, not from the stored embedding). The ranking might be slightly off because the embedding is from the previous version, but the content is always fresh. The ranking self-corrects when phase 2 completes.
 
-For agents writing files in bursts (creating 30 notes in 3 seconds), the watcher detects the burst, extends the phase 2 debounce to 10 seconds, and processes everything in a single batch. One embed call for 30 files, not 30 individual calls.
+For agents writing files in bursts (creating 30 notes in 3 seconds), the watcher detects the burst (more than 20 events in a phase 1 window), extends the phase 2 debounce to 10 seconds, and processes everything in a single batch. One embed call for 30 files, not 30 individual calls.
 
 ### Query the vault
 
 ```bash
-hebbs-vault recall --vault /path/to/knowledge-base \
+hebbs recall --vault /path/to/knowledge-base \
   -q "vendor evaluation performance" -k 5
 ```
 
@@ -127,7 +127,7 @@ This closes the loop: files produce memories, memories produce insights, insight
 
 ## The Rebuild Guarantee
 
-`hebbs-vault rebuild` deletes `.hebbs/` entirely and recreates it from scratch. Same files, same sections, same embeddings, same graph edges. The only things lost are decay scores, access counts, and reinforcement signals, all of which are cognition-plane-only state that rebuilds naturally over time through usage.
+`hebbs rebuild` deletes `.hebbs/` entirely and recreates it from scratch. Same files, same sections, same embeddings, same graph edges. The only things lost are decay scores, access counts, and reinforcement signals, all of which are cognition-plane-only state that rebuilds naturally over time through usage.
 
 This is the acid test of the architecture. If rebuild produces a functionally equivalent index, the files are truly the source of truth. The engine is disposable. The files are permanent.
 
@@ -151,18 +151,21 @@ The files were always the knowledge base. Now they are a smart knowledge base.
 ## Getting Started
 
 ```bash
-# Build from source
+# Install via Homebrew
+brew install hebbs-ai/tap/hebbs
+
+# Or build from source
 cd hebbs && cargo build -p hebbs-vault --release
 
 # Initialize and index
-./target/release/hebbs-vault init --vault ~/notes
-./target/release/hebbs-vault index --vault ~/notes
+hebbs init --vault ~/notes
+hebbs index --vault ~/notes
 
 # Start watching
-./target/release/hebbs-vault watch --vault ~/notes
+hebbs watch --vault ~/notes
 
 # Query
-./target/release/hebbs-vault recall --vault ~/notes \
+hebbs recall --vault ~/notes \
   -q "what do we know about deployment" -k 5
 ```
 
