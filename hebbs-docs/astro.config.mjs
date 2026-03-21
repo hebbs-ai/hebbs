@@ -253,6 +253,10 @@ localStorage.setItem('starlight-theme', 'dark');`,
             },
             { label: "Causal Chains", slug: "cookbooks/causal-chains" },
             {
+              label: "Custom Dashboard",
+              slug: "cookbooks/custom-dashboard",
+            },
+            {
               label: "Monitoring Stack",
               slug: "cookbooks/monitoring-stack",
             },

@@ -70,8 +70,13 @@ impl AppState {
 
 pub fn create_router(state: AppState) -> Router {
     Router::new()
-        .route("/v1/memories", post(remember_handler))
+        .route(
+            "/v1/memories",
+            get(list_memories_handler).post(remember_handler),
+        )
+        .route("/v1/memories/batch", post(batch_get_handler))
         .route("/v1/memories/:id", get(get_handler))
+        .route("/v1/memories/:id/edges", get(edges_handler))
         .route("/v1/recall", post(recall_handler))
         .route("/v1/prime", post(prime_handler))
         .route("/v1/revise/:id", put(revise_handler))
@@ -90,6 +95,8 @@ pub fn create_router(state: AppState) -> Router {
             "/v1/contradictions/commit",
             post(contradiction_commit_handler),
         )
+        .route("/v1/graph", post(graph_handler))
+        .route("/v1/entities", get(entities_handler))
         .route("/v1/health/live", get(liveness_handler))
         .route("/v1/health/ready", get(readiness_handler))
         .route("/v1/metrics", get(metrics_handler))
@@ -174,6 +181,55 @@ struct InsightsQuery {
     entity_id: Option<String>,
     min_confidence: Option<f32>,
     max_results: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct ListMemoriesQuery {
+    entity_id: Option<String>,
+    kind: Option<String>,
+    cursor: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct BatchGetBody {
+    memory_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct GraphBody {
+    center_id: String,
+    depth: Option<usize>,
+    edge_types: Option<Vec<String>>,
+    max_nodes: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct EdgeJson {
+    source_id: String,
+    target_id: String,
+    edge_type: String,
+    confidence: f32,
+    timestamp_us: u64,
+}
+
+#[derive(Serialize)]
+struct EdgesResponseJson {
+    outgoing: Vec<EdgeJson>,
+    incoming: Vec<EdgeJson>,
+}
+
+#[derive(Serialize)]
+struct GraphResponseJson {
+    nodes: Vec<MemoryJson>,
+    edges: Vec<EdgeJson>,
+    truncated: bool,
+}
+
+#[derive(Serialize)]
+struct ListMemoriesResponseJson {
+    memories: Vec<MemoryJson>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -413,7 +469,24 @@ fn parse_edge_type(s: &str) -> Option<EdgeType> {
         "revised_from" => Some(EdgeType::RevisedFrom),
         "insight_from" => Some(EdgeType::InsightFrom),
         "contradicts" => Some(EdgeType::Contradicts),
+        "has_entity" => Some(EdgeType::HasEntity),
+        "entity_relation" => Some(EdgeType::EntityRelation),
+        "proposition_of" => Some(EdgeType::PropositionOf),
         _ => None,
+    }
+}
+
+fn edge_type_to_str(et: EdgeType) -> &'static str {
+    match et {
+        EdgeType::CausedBy => "caused_by",
+        EdgeType::RelatedTo => "related_to",
+        EdgeType::FollowedBy => "followed_by",
+        EdgeType::RevisedFrom => "revised_from",
+        EdgeType::InsightFrom => "insight_from",
+        EdgeType::Contradicts => "contradicts",
+        EdgeType::HasEntity => "has_entity",
+        EdgeType::EntityRelation => "entity_relation",
+        EdgeType::PropositionOf => "proposition_of",
     }
 }
 
@@ -1233,6 +1306,8 @@ fn parse_memory_kind(s: &str) -> Option<MemoryKind> {
         "episode" => Some(MemoryKind::Episode),
         "insight" => Some(MemoryKind::Insight),
         "revision" => Some(MemoryKind::Revision),
+        "document" => Some(MemoryKind::Document),
+        "proposition" => Some(MemoryKind::Proposition),
         _ => None,
     }
 }
@@ -1378,6 +1453,311 @@ async fn sse_close_handler(
     }
 
     (StatusCode::OK, Json(serde_json::json!({}))).into_response()
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Graph & Exploration Handlers
+// ═══════════════════════════════════════════════════════════════════════
+
+async fn list_memories_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+    axum::extract::Query(query): axum::extract::Query<ListMemoriesQuery>,
+) -> impl IntoResponse {
+    let kind = query.kind.and_then(|k| parse_memory_kind(&k));
+    let limit = query.limit.unwrap_or(100).min(1000);
+    let cursor = query.cursor.and_then(|s| parse_hex_id_16(&s));
+
+    let entity_id = query.entity_id.clone();
+    let engine = state.engine.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        engine.list_memories_for_tenant(&tenant, entity_id.as_deref(), kind, cursor.as_ref(), limit)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(memories)) => {
+            let next_cursor = if memories.len() >= limit {
+                memories.last().map(|m| hex::encode(&m.memory_id))
+            } else {
+                None
+            };
+            let json_memories: Vec<MemoryJson> = memories.iter().map(memory_to_json).collect();
+            let resp = ListMemoriesResponseJson {
+                memories: json_memories,
+                next_cursor,
+            };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn edges_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let memory_id = match parse_hex_id_16(&id) {
+        Some(v) => v,
+        None => {
+            return json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+                "memory_id must be a 32-character hex string (16 bytes)",
+            )
+            .into_response();
+        }
+    };
+
+    let engine = state.engine.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let outgoing = engine.outgoing_edges_for_tenant(&tenant, &memory_id)?;
+        let incoming = engine.incoming_edges_for_tenant(&tenant, &memory_id)?;
+        Ok::<_, hebbs_core::error::HebbsError>((outgoing, incoming))
+    })
+    .await;
+
+    match result {
+        Ok(Ok((outgoing, incoming))) => {
+            let out_json: Vec<EdgeJson> = outgoing
+                .iter()
+                .map(|(et, target, meta)| EdgeJson {
+                    source_id: id.clone(),
+                    target_id: hex::encode(target),
+                    edge_type: edge_type_to_str(*et).to_string(),
+                    confidence: meta.confidence,
+                    timestamp_us: meta.timestamp_us,
+                })
+                .collect();
+            let in_json: Vec<EdgeJson> = incoming
+                .iter()
+                .map(|(et, source, meta)| EdgeJson {
+                    source_id: hex::encode(source),
+                    target_id: id.clone(),
+                    edge_type: edge_type_to_str(*et).to_string(),
+                    confidence: meta.confidence,
+                    timestamp_us: meta.timestamp_us,
+                })
+                .collect();
+            let resp = EdgesResponseJson {
+                outgoing: out_json,
+                incoming: in_json,
+            };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn graph_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+    Json(body): Json<GraphBody>,
+) -> impl IntoResponse {
+    let center_id = match parse_hex_id_16(&body.center_id) {
+        Some(v) => v,
+        None => {
+            return json_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_input",
+                "center_id must be a 32-character hex string (16 bytes)",
+            )
+            .into_response();
+        }
+    };
+
+    let max_depth = body.depth.unwrap_or(2).min(5);
+    let max_nodes = body.max_nodes.unwrap_or(100).min(500);
+
+    let edge_types: Vec<EdgeType> = body
+        .edge_types
+        .map(|types| types.iter().filter_map(|s| parse_edge_type(s)).collect())
+        .unwrap_or_else(|| {
+            vec![
+                EdgeType::CausedBy,
+                EdgeType::RelatedTo,
+                EdgeType::FollowedBy,
+                EdgeType::RevisedFrom,
+                EdgeType::InsightFrom,
+                EdgeType::Contradicts,
+                EdgeType::HasEntity,
+                EdgeType::EntityRelation,
+                EdgeType::PropositionOf,
+            ]
+        });
+
+    let engine = state.engine.clone();
+    let tenant_clone = tenant.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let (traversal, truncated) = engine.traverse_graph_for_tenant(
+            &tenant,
+            &center_id,
+            &edge_types,
+            max_depth,
+            max_nodes,
+        )?;
+
+        // Collect all unique node IDs (center + traversal results)
+        let mut node_ids: Vec<[u8; 16]> = Vec::with_capacity(traversal.len() + 1);
+        node_ids.push(center_id);
+        let mut seen = std::collections::HashSet::new();
+        seen.insert(center_id);
+        for entry in &traversal {
+            if seen.insert(entry.memory_id) {
+                node_ids.push(entry.memory_id);
+            }
+        }
+
+        let memories = engine.batch_get_for_tenant(&tenant_clone, &node_ids)?;
+
+        // Collect edges for all nodes in the subgraph
+        let mut edges = Vec::new();
+        for nid in &node_ids {
+            let outgoing = engine.outgoing_edges_for_tenant(&tenant_clone, nid)?;
+            for (et, target, meta) in outgoing {
+                if seen.contains(&target) {
+                    edges.push((*nid, et, target, meta));
+                }
+            }
+        }
+
+        Ok::<_, hebbs_core::error::HebbsError>((memories, edges, truncated))
+    })
+    .await;
+
+    match result {
+        Ok(Ok((memories, edges, truncated))) => {
+            let nodes: Vec<MemoryJson> = memories.iter().map(memory_to_json).collect();
+            let edge_json: Vec<EdgeJson> = edges
+                .iter()
+                .map(|(source, et, target, meta)| EdgeJson {
+                    source_id: hex::encode(source),
+                    target_id: hex::encode(target),
+                    edge_type: edge_type_to_str(*et).to_string(),
+                    confidence: meta.confidence,
+                    timestamp_us: meta.timestamp_us,
+                })
+                .collect();
+            let resp = GraphResponseJson {
+                nodes,
+                edges: edge_json,
+                truncated,
+            };
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn entities_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+) -> impl IntoResponse {
+    let engine = state.engine.clone();
+    let result =
+        tokio::task::spawn_blocking(move || engine.list_entities_for_tenant(&tenant)).await;
+
+    match result {
+        Ok(Ok(entities)) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(&entities).unwrap()),
+        )
+            .into_response(),
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn batch_get_handler(
+    State(state): State<AppState>,
+    TenantExtractor(tenant): TenantExtractor,
+    Json(body): Json<BatchGetBody>,
+) -> impl IntoResponse {
+    if body.memory_ids.len() > 500 {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_input",
+            "batch size must not exceed 500",
+        )
+        .into_response();
+    }
+
+    let ids: Vec<[u8; 16]> = body
+        .memory_ids
+        .iter()
+        .filter_map(|s| parse_hex_id_16(s))
+        .collect();
+
+    let engine = state.engine.clone();
+    let result =
+        tokio::task::spawn_blocking(move || engine.batch_get_for_tenant(&tenant, &ids)).await;
+
+    match result {
+        Ok(Ok(memories)) => {
+            let json_memories: Vec<MemoryJson> = memories.iter().map(memory_to_json).collect();
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&json_memories).unwrap()),
+            )
+                .into_response()
+        }
+        Ok(Err(e)) => {
+            let (status, json) = map_hebbs_error(e);
+            (status, json).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorJson {
+                error_code: "internal_error".to_string(),
+                message: format!("task join error: {}", e),
+            }),
+        )
+            .into_response(),
+    }
 }
 
 async fn liveness_handler() -> impl IntoResponse {

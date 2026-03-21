@@ -801,6 +801,137 @@ impl Engine {
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    //  Graph & Exploration APIs
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// List memories with optional filters and cursor-based pagination.
+    ///
+    /// Scans the Default CF in ULID order. If `cursor` is provided, starts
+    /// after that memory ID. Filters by `entity_id` and `kind` are applied
+    /// post-scan.
+    ///
+    /// Complexity: O(log n + k) where k = number of entries scanned.
+    pub fn list_memories(
+        &self,
+        entity_id: Option<&str>,
+        kind: Option<MemoryKind>,
+        cursor: Option<&[u8; 16]>,
+        limit: usize,
+    ) -> Result<Vec<Memory>> {
+        self.list_memories_for_tenant(&TenantContext::default(), entity_id, kind, cursor, limit)
+    }
+
+    /// Tenant-aware version of [`list_memories`](Self::list_memories).
+    pub fn list_memories_for_tenant(
+        &self,
+        tenant: &TenantContext,
+        entity_id: Option<&str>,
+        kind: Option<MemoryKind>,
+        cursor: Option<&[u8; 16]>,
+        limit: usize,
+    ) -> Result<Vec<Memory>> {
+        let limit = limit.min(1000);
+        let storage = self.scoped_storage(tenant);
+        let all = storage.prefix_iterator(ColumnFamilyName::Default, &[])?;
+
+        let mut memories = Vec::with_capacity(limit);
+        for (key, value) in &all {
+            if key.len() != 16 {
+                continue;
+            }
+            if let Some(c) = cursor {
+                if key.as_slice() <= c.as_slice() {
+                    continue;
+                }
+            }
+            let mem = match Memory::from_bytes(value) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if let Some(ref eid) = entity_id {
+                match &mem.entity_id {
+                    Some(mid) if mid == eid => {}
+                    _ => continue,
+                }
+            }
+            if let Some(k) = kind {
+                if mem.kind != k {
+                    continue;
+                }
+            }
+            memories.push(mem);
+            if memories.len() >= limit {
+                break;
+            }
+        }
+        Ok(memories)
+    }
+
+    /// Batch-retrieve memories by their IDs.
+    ///
+    /// Returns found memories in the same order as the input IDs.
+    /// Missing IDs are silently skipped.
+    ///
+    /// Complexity: O(k * log n) where k = number of IDs.
+    pub fn batch_get(&self, memory_ids: &[[u8; 16]]) -> Result<Vec<Memory>> {
+        self.batch_get_for_tenant(&TenantContext::default(), memory_ids)
+    }
+
+    /// Tenant-aware version of [`batch_get`](Self::batch_get).
+    pub fn batch_get_for_tenant(
+        &self,
+        tenant: &TenantContext,
+        memory_ids: &[[u8; 16]],
+    ) -> Result<Vec<Memory>> {
+        let storage = self.scoped_storage(tenant);
+        let mut memories = Vec::with_capacity(memory_ids.len());
+        for id in memory_ids {
+            match Self::get_from_storage(&*storage, id) {
+                Ok(mem) => memories.push(mem),
+                Err(HebbsError::MemoryNotFound { .. }) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(memories)
+    }
+
+    /// List all distinct entity IDs from the temporal index.
+    ///
+    /// Scans the Temporal CF and extracts unique entity ID prefixes
+    /// (everything before the 0xFF separator byte).
+    ///
+    /// Complexity: O(n) where n = total entries in temporal CF.
+    pub fn list_entities(&self) -> Result<Vec<String>> {
+        self.list_entities_for_tenant(&TenantContext::default())
+    }
+
+    /// Tenant-aware version of [`list_entities`](Self::list_entities).
+    pub fn list_entities_for_tenant(&self, tenant: &TenantContext) -> Result<Vec<String>> {
+        let storage = self.scoped_storage(tenant);
+        let all = storage.prefix_iterator(ColumnFamilyName::Temporal, &[])?;
+
+        let mut entities = Vec::new();
+        let mut last_entity: Option<String> = None;
+
+        for (key, _) in &all {
+            if let Some(sep_pos) = key.iter().position(|&b| b == 0xFF) {
+                if let Ok(entity_id) = std::str::from_utf8(&key[..sep_pos]) {
+                    let dominated = match &last_entity {
+                        Some(prev) => prev == entity_id,
+                        None => false,
+                    };
+                    if !dominated {
+                        let owned = entity_id.to_string();
+                        last_entity = Some(owned.clone());
+                        entities.push(owned);
+                    }
+                }
+            }
+        }
+        Ok(entities)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     //  Phase 4: Recall Engine
     // ═══════════════════════════════════════════════════════════════════
 

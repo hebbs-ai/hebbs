@@ -24,8 +24,11 @@ To disable auth for local development, start the server with `HEBBS_AUTH_ENABLED
 
 | Method | Path | Description | Request Body | Response Body |
 |--------|------|-------------|--------------|---------------|
+| GET | `/v1/memories` | List memories with pagination and filters | Query params: `entity_id`, `kind`, `cursor`, `limit` | `ListMemoriesResponse` |
 | POST | `/v1/memories` | Store a new memory | `content`, `importance`, `context`, `entity_id` | `Memory` |
 | GET | `/v1/memories/:id` | Retrieve a memory by ID | — | `Memory` |
+| GET | `/v1/memories/:id/edges` | Get all edges (outgoing and incoming) for a memory | — | `EdgesResponse` |
+| POST | `/v1/memories/batch` | Bulk-retrieve memories by IDs | `memory_ids` | `Memory[]` |
 | POST | `/v1/recall` | Retrieve memories by cue and strategies | `cue`, `strategies`, `top_k`, `entity_id`, `scoring_weights`, `cue_context`, `ef_search`, `time_range`, `seed_memory_id`, `max_depth`, `edge_types`, `analogical_alpha` | `RecallResponse` |
 | POST | `/v1/prime` | Pre-load session context | `entity_id`, `max_memories`, `similarity_cue`, `scoring_weights` | `PrimeResponse` |
 | PUT | `/v1/revise/:id` | Revise an existing memory | `content`, `importance`, `context`, `context_mode`, `entity_id` | `Memory` |
@@ -34,6 +37,8 @@ To disable auth for local development, start the server with `HEBBS_AUTH_ENABLED
 | POST | `/v1/subscribe/:id/feed` | Feed text to a subscription | `text` | `{}` |
 | DELETE | `/v1/subscribe/:id` | Close a subscription | — | `{}` |
 | GET | `/v1/insights` | Query consolidated insights | Query params: `entity_id`, `min_confidence`, `max_results` | `Memory[]` |
+| POST | `/v1/graph` | Query a subgraph around a center node | `center_id`, `depth`, `edge_types`, `max_nodes` | `GraphResponse` |
+| GET | `/v1/entities` | List all entity IDs | — | `string[]` |
 | POST | `/v1/contradictions/prepare` | **Deprecated.** Get pending contradiction candidates | — | `PendingContradiction[]` |
 | POST | `/v1/contradictions/commit` | **Deprecated.** Commit agent-reviewed verdicts | `verdicts` | `ContradictionCommitResponse` |
 | GET | `/v1/health/live` | Liveness probe | — | `{"status": "alive"}` |
@@ -164,6 +169,162 @@ Close the subscription:
 ```bash
 curl -s -X DELETE http://localhost:6381/v1/subscribe/1 \
   -H "Authorization: Bearer $HEBBS_API_KEY"
+```
+
+### List Memories
+
+Browse memories with cursor-based pagination and optional filters.
+
+```bash
+# List first 50 memories
+curl -s "http://localhost:6381/v1/memories?limit=50" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+
+# Filter by entity and kind
+curl -s "http://localhost:6381/v1/memories?entity_id=customer-42&kind=episode&limit=20" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+
+# Paginate using cursor from previous response
+curl -s "http://localhost:6381/v1/memories?cursor=01KK3S0KXYE22EFF489YRTH559&limit=20" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+
+**Query parameters:**
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `entity_id` | string | No | — | Filter to a specific entity |
+| `kind` | string | No | — | Filter by memory kind: `episode`, `insight`, `revision`, `document`, `proposition` |
+| `cursor` | string | No | — | Hex memory ID; returns memories after this ID (for pagination) |
+| `limit` | integer | No | 100 | Max memories to return (capped at 1000) |
+
+**Response:**
+
+```json
+{
+  "memories": [
+    { "memory_id": "...", "content": "...", "importance": 0.8, "kind": "episode", "..." : "..." }
+  ],
+  "next_cursor": "01KK3S0KXYE22EFF489YRTH559"
+}
+```
+
+`next_cursor` is `null` when there are no more results. Pass it as the `cursor` query parameter to fetch the next page.
+
+### Edges
+
+Get all outgoing and incoming graph edges for a memory.
+
+```bash
+curl -s http://localhost:6381/v1/memories/01KK3S0KXYE22EFF489YRTH559/edges \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+
+**Response:**
+
+```json
+{
+  "outgoing": [
+    {
+      "source_id": "01KK3S0KXYE22EFF489YRTH559",
+      "target_id": "01KK3T1MBYE33FGG590ZSUI660",
+      "edge_type": "caused_by",
+      "confidence": 0.95,
+      "timestamp_us": 1720000000000000
+    }
+  ],
+  "incoming": [
+    {
+      "source_id": "01KK3T1MBYE33FGG590ZSUI660",
+      "target_id": "01KK3S0KXYE22EFF489YRTH559",
+      "edge_type": "insight_from",
+      "confidence": 0.88,
+      "timestamp_us": 1720000100000000
+    }
+  ]
+}
+```
+
+Edge types: `caused_by`, `related_to`, `followed_by`, `revised_from`, `insight_from`, `contradicts`, `has_entity`, `entity_relation`, `proposition_of`.
+
+### Batch Get
+
+Retrieve multiple memories in a single request.
+
+```bash
+curl -s -X POST http://localhost:6381/v1/memories/batch \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" \
+  -d '{"memory_ids": ["01KK3S0KXYE22EFF489YRTH559", "01KK3T1MBYE33FGG590ZSUI660"]}' | jq .
+```
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `memory_ids` | string[] | Yes | Hex-encoded memory IDs (max 500) |
+
+**Response:** Array of `Memory` objects. Missing IDs are silently skipped.
+
+### Graph (Subgraph Query)
+
+Query a subgraph centered on a memory node. Returns all nodes and edges within the specified traversal depth.
+
+```bash
+curl -s -X POST http://localhost:6381/v1/graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" \
+  -d '{
+    "center_id": "01KK3S0KXYE22EFF489YRTH559",
+    "depth": 2,
+    "max_nodes": 100
+  }' | jq .
+```
+
+**Request body:**
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `center_id` | string | Yes | — | Hex memory ID of the center node |
+| `depth` | integer | No | 2 | Maximum traversal depth from center (capped at 5) |
+| `edge_types` | string[] | No | all types | Edge types to traverse (e.g. `["caused_by", "related_to"]`) |
+| `max_nodes` | integer | No | 100 | Maximum nodes to return (capped at 500) |
+
+**Response:**
+
+```json
+{
+  "nodes": [
+    { "memory_id": "...", "content": "...", "importance": 0.8, "kind": "episode", "..." : "..." }
+  ],
+  "edges": [
+    {
+      "source_id": "01KK3S0KXYE22EFF489YRTH559",
+      "target_id": "01KK3T1MBYE33FGG590ZSUI660",
+      "edge_type": "caused_by",
+      "confidence": 0.95,
+      "timestamp_us": 1720000000000000
+    }
+  ],
+  "truncated": false
+}
+```
+
+`truncated` is `true` when the traversal hit `max_nodes` before exhausting all reachable nodes at the requested depth.
+
+### Entities
+
+List all entity IDs that have at least one memory.
+
+```bash
+curl -s http://localhost:6381/v1/entities \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+
+**Response:**
+
+```json
+["customer-42", "agent-sales-01", "user-preferences"]
 ```
 
 ### Reflect Prepare (Deprecated)

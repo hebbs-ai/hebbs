@@ -1,0 +1,363 @@
+---
+title: Building a Custom Dashboard
+description: Use the HEBBS REST API to build your own memory visualization, graph explorer, or admin panel.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+HEBBS ships with a built-in Memory Palace UI (`hebbs panel`), but you can build your own dashboard using the REST API on port 6381. This cookbook covers the exploration and graph endpoints that make custom UIs possible.
+
+## Prerequisites
+
+- A running HEBBS server (see [Getting Started](/getting-started/))
+- An API key (printed on first start, or set `HEBBS_AUTH_ENABLED=false` for local dev)
+- Some memories already stored (run a few `remember` calls first)
+
+## API Endpoints for Dashboards
+
+The REST API exposes five endpoints specifically designed for exploration and visualization:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /v1/memories` | Browse and paginate all memories |
+| `GET /v1/memories/:id/edges` | Get the graph connections for a node |
+| `POST /v1/memories/batch` | Fetch many memories in one request |
+| `POST /v1/graph` | Query a subgraph for visualization |
+| `GET /v1/entities` | List all entities for navigation |
+
+These complement the existing `recall`, `prime`, and `insights` endpoints. See the full [REST Endpoints](/api/rest-endpoints/) reference for details.
+
+## Step 1: List Entities
+
+Start by fetching all entities to populate a sidebar or dropdown.
+
+<Tabs>
+<TabItem label="curl">
+```bash
+curl -s http://localhost:6381/v1/entities \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const res = await fetch("http://localhost:6381/v1/entities", {
+  headers: { Authorization: `Bearer ${API_KEY}` },
+});
+const entities = await res.json();
+// ["customer-42", "agent-sales-01", "user-preferences"]
+```
+</TabItem>
+<TabItem label="Python">
+```python
+import httpx
+
+res = httpx.get(
+    "http://localhost:6381/v1/entities",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+entities = res.json()
+# ["customer-42", "agent-sales-01", "user-preferences"]
+```
+</TabItem>
+</Tabs>
+
+## Step 2: Browse Memories
+
+Use cursor-based pagination to load memories incrementally. Filter by entity or kind.
+
+<Tabs>
+<TabItem label="curl">
+```bash
+# First page
+curl -s "http://localhost:6381/v1/memories?entity_id=customer-42&kind=episode&limit=50" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+
+# Next page (use next_cursor from previous response)
+curl -s "http://localhost:6381/v1/memories?entity_id=customer-42&cursor=01KK3S0K...&limit=50" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" | jq .
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+async function* listMemories(entityId, kind) {
+  let cursor = null;
+  while (true) {
+    const params = new URLSearchParams({ limit: "50" });
+    if (entityId) params.set("entity_id", entityId);
+    if (kind) params.set("kind", kind);
+    if (cursor) params.set("cursor", cursor);
+
+    const res = await fetch(
+      `http://localhost:6381/v1/memories?${params}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` } }
+    );
+    const data = await res.json();
+
+    for (const memory of data.memories) {
+      yield memory;
+    }
+
+    if (!data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+}
+
+for await (const memory of listMemories("customer-42", "episode")) {
+  console.log(memory.memory_id, memory.content.slice(0, 80));
+}
+```
+</TabItem>
+<TabItem label="Python">
+```python
+def list_memories(entity_id=None, kind=None):
+    cursor = None
+    while True:
+        params = {"limit": 50}
+        if entity_id:
+            params["entity_id"] = entity_id
+        if kind:
+            params["kind"] = kind
+        if cursor:
+            params["cursor"] = cursor
+
+        res = httpx.get(
+            "http://localhost:6381/v1/memories",
+            params=params,
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
+        data = res.json()
+
+        yield from data["memories"]
+
+        if not data.get("next_cursor"):
+            break
+        cursor = data["next_cursor"]
+
+for memory in list_memories("customer-42", "episode"):
+    print(memory["memory_id"], memory["content"][:80])
+```
+</TabItem>
+</Tabs>
+
+**Available `kind` values:** `episode`, `insight`, `revision`, `document`, `proposition`.
+
+## Step 3: Render a Graph
+
+The `/v1/graph` endpoint returns a subgraph centered on any node, with all nodes and edges needed for visualization.
+
+<Tabs>
+<TabItem label="curl">
+```bash
+curl -s -X POST http://localhost:6381/v1/graph \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $HEBBS_API_KEY" \
+  -d '{
+    "center_id": "01KK3S0KXYE22EFF489YRTH559",
+    "depth": 2,
+    "max_nodes": 100
+  }' | jq .
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const res = await fetch("http://localhost:6381/v1/graph", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${API_KEY}`,
+  },
+  body: JSON.stringify({
+    center_id: selectedMemoryId,
+    depth: 2,
+    max_nodes: 100,
+  }),
+});
+const { nodes, edges, truncated } = await res.json();
+
+// nodes: full Memory objects to render as graph nodes
+// edges: { source_id, target_id, edge_type, confidence, timestamp_us }
+// truncated: true if the graph was cut short at max_nodes
+```
+</TabItem>
+<TabItem label="Python">
+```python
+res = httpx.post(
+    "http://localhost:6381/v1/graph",
+    json={
+        "center_id": selected_memory_id,
+        "depth": 2,
+        "max_nodes": 100,
+    },
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+graph = res.json()
+nodes = graph["nodes"]       # Full Memory objects
+edges = graph["edges"]       # source_id, target_id, edge_type, confidence
+truncated = graph["truncated"]
+```
+</TabItem>
+</Tabs>
+
+The response contains everything needed to render a graph visualization:
+
+- **`nodes`**: Full `Memory` objects (content, importance, kind, timestamps, etc.)
+- **`edges`**: Typed, directed connections between nodes with confidence scores
+- **`truncated`**: Whether the traversal was cut short (useful for showing a "load more" button)
+
+:::tip
+Filter `edge_types` to focus the visualization. For example, pass `["caused_by", "followed_by"]` to show only causal chains, or `["insight_from"]` to show the relationship between episodes and insights.
+:::
+
+### Graph Parameters
+
+| Parameter | Default | Max | Description |
+|-----------|---------|-----|-------------|
+| `depth` | 2 | 5 | How many hops from the center node |
+| `max_nodes` | 100 | 500 | Upper bound on returned nodes |
+| `edge_types` | all | — | Restrict traversal to specific edge types |
+
+## Step 4: Inspect Node Edges
+
+When a user clicks a node, load its full edge details.
+
+<Tabs>
+<TabItem label="JavaScript">
+```javascript
+const res = await fetch(
+  `http://localhost:6381/v1/memories/${memoryId}/edges`,
+  { headers: { Authorization: `Bearer ${API_KEY}` } }
+);
+const { outgoing, incoming } = await res.json();
+
+// outgoing: edges FROM this memory to others
+// incoming: edges FROM other memories TO this one
+// Each edge: { source_id, target_id, edge_type, confidence, timestamp_us }
+```
+</TabItem>
+<TabItem label="Python">
+```python
+res = httpx.get(
+    f"http://localhost:6381/v1/memories/{memory_id}/edges",
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+data = res.json()
+outgoing = data["outgoing"]   # Edges from this memory
+incoming = data["incoming"]   # Edges to this memory
+```
+</TabItem>
+</Tabs>
+
+## Step 5: Batch Load Node Details
+
+When rendering a graph or table, use batch get to fetch all memories in one request instead of N individual calls.
+
+<Tabs>
+<TabItem label="JavaScript">
+```javascript
+const res = await fetch("http://localhost:6381/v1/memories/batch", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${API_KEY}`,
+  },
+  body: JSON.stringify({
+    memory_ids: ["01KK3S0K...", "01KK3T1M...", "01KK3U2N..."],
+  }),
+});
+const memories = await res.json();
+```
+</TabItem>
+<TabItem label="Python">
+```python
+res = httpx.post(
+    "http://localhost:6381/v1/memories/batch",
+    json={"memory_ids": memory_id_list},
+    headers={"Authorization": f"Bearer {API_KEY}"},
+)
+memories = res.json()
+```
+</TabItem>
+</Tabs>
+
+Batch get accepts up to 500 IDs per request. Missing IDs are silently skipped.
+
+## Step 6: Live Updates with SSE
+
+Subscribe to memory changes to keep your dashboard in sync without polling.
+
+```javascript
+const eventSource = new EventSource(
+  "http://localhost:6381/v1/subscribe",
+  // Note: SSE via POST requires a fetch-based EventSource polyfill
+);
+
+// Or use fetch with ReadableStream:
+const res = await fetch("http://localhost:6381/v1/subscribe", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${API_KEY}`,
+  },
+  body: JSON.stringify({
+    entity_id: "customer-42",
+    confidence_threshold: 0.5,
+  }),
+});
+
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const text = decoder.decode(value);
+  // Parse SSE "data:" lines and update the UI
+  for (const line of text.split("\n")) {
+    if (line.startsWith("data:")) {
+      const event = JSON.parse(line.slice(5));
+      // event.memory contains the new/updated Memory object
+      addNodeToGraph(event.memory);
+    }
+  }
+}
+```
+
+## Putting It Together
+
+A typical dashboard data flow:
+
+1. **On load**: `GET /v1/entities` to populate entity selector
+2. **On entity select**: `GET /v1/memories?entity_id=...&limit=50` to list memories
+3. **On memory select**: `POST /v1/graph` to render the neighborhood
+4. **On node click**: `GET /v1/memories/:id/edges` for edge details
+5. **Background**: `POST /v1/subscribe` for live updates
+6. **Search**: `POST /v1/recall` with similarity strategy for semantic search
+7. **Insights panel**: `GET /v1/insights?entity_id=...` for consolidated knowledge
+
+:::note
+All REST endpoints derive tenant context from the `Authorization` header. There is no `tenant_id` field in request bodies. A single API key maps to one tenant, so dashboard users see only their own data.
+:::
+
+## Edge Type Reference
+
+| Edge Type | Meaning | Visual Suggestion |
+|-----------|---------|-------------------|
+| `caused_by` | A caused B | Solid arrow |
+| `related_to` | Semantic relationship | Dashed line |
+| `followed_by` | Temporal sequence | Thin arrow |
+| `revised_from` | B is a revision of A | Dotted arrow |
+| `insight_from` | Insight derived from episodes | Glowing edge |
+| `contradicts` | Memories conflict | Red edge |
+| `has_entity` | Memory mentions an entity | Gray edge |
+| `entity_relation` | Relationship between entities | Blue edge |
+| `proposition_of` | Atomic fact extracted from a document | Purple edge |
+
+## Memory Kind Reference
+
+| Kind | Description | Visual Suggestion |
+|------|-------------|-------------------|
+| `episode` | Raw experience or observation | Default node |
+| `insight` | Consolidated knowledge from reflection | Star/diamond node |
+| `revision` | Updated version of a prior memory | Outlined node |
+| `document` | Whole-file or LLM-summarized content | Document icon |
+| `proposition` | Atomic fact extracted by LLM | Small dot |

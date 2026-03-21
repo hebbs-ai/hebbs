@@ -51,6 +51,18 @@ HEBBS defines exactly 9 operations, grouped into three categories:
 | **reflect** | Manually trigger the reflection pipeline to consolidate memories into insights | [reflect](/api/reflect/) |
 | **insights** | Query consolidated knowledge produced by the reflection pipeline | [insights](/api/insights/) |
 
+### Exploration
+
+| Operation | Description | Link |
+|-----------|-------------|------|
+| **list** | Browse memories with pagination, filter by entity or kind | [REST Endpoints](/api/rest-endpoints/#list-memories) |
+| **edges** | Get all outgoing and incoming graph edges for a memory | [REST Endpoints](/api/rest-endpoints/#edges) |
+| **graph** | Query a subgraph around a center node with depth control | [REST Endpoints](/api/rest-endpoints/#graph-subgraph-query) |
+| **entities** | List all entity IDs with at least one memory | [REST Endpoints](/api/rest-endpoints/#entities) |
+| **batch** | Bulk-retrieve memories by IDs in a single request | [REST Endpoints](/api/rest-endpoints/#batch-get) |
+
+These endpoints power custom dashboards and graph visualizations. See the [Custom Dashboard](/cookbooks/custom-dashboard/) cookbook for a complete walkthrough.
+
 ## Reference
 
 - [Protobuf Schema](/api/protobuf-schema/) — Complete gRPC service definitions
