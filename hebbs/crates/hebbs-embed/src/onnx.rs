@@ -224,9 +224,11 @@ impl OnnxEmbedder {
             let mut session = self.session.lock();
 
             let outputs = if self.config.uses_token_type_ids {
-                let token_type_ids_ref = TensorRef::from_array_view(&token_type_ids)
-                    .map_err(|e| EmbedError::Inference {
-                        message: format!("failed to create token_type_ids tensor: {}", e),
+                let token_type_ids_ref =
+                    TensorRef::from_array_view(&token_type_ids).map_err(|e| {
+                        EmbedError::Inference {
+                            message: format!("failed to create token_type_ids tensor: {}", e),
+                        }
                     })?;
                 session
                     .run(ort::inputs![
@@ -251,20 +253,18 @@ impl OnnxEmbedder {
             // Extract the right output tensor.
             // Pre-pooled models (EmbeddingGemma) have a "sentence_embedding" output
             // at index 1. BERT-family models have "last_hidden_state" at index 0.
-            let output_idx = if self.config.pooling_strategy == PoolingStrategy::None
-                && outputs.len() > 1
-            {
-                1 // sentence_embedding (2D)
-            } else {
-                0 // last_hidden_state (3D) or only output
-            };
+            let output_idx =
+                if self.config.pooling_strategy == PoolingStrategy::None && outputs.len() > 1 {
+                    1 // sentence_embedding (2D)
+                } else {
+                    0 // last_hidden_state (3D) or only output
+                };
 
-            let output_dyn: ArrayViewD<f32> =
-                outputs[output_idx]
-                    .try_extract_array::<f32>()
-                    .map_err(|e| EmbedError::Inference {
-                        message: format!("failed to extract output array: {}", e),
-                    })?;
+            let output_dyn: ArrayViewD<f32> = outputs[output_idx]
+                .try_extract_array::<f32>()
+                .map_err(|e| EmbedError::Inference {
+                    message: format!("failed to extract output array: {}", e),
+                })?;
 
             output_dyn.to_owned()
         };

@@ -50,8 +50,7 @@ pub async fn watch_vault(
     let mut manifest = Manifest::load(&hebbs_dir)?;
 
     // Start decay worker
-    let half_life_us =
-        (config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
+    let half_life_us = (config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
     let core_decay = CoreDecayConfig {
         half_life_us,
         auto_forget_threshold: config.decay.auto_forget_threshold,

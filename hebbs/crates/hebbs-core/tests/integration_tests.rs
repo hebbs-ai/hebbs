@@ -476,8 +476,8 @@ fn embedding_survives_restart() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
         original_embedding = mem.embedding.clone();
         memory_id = mem.memory_id;
@@ -822,8 +822,8 @@ fn reinforcement_survives_restart() {
                 context: None,
                 entity_id: Some("reinf_entity".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
         memory_id = mem.memory_id.clone();
 
@@ -1160,8 +1160,8 @@ fn revise_survives_restart() {
                 context: None,
                 entity_id: Some("restart_revise".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
         memory_id = mem.memory_id.clone();
 
@@ -1873,8 +1873,8 @@ fn subscribe_basic_lifecycle() {
                 context: None,
                 entity_id: Some("acme".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
     }
 
@@ -2052,8 +2052,8 @@ fn subscribe_multiple_concurrent() {
                 context: None,
                 entity_id: Some(entity.to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
     }
 

@@ -663,8 +663,8 @@ fn test_remember_empty_content() {
         context: None,
         entity_id: None,
         edges: vec![],
-            kind: None,
-        });
+        kind: None,
+    });
     assert!(
         matches!(result, Err(HebbsError::InvalidInput { .. })),
         "empty content should be rejected"

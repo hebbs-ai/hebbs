@@ -34,8 +34,8 @@ fn simple_input(content: &str) -> RememberInput {
         context: None,
         entity_id: None,
         edges: vec![],
-            kind: None,
-        }
+        kind: None,
+    }
 }
 
 // ── Heuristic Classifier: Comprehensive Edge Cases ──────────────────

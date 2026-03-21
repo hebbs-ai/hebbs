@@ -117,8 +117,8 @@ impl TestServer {
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
-        let incoming = tonic::transport::server::TcpIncoming::from_listener(listener, true, None)
-            .unwrap();
+        let incoming =
+            tonic::transport::server::TcpIncoming::from_listener(listener, true, None).unwrap();
 
         tokio::spawn(async move {
             TonicServer::builder()

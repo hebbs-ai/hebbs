@@ -2,9 +2,7 @@ use serde::Serialize;
 
 use crate::error::{LlmError, Result};
 use crate::http::{http_post_json, make_http_agent};
-use crate::provider::{
-    LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat,
-};
+use crate::provider::{LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat};
 
 /// Google Gemini provider (generateContent REST API).
 pub struct GeminiProvider {

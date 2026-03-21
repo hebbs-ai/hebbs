@@ -138,7 +138,7 @@ async fn grpc_remember_with_context() {
     let req = Request::new(pb::RememberRequest {
         content: "Water boils at 100C.".to_string(),
         importance: None,
-            kind: None,
+        kind: None,
         context: Some(prost_types::Struct { fields }),
         entity_id: None,
         edges: vec![],
@@ -240,7 +240,7 @@ async fn grpc_recall_similarity() {
 
     for i in 0..5 {
         svc.remember(Request::new(pb::RememberRequest {
-                kind: None,
+            kind: None,
             content: format!("fact number {} about the world", i),
             importance: None,
             context: None,
@@ -281,7 +281,7 @@ async fn grpc_recall_temporal() {
 
     for i in 0..3 {
         svc.remember(Request::new(pb::RememberRequest {
-                kind: None,
+            kind: None,
             content: format!("temporal event {}", i),
             importance: None,
             context: None,
@@ -359,7 +359,7 @@ async fn grpc_prime_basic() {
 
     for i in 0..5 {
         svc.remember(Request::new(pb::RememberRequest {
-                kind: None,
+            kind: None,
             content: format!("prime memory {} about cooking", i),
             importance: None,
             context: None,
@@ -621,7 +621,7 @@ async fn grpc_health_reflects_memory_count() {
     for i in 0..3 {
         mem_svc
             .remember(Request::new(pb::RememberRequest {
-                    kind: None,
+                kind: None,
                 content: format!("health count test {}", i),
                 importance: None,
                 context: None,
@@ -779,7 +779,7 @@ async fn grpc_bulk_remember_and_recall() {
 
     for i in 0..20 {
         svc.remember(Request::new(pb::RememberRequest {
-                kind: None,
+            kind: None,
             content: format!("bulk memory item {} about various topics", i),
             importance: Some(0.5 + (i as f32 * 0.02)),
             context: None,

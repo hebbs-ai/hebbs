@@ -156,8 +156,8 @@ fn fix2_tenant_isolation() {
                 context: None,
                 entity_id: Some("acme_finance".into()),
                 edges: vec![],
-            kind: None,
-        },
+                kind: None,
+            },
         )
         .unwrap();
 
@@ -171,8 +171,8 @@ fn fix2_tenant_isolation() {
                 context: None,
                 entity_id: Some("globex_product".into()),
                 edges: vec![],
-            kind: None,
-        },
+                kind: None,
+            },
         )
         .unwrap();
 

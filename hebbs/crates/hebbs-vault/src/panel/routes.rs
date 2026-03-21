@@ -202,10 +202,8 @@ async fn resync_stale(
     let (engine, vault_root) = state.vault_snapshot().await;
     let hebbs_dir = vault_root.join(".hebbs");
 
-    let config =
-        VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mut manifest =
-        Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let config = VaultConfig::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let (_, stale, _) = manifest.section_counts();
     if stale == 0 {
@@ -376,12 +374,13 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
     // Helper: add a memory node from engine by ULID string.
     // Returns true if the node was added (not a duplicate).
     let add_memory_node = |mem_id: &str,
-                                file_path: &str,
-                                heading_path: Vec<String>,
-                                label: String,
-                                id_set: &mut std::collections::HashSet<String>,
-                                nodes: &mut Vec<GraphNode>,
-                                embeddings: &mut Vec<(String, Vec<f32>)>| -> bool {
+                           file_path: &str,
+                           heading_path: Vec<String>,
+                           label: String,
+                           id_set: &mut std::collections::HashSet<String>,
+                           nodes: &mut Vec<GraphNode>,
+                           embeddings: &mut Vec<(String, Vec<f32>)>|
+     -> bool {
         if !id_set.insert(mem_id.to_string()) {
             return false;
         }
@@ -390,35 +389,51 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
             Err(_) => return false,
         };
 
-        let (kind, importance, decay_score, access_count, created_at, content_preview, embedding, confidence) =
-            match engine.get(&id_bytes) {
-                Ok(mem) => {
-                    let k = match mem.kind {
-                        MemoryKind::Episode => "episode",
-                        MemoryKind::Insight => "insight",
-                        MemoryKind::Revision => "revision",
-                        MemoryKind::Document => "document",
-                        MemoryKind::Proposition => "proposition",
-                    };
-                    let preview = if mem.content.len() > 200 {
-                        format!("{}...", &mem.content[..200])
-                    } else {
-                        mem.content.clone()
-                    };
-                    let conf = if mem.kind == MemoryKind::Insight {
-                        mem.context().ok().and_then(|ctx| {
-                            ctx.get("hebbs-confidence")
-                                .and_then(|v| v.as_f64())
-                                .map(|f| f as f32)
-                        })
-                    } else {
-                        None
-                    };
-                    (k, mem.importance, mem.decay_score, mem.access_count,
-                     mem.created_at, preview, mem.embedding.clone(), conf)
-                }
-                Err(_) => return false,
-            };
+        let (
+            kind,
+            importance,
+            decay_score,
+            access_count,
+            created_at,
+            content_preview,
+            embedding,
+            confidence,
+        ) = match engine.get(&id_bytes) {
+            Ok(mem) => {
+                let k = match mem.kind {
+                    MemoryKind::Episode => "episode",
+                    MemoryKind::Insight => "insight",
+                    MemoryKind::Revision => "revision",
+                    MemoryKind::Document => "document",
+                    MemoryKind::Proposition => "proposition",
+                };
+                let preview = if mem.content.len() > 200 {
+                    format!("{}...", &mem.content[..200])
+                } else {
+                    mem.content.clone()
+                };
+                let conf = if mem.kind == MemoryKind::Insight {
+                    mem.context().ok().and_then(|ctx| {
+                        ctx.get("hebbs-confidence")
+                            .and_then(|v| v.as_f64())
+                            .map(|f| f as f32)
+                    })
+                } else {
+                    None
+                };
+                (
+                    k,
+                    mem.importance,
+                    mem.decay_score,
+                    mem.access_count,
+                    mem.created_at,
+                    preview,
+                    mem.embedding.clone(),
+                    conf,
+                )
+            }
+            Err(_) => return false,
+        };
 
         let age_us = now_us.saturating_sub(created_at);
         let recency = 1.0 - (age_us as f32 / max_age_us as f32).min(1.0);
@@ -463,9 +478,13 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
         // Document memory (Layer 1)
         if let Some(ref doc_id) = file_entry.document_memory_id {
             add_memory_node(
-                doc_id, file_path, Vec::new(),
+                doc_id,
+                file_path,
+                Vec::new(),
                 file_label.clone(),
-                &mut id_set, &mut nodes, &mut embeddings,
+                &mut id_set,
+                &mut nodes,
+                &mut embeddings,
             );
         }
 
@@ -473,9 +492,13 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
         for (i, prop_id) in file_entry.proposition_memory_ids.iter().enumerate() {
             let prop_label = format!("{}#{}", file_label, i + 1);
             add_memory_node(
-                prop_id, file_path, Vec::new(),
+                prop_id,
+                file_path,
+                Vec::new(),
                 prop_label,
-                &mut id_set, &mut nodes, &mut embeddings,
+                &mut id_set,
+                &mut nodes,
+                &mut embeddings,
             );
         }
 
@@ -490,9 +513,13 @@ async fn graph_data(State(state): State<AppState>) -> Result<Json<GraphResponse>
                 file_label.clone()
             };
             add_memory_node(
-                &section.memory_id, file_path,
-                section.heading_path.clone(), label,
-                &mut id_set, &mut nodes, &mut embeddings,
+                &section.memory_id,
+                file_path,
+                section.heading_path.clone(),
+                label,
+                &mut id_set,
+                &mut nodes,
+                &mut embeddings,
             );
         }
     }
@@ -1559,8 +1586,8 @@ async fn health_action(
                 context: None,
                 entity_id: None,
                 edges: Vec::new(),
-            kind: None,
-        };
+                kind: None,
+            };
             engine
                 .remember(input)
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -2633,9 +2660,7 @@ struct FileListResponse {
     files: Vec<FileListEntry>,
 }
 
-async fn list_files(
-    State(state): State<AppState>,
-) -> Result<Json<FileListResponse>, StatusCode> {
+async fn list_files(State(state): State<AppState>) -> Result<Json<FileListResponse>, StatusCode> {
     let (_, vault_root) = state.vault_snapshot().await;
     let hebbs_dir = vault_root.join(".hebbs");
     let manifest = Manifest::load(&hebbs_dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -2693,7 +2718,10 @@ async fn get_file_content(
     Path(file_path): Path<String>,
 ) -> Result<Json<FileContentResponse>, StatusCode> {
     // Wildcard captures may have a leading slash; strip it.
-    let file_path = file_path.strip_prefix('/').unwrap_or(&file_path).to_string();
+    let file_path = file_path
+        .strip_prefix('/')
+        .unwrap_or(&file_path)
+        .to_string();
 
     // Prevent path traversal attacks
     if file_path.contains("..") {

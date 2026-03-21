@@ -78,10 +78,7 @@ fn parse_contradiction_response(content: &str) -> Result<ContradictionClassifica
         .map(|f| f as f32)
         .unwrap_or(0.5);
 
-    let reasoning = parsed["reasoning"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let reasoning = parsed["reasoning"].as_str().unwrap_or("").to_string();
 
     Ok(ContradictionClassification {
         verdict,
@@ -134,8 +131,7 @@ mod tests {
     #[test]
     fn mock_provider_contradiction() {
         let mock = crate::mock::MockLlmProvider::new();
-        let result =
-            llm_classify_contradiction(&mock, "Budget is $5K", "Budget is $2K").unwrap();
+        let result = llm_classify_contradiction(&mock, "Budget is $5K", "Budget is $2K").unwrap();
         assert_eq!(result.verdict, ContradictionVerdict::Contradiction);
     }
 }

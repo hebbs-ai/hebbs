@@ -106,10 +106,7 @@ impl VaultManager {
     /// Returns `(engine, embedder)` for the requested vault.
     /// Updates the last-accessed timestamp on hit.
     /// Starts a file watcher on first open.
-    pub fn get_or_open(
-        &mut self,
-        vault_path: &Path,
-    ) -> Result<VaultHandle, String> {
+    pub fn get_or_open(&mut self, vault_path: &Path) -> Result<VaultHandle, String> {
         let canonical = vault_path
             .canonicalize()
             .unwrap_or_else(|_| vault_path.to_path_buf());
@@ -121,7 +118,11 @@ impl VaultManager {
                 // Same vault instance, reuse
                 let entry = self.open_vaults.get_mut(&canonical).unwrap();
                 entry.last_accessed = Instant::now();
-                return Ok((entry.engine.clone(), entry.embedder.clone(), entry.decay_params));
+                return Ok((
+                    entry.engine.clone(),
+                    entry.embedder.clone(),
+                    entry.decay_params,
+                ));
             }
             // Vault was re-initialized (epoch changed). Evict stale handle.
             info!("vault epoch changed for {}, reopening", canonical.display());
@@ -160,10 +161,8 @@ impl VaultManager {
         let decay_params = match VaultConfig::load(&hebbs_dir) {
             Ok(vault_config) => {
                 let half_life_us =
-                    (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0)
-                        as u64;
-                let sweep_interval_us =
-                    vault_config.decay.sweep_interval_secs.max(1) * 1_000_000;
+                    (vault_config.decay.half_life_days as f64 * 24.0 * 3600.0 * 1_000_000.0) as u64;
+                let sweep_interval_us = vault_config.decay.sweep_interval_secs.max(1) * 1_000_000;
                 let core_decay = CoreDecayConfig {
                     half_life_us,
                     auto_forget_threshold: vault_config.decay.auto_forget_threshold,

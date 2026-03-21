@@ -124,8 +124,8 @@ fn similarity_recall_returns_semantically_close_results() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
     }
 
@@ -536,8 +536,8 @@ fn tenant_isolation_prevents_cross_tenant_reads() {
                 context: None,
                 entity_id: Some("entity_a".to_string()),
                 edges: vec![],
-            kind: None,
-        },
+                kind: None,
+            },
         )
         .unwrap();
 
@@ -551,8 +551,8 @@ fn tenant_isolation_prevents_cross_tenant_reads() {
                 context: None,
                 entity_id: Some("entity_b".to_string()),
                 edges: vec![],
-            kind: None,
-        },
+                kind: None,
+            },
         )
         .unwrap();
 
@@ -890,8 +890,8 @@ fn rejects_oversized_content() {
         context: None,
         entity_id: None,
         edges: vec![],
-            kind: None,
-        });
+        kind: None,
+    });
 
     assert!(result.is_err(), "Should reject content > 64KB");
 }
@@ -906,8 +906,8 @@ fn rejects_invalid_importance() {
         context: None,
         entity_id: None,
         edges: vec![],
-            kind: None,
-        });
+        kind: None,
+    });
 
     assert!(result.is_err(), "Should reject importance > 1.0");
 
@@ -917,8 +917,8 @@ fn rejects_invalid_importance() {
         context: None,
         entity_id: None,
         edges: vec![],
-            kind: None,
-        });
+        kind: None,
+    });
 
     assert!(result2.is_err(), "Should reject importance < 0.0");
 }
@@ -944,8 +944,8 @@ fn tenant_hnsw_isolation_test() {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        },
+                kind: None,
+            },
         )
         .unwrap();
 

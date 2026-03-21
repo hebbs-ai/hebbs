@@ -262,7 +262,16 @@ pub async fn phase2_ingest_with_progress(
     run_contradictions: bool,
     progress: Option<ProgressCallback>,
 ) -> Result<Phase2Stats> {
-    phase2_ingest_inner(vault_root, manifest, engine, embedder, config, run_contradictions, progress).await
+    phase2_ingest_inner(
+        vault_root,
+        manifest,
+        engine,
+        embedder,
+        config,
+        run_contradictions,
+        progress,
+    )
+    .await
 }
 
 async fn phase2_ingest_inner(
@@ -334,8 +343,7 @@ async fn phase2_ingest_inner(
     let total_delete = delete_ids.len();
     info!(
         "phase2: {} file(s) to extract, {} orphaned section(s) to delete",
-        total_files,
-        total_delete
+        total_files, total_delete
     );
 
     // Process each file: LLM extraction is the primary path
@@ -401,8 +409,8 @@ async fn phase2_ingest_inner(
         }
 
         // Extract and store via LLM (with hash-based merge for propositions)
-        let extraction_result = crate::extract::extract_and_store_file(
-            crate::extract::ExtractFileParams {
+        let extraction_result =
+            crate::extract::extract_and_store_file(crate::extract::ExtractFileParams {
                 engine,
                 provider: llm_provider.as_ref(),
                 file_content: &file_content,
@@ -411,8 +419,7 @@ async fn phase2_ingest_inner(
                 config: &config.extraction,
                 existing_proposition_ids: &existing_prop_ids,
                 existing_proposition_hashes: &existing_prop_hashes,
-            },
-        );
+            });
 
         // Update manifest with document and proposition IDs
         if let Some(file_entry) = manifest.files.get_mut(rel_path.as_str()) {
@@ -467,11 +474,14 @@ async fn phase2_ingest_inner(
             if let Some(doc_id) = extraction_result.document_memory_id {
                 match engine.check_contradictions(&doc_id, &contra_config, llm_ref) {
                     Ok(result) => {
-                        stats.contradictions_found += result.resolved_contradictions.len()
-                            + result.pending.len();
+                        stats.contradictions_found +=
+                            result.resolved_contradictions.len() + result.pending.len();
                     }
                     Err(e) => {
-                        warn!("contradiction check failed for document in {}: {}", rel_path, e);
+                        warn!(
+                            "contradiction check failed for document in {}: {}",
+                            rel_path, e
+                        );
                     }
                 }
             }
@@ -480,7 +490,10 @@ async fn phase2_ingest_inner(
 
     // Process deletions (forget orphaned sections)
     if !delete_ids.is_empty() {
-        info!("phase2: forgetting {} orphaned section(s)...", delete_ids.len());
+        info!(
+            "phase2: forgetting {} orphaned section(s)...",
+            delete_ids.len()
+        );
     }
     for (rel_path, memory_id) in &delete_ids {
         let memory_id_bytes = match parse_ulid_to_bytes(memory_id) {

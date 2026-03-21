@@ -92,7 +92,9 @@ pub fn init_with_llm(
                     let err_str = format!("{e}");
                     if err_str.contains("429") || err_str.contains("rate") {
                         // Rate limited - not a config error, just throttled
-                        tracing::warn!("LLM rate limited during validation (will work when limit resets)");
+                        tracing::warn!(
+                            "LLM rate limited during validation (will work when limit resets)"
+                        );
                     } else {
                         // Actual validation failure: clean up and return error
                         let _ = std::fs::remove_dir_all(&hebbs_dir);

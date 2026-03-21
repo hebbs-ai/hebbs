@@ -456,8 +456,8 @@ async fn remember_handler(
         context,
         entity_id: body.entity_id,
         edges: Vec::new(),
-            kind: None,
-        };
+        kind: None,
+    };
 
     let engine = state.engine.clone();
     let result =

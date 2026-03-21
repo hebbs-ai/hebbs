@@ -265,19 +265,30 @@ fn classify_error_code(msg: &str) -> String {
     if lower.contains("llm provider not configured") || lower.contains("llm provider required") {
         return "ERR_LLM_REQUIRED".to_string();
     }
-    if lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid api key") || lower.contains("auth") {
+    if lower.contains("401")
+        || lower.contains("unauthorized")
+        || lower.contains("invalid api key")
+        || lower.contains("auth")
+    {
         return "ERR_LLM_AUTH".to_string();
     }
-    if lower.contains("429") || lower.contains("rate limit") || lower.contains("too many requests") {
+    if lower.contains("429") || lower.contains("rate limit") || lower.contains("too many requests")
+    {
         return "ERR_LLM_RATE_LIMITED".to_string();
     }
     if lower.contains("timeout") || lower.contains("timed out") {
         return "ERR_LLM_TIMEOUT".to_string();
     }
-    if lower.contains("manifest") && (lower.contains("corrupt") || lower.contains("parse") || lower.contains("failed to load")) {
+    if lower.contains("manifest")
+        && (lower.contains("corrupt")
+            || lower.contains("parse")
+            || lower.contains("failed to load"))
+    {
         return "ERR_MANIFEST_CORRUPT".to_string();
     }
-    if lower.contains("rocksdb") || lower.contains("lock") && lower.contains("resource temporarily unavailable") {
+    if lower.contains("rocksdb")
+        || lower.contains("lock") && lower.contains("resource temporarily unavailable")
+    {
         return "ERR_ENGINE_UNAVAILABLE".to_string();
     }
     if lower.contains("indexing already in progress") {

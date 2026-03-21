@@ -9,11 +9,15 @@ pub use hebbs_llm::{
 impl From<hebbs_llm::LlmError> for crate::error::ReflectError {
     fn from(e: hebbs_llm::LlmError) -> Self {
         match e {
-            hebbs_llm::LlmError::Provider { message } => crate::error::ReflectError::Llm { message },
+            hebbs_llm::LlmError::Provider { message } => {
+                crate::error::ReflectError::Llm { message }
+            }
             hebbs_llm::LlmError::ResponseParse { message } => {
                 crate::error::ReflectError::ResponseParse { message }
             }
-            hebbs_llm::LlmError::Config { message } => crate::error::ReflectError::Config { message },
+            hebbs_llm::LlmError::Config { message } => {
+                crate::error::ReflectError::Config { message }
+            }
             _ => crate::error::ReflectError::Llm {
                 message: e.to_string(),
             },

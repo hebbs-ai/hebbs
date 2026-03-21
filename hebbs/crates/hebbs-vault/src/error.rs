@@ -75,7 +75,10 @@ pub fn humanize_error(err: &str) -> String {
         return format!("Permission denied. Check file permissions. {}", cleaned);
     }
     if cleaned.contains("ROCKSDB") || cleaned.contains("rocksdb") {
-        return format!("Database error. Try running `hebbs index` to rebuild. {}", cleaned);
+        return format!(
+            "Database error. Try running `hebbs index` to rebuild. {}",
+            cleaned
+        );
     }
 
     cleaned.to_string()
@@ -147,7 +150,10 @@ mod tests {
     fn ollama_connection_refused() {
         let input = "ureq::Error::Transport(Connection refused on 127.0.0.1:11434)";
         let result = humanize_error(input);
-        assert_eq!(result, "Could not reach Ollama at localhost:11434. Is it running? Start it with: ollama serve");
+        assert_eq!(
+            result,
+            "Could not reach Ollama at localhost:11434. Is it running? Start it with: ollama serve"
+        );
     }
 
     #[test]
@@ -245,13 +251,17 @@ mod tests {
 
     #[test]
     fn code_engine_locked() {
-        let result = humanize_error_with_code("Resource temporarily unavailable LOCK", "ERR_ENGINE_UNAVAILABLE");
+        let result = humanize_error_with_code(
+            "Resource temporarily unavailable LOCK",
+            "ERR_ENGINE_UNAVAILABLE",
+        );
         assert!(result.contains("hebbs stop"));
     }
 
     #[test]
     fn code_indexing_in_progress() {
-        let result = humanize_error_with_code("indexing already in progress", "INDEXING_IN_PROGRESS");
+        let result =
+            humanize_error_with_code("indexing already in progress", "INDEXING_IN_PROGRESS");
         assert!(result.contains("hebbs status"));
     }
 

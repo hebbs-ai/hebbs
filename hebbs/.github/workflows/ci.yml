@@ -85,17 +85,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        working-directory: crates/hebbs-python-native
         run: |
           python -m venv .venv
           source .venv/bin/activate
           pip install maturin pytest
       - name: Build and test
-        working-directory: crates/hebbs-python-native
         run: |
           source .venv/bin/activate
-          maturin develop --release
-          python -m pytest tests/ -v
+          maturin develop --release -m crates/hebbs-python-native/Cargo.toml
+          python -m pytest crates/hebbs-python-native/tests/ -v
 
   audit:
     name: Security Audit

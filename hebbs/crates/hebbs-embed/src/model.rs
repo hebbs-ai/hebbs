@@ -114,24 +114,15 @@ pub fn ensure_model_files(config: &EmbedderConfig) -> Result<ModelPaths> {
 fn download_file(url: &str, dest: &Path) -> Result<()> {
     let tmp_path = dest.with_extension("download.tmp");
 
-    let file_name = dest
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("file");
+    let file_name = dest.file_name().and_then(|n| n.to_str()).unwrap_or("file");
 
     // Check for a partial download to resume
-    let already_downloaded: u64 = tmp_path
-        .metadata()
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let already_downloaded: u64 = tmp_path.metadata().map(|m| m.len()).unwrap_or(0);
 
     let (response, resume_offset) = if already_downloaded > 0 {
         // Try a Range request to resume
         let range = format!("bytes={}-", already_downloaded);
-        match ureq::get(url)
-            .header("Range", &range)
-            .call()
-        {
+        match ureq::get(url).header("Range", &range).call() {
             Ok(resp) if resp.status() == 206 => {
                 eprintln!(
                     "  Resuming {} from {:.1} MB...",
@@ -173,7 +164,11 @@ fn download_file(url: &str, dest: &Path) -> Result<()> {
             .append(true)
             .open(&tmp_path)
             .map_err(|e| EmbedError::Download {
-                message: format!("failed to open tmp file for append {}: {}", tmp_path.display(), e),
+                message: format!(
+                    "failed to open tmp file for append {}: {}",
+                    tmp_path.display(),
+                    e
+                ),
             })?
     } else {
         fs::File::create(&tmp_path).map_err(|e| EmbedError::Download {

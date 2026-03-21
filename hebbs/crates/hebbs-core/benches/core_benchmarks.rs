@@ -60,8 +60,8 @@ fn bench_remember_single(c: &mut Criterion) {
                     context: None,
                     entity_id: Some("bench_entity".to_string()),
                     edges: vec![],
-            kind: None,
-        }))
+                    kind: None,
+                }))
                 .unwrap();
         });
     });
@@ -88,8 +88,8 @@ fn bench_remember_with_context(c: &mut Criterion) {
                     context: Some(ctx.clone()),
                     entity_id: Some("customer_bench".to_string()),
                     edges: vec![],
-            kind: None,
-        }))
+                    kind: None,
+                }))
                 .unwrap();
         });
     });
@@ -212,8 +212,8 @@ fn bench_delete(c: &mut Criterion) {
                         context: None,
                         entity_id: None,
                         edges: vec![],
-            kind: None,
-        })
+                        kind: None,
+                    })
                     .unwrap();
                 let start = std::time::Instant::now();
                 engine.delete(&mem.memory_id).unwrap();
@@ -772,8 +772,8 @@ fn bench_subscribe_notification_fanout(c: &mut Criterion) {
                             context: None,
                             entity_id: Some("fanout".to_string()),
                             edges: vec![],
-            kind: None,
-        }))
+                            kind: None,
+                        }))
                         .unwrap();
                 });
 

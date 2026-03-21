@@ -385,7 +385,9 @@ fn extract_large_file(
 
     // Deduplicate entities by name
     let mut seen_entities = std::collections::HashSet::new();
-    combined.entities.retain(|e| seen_entities.insert(e.name.clone()));
+    combined
+        .entities
+        .retain(|e| seen_entities.insert(e.name.clone()));
 
     combined
 }

@@ -349,9 +349,9 @@ pub fn merge_short_sections(sections: &mut Vec<ParsedSection>, min_len: usize) {
 /// Returns the cleaned content string. If all content is boilerplate,
 /// returns an empty string.
 pub fn strip_boilerplate(content: &str) -> String {
-    let placeholder_re = regex::Regex::new(
-        r"(?i)^\s*(?:TBD|TODO|N/?A|FIXME|placeholder|coming soon|---)\s*$"
-    ).expect("valid regex");
+    let placeholder_re =
+        regex::Regex::new(r"(?i)^\s*(?:TBD|TODO|N/?A|FIXME|placeholder|coming soon|---)\s*$")
+            .expect("valid regex");
     let template_re = regex::Regex::new(r"\{\{.*?\}\}").expect("valid regex");
 
     let mut lines: Vec<&str> = Vec::new();

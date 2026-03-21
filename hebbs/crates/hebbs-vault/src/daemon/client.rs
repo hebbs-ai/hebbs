@@ -76,7 +76,8 @@ impl DaemonClient {
                 .ok_or_else(|| "daemon closed connection unexpectedly".to_string())?;
 
             if response.status == ResponseStatus::Progress {
-                if let Some(msg) = response.data
+                if let Some(msg) = response
+                    .data
                     .as_ref()
                     .and_then(|d| d.get("message"))
                     .and_then(|v| v.as_str())
@@ -115,7 +116,8 @@ pub async fn ensure_daemon_with_opts(panel_port: Option<u16>) -> Result<DaemonCl
     ensure_daemon_full(DaemonStartOpts {
         panel_port,
         initial_vault: None,
-    }).await
+    })
+    .await
 }
 
 /// Ensure the daemon is running with full options (panel port + initial vault).
@@ -296,7 +298,8 @@ async fn switch_panel_vault(port: u16, vault: &std::path::Path) {
         if attempt > 0 {
             tokio::time::sleep(Duration::from_millis(300)).await;
         }
-        if let Ok(mut stream) = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+        if let Ok(mut stream) = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await
+        {
             if stream.write_all(req.as_bytes()).await.is_ok() {
                 let mut buf = [0u8; 256];
                 let _ = stream.read(&mut buf).await;

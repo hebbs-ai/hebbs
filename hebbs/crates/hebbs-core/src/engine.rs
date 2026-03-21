@@ -3287,8 +3287,8 @@ mod tests {
                 context: None,
                 entity_id: Some("customer_1".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         assert_eq!(memory.content, "test memory content");
@@ -3321,8 +3321,8 @@ mod tests {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let retrieved = engine.get(&original.memory_id).unwrap();
@@ -3345,8 +3345,8 @@ mod tests {
                 context: None,
                 entity_id: Some("entity_1".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         // Verify default CF
@@ -3414,8 +3414,8 @@ mod tests {
                 context: None,
                 entity_id: Some("entity_del".to_string()),
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let embedding = memory.embedding.clone().unwrap();
@@ -3472,8 +3472,8 @@ mod tests {
                     context: None,
                     entity_id: None,
                     edges: vec![],
-            kind: None,
-        })
+                    kind: None,
+                })
                 .unwrap_err();
             assert!(
                 matches!(err, HebbsError::InvalidInput { .. }),
@@ -3586,8 +3586,8 @@ mod tests {
                 context: Some(ctx.clone()),
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let retrieved = engine.get(&memory.memory_id).unwrap();
@@ -4718,8 +4718,8 @@ mod tests {
                 context: Some(ctx),
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let mut new_ctx = HashMap::new();
@@ -4757,8 +4757,8 @@ mod tests {
                 context: Some(ctx),
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let mut new_ctx = HashMap::new();
@@ -4791,8 +4791,8 @@ mod tests {
                 context: None,
                 entity_id: None,
                 edges: vec![],
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
 
         let revised = engine

@@ -155,8 +155,7 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
 
     // Load ONNX embedder once from OS cache dir (survives vault/daemon cleanup).
     info!("loading embedding model...");
-    let embed_config =
-        hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
+    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
     std::fs::create_dir_all(&embed_config.model_dir)
         .map_err(|e| format!("failed to create model directory: {}", e))?;
     let embedder: Arc<dyn Embedder> = Arc::new(
@@ -407,9 +406,15 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
         });
         let panel_engine = if panel_vault_root.join(".hebbs").exists() {
             match vault_manager.lock().await.get_or_open(&panel_vault_root) {
-                Ok((engine, panel_embedder, _dp)) => Some((engine, panel_embedder, panel_vault_root)),
+                Ok((engine, panel_embedder, _dp)) => {
+                    Some((engine, panel_embedder, panel_vault_root))
+                }
                 Err(e) => {
-                    warn!("panel: failed to open vault at {}: {}, panel disabled", panel_vault_root.display(), e);
+                    warn!(
+                        "panel: failed to open vault at {}: {}, panel disabled",
+                        panel_vault_root.display(),
+                        e
+                    );
                     None
                 }
             }
@@ -522,7 +527,8 @@ async fn handle_connection(
             return Ok(());
         }
 
-        let response = dispatch_command(request, &vault_manager, &indexing_progress, &mut writer).await;
+        let response =
+            dispatch_command(request, &vault_manager, &indexing_progress, &mut writer).await;
 
         write_message(&mut writer, &response)
             .await
@@ -580,8 +586,8 @@ async fn dispatch_command(
                 context: ctx,
                 entity_id,
                 edges: parsed_edges,
-            kind: None,
-        };
+                kind: None,
+            };
 
             match engine.remember(input) {
                 Ok(memory) => DaemonResponse::ok(memory_to_json(&memory, &dp)),
@@ -678,7 +684,8 @@ async fn dispatch_command(
             }
 
             // Open all vault engines
-            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> = Vec::new();
+            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> =
+                Vec::new();
             {
                 let mut mgr = vault_manager.lock().await;
                 for vp in &all_vault_paths {
@@ -739,7 +746,10 @@ async fn dispatch_command(
                     latency_us,
                     Some(&vault_path.to_string_lossy()),
                 );
-                if let Err(e) = crate::query_log::append_to_storage(engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(), &entry) {
+                if let Err(e) = crate::query_log::append_to_storage(
+                    engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(),
+                    &entry,
+                ) {
                     warn!("failed to write query log: {}", e);
                 }
             }
@@ -750,19 +760,24 @@ async fn dispatch_command(
             let mut contradictions: Vec<serde_json::Value> = Vec::new();
             if count >= 2 {
                 // Build set of returned memory IDs (raw 16-byte form)
-                let result_id_set: HashSet<[u8; 16]> = results.iter().filter_map(|r| {
-                    r.get("memory_id").and_then(|v| v.as_str()).and_then(|id_str| {
-                        parse_memory_id(id_str).ok().and_then(|bytes| {
-                            if bytes.len() == 16 {
-                                let mut arr = [0u8; 16];
-                                arr.copy_from_slice(&bytes);
-                                Some(arr)
-                            } else {
-                                None
-                            }
-                        })
+                let result_id_set: HashSet<[u8; 16]> = results
+                    .iter()
+                    .filter_map(|r| {
+                        r.get("memory_id")
+                            .and_then(|v| v.as_str())
+                            .and_then(|id_str| {
+                                parse_memory_id(id_str).ok().and_then(|bytes| {
+                                    if bytes.len() == 16 {
+                                        let mut arr = [0u8; 16];
+                                        arr.copy_from_slice(&bytes);
+                                        Some(arr)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
                     })
-                }).collect();
+                    .collect();
 
                 if let Some((engine, _)) = engines.first() {
                     let mut seen_pairs: HashSet<([u8; 16], [u8; 16])> = HashSet::new();
@@ -771,7 +786,11 @@ async fn dispatch_command(
                             for (target, confidence) in edges {
                                 if result_id_set.contains(&target) {
                                     // Deduplicate bidirectional edges
-                                    let pair = if *id < target { (*id, target) } else { (target, *id) };
+                                    let pair = if *id < target {
+                                        (*id, target)
+                                    } else {
+                                        (target, *id)
+                                    };
                                     if seen_pairs.insert(pair) {
                                         contradictions.push(serde_json::json!({
                                             "memory_a": format_memory_id(id),
@@ -886,7 +905,8 @@ async fn dispatch_command(
             }
 
             // Open all vault engines
-            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> = Vec::new();
+            let mut engines: Vec<(Arc<hebbs_core::engine::Engine>, vault_manager::DecayParams)> =
+                Vec::new();
             {
                 let mut mgr = vault_manager.lock().await;
                 for vp in &all_vault_paths {
@@ -961,7 +981,10 @@ async fn dispatch_command(
                     latency_us,
                     Some(&vault_path.to_string_lossy()),
                 );
-                if let Err(e) = crate::query_log::append_to_storage(engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(), &entry) {
+                if let Err(e) = crate::query_log::append_to_storage(
+                    engines.first().map(|(e, _)| e.as_ref()).unwrap().storage(),
+                    &entry,
+                ) {
                     warn!("failed to write query log: {}", e);
                 }
             }
@@ -1088,8 +1111,11 @@ async fn dispatch_command(
                             "files_done": snap.files_done,
                             "current_file": snap.current_file,
                         });
-                        if snap.phase == 1 { status_code::INDEXING_PHASE1 }
-                        else { status_code::INDEXING_PHASE2 }
+                        if snap.phase == 1 {
+                            status_code::INDEXING_PHASE1
+                        } else {
+                            status_code::INDEXING_PHASE2
+                        }
                     } else if s.content_stale > 0 || s.orphaned > 0 {
                         status_code::VAULT_PARTIALLY_INDEXED
                     } else if s.synced == 0 && s.total_files > 0 {
@@ -1131,7 +1157,8 @@ async fn dispatch_command(
             }
 
             send_progress!("Opening vault...");
-            let (engine, embedder, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, embedder, _dp) = match vault_manager.lock().await.get_or_open(&vault_path)
+            {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1156,25 +1183,30 @@ async fn dispatch_command(
             // Acquire indexing lock
             {
                 let mut prog = indexing_progress.lock().await;
-                prog.insert(vault_path.clone(), IndexingSnapshot {
-                    total_files,
-                    phase: 1,
-                    files_done: 0,
-                    current_file: String::new(),
-                    triggered_by: "index".to_string(),
-                });
+                prog.insert(
+                    vault_path.clone(),
+                    IndexingSnapshot {
+                        total_files,
+                        phase: 1,
+                        files_done: 0,
+                        current_file: String::new(),
+                        triggered_by: "index".to_string(),
+                    },
+                );
             }
 
             send_progress!(format!("Phase 1/2: parsing {} file(s)...", total_files));
 
             // Phase 1: parse
-            let p1_stats = match crate::ingest::phase1_ingest(&all_files, &vault_path, &mut manifest, &config) {
-                Ok(s) => s,
-                Err(e) => {
-                    indexing_progress.lock().await.remove(&vault_path);
-                    return DaemonResponse::err(format!("phase1 failed: {}", e));
-                }
-            };
+            let p1_stats =
+                match crate::ingest::phase1_ingest(&all_files, &vault_path, &mut manifest, &config)
+                {
+                    Ok(s) => s,
+                    Err(e) => {
+                        indexing_progress.lock().await.remove(&vault_path);
+                        return DaemonResponse::err(format!("phase1 failed: {}", e));
+                    }
+                };
             manifest.save(&hebbs_dir).ok();
 
             // Update progress: phase 1 complete, entering phase 2
@@ -1200,19 +1232,26 @@ async fn dispatch_command(
             let run_contradictions = !is_first_index;
             let idx_progress = indexing_progress.clone();
             let vault_path_progress = vault_path.clone();
-            let progress_cb: Option<crate::ingest::ProgressCallback> = Some(Box::new(move |done, total, file| {
-                if let Ok(mut prog) = idx_progress.try_lock() {
-                    if let Some(snap) = prog.get_mut(&vault_path_progress) {
-                        snap.files_done = done;
-                        snap.total_files = total;
-                        snap.current_file = file.to_string();
+            let progress_cb: Option<crate::ingest::ProgressCallback> =
+                Some(Box::new(move |done, total, file| {
+                    if let Ok(mut prog) = idx_progress.try_lock() {
+                        if let Some(snap) = prog.get_mut(&vault_path_progress) {
+                            snap.files_done = done;
+                            snap.total_files = total;
+                            snap.current_file = file.to_string();
+                        }
                     }
-                }
-            }));
+                }));
             let p2_stats = crate::ingest::phase2_ingest_with_progress(
-                &vault_path, &mut manifest, &engine, &embedder, &config,
-                run_contradictions, progress_cb,
-            ).await;
+                &vault_path,
+                &mut manifest,
+                &engine,
+                &embedder,
+                &config,
+                run_contradictions,
+                progress_cb,
+            )
+            .await;
             let p2_stats = match p2_stats {
                 Ok(s) => s,
                 Err(e) => {
@@ -1225,15 +1264,18 @@ async fn dispatch_command(
             // Clear indexing progress (done)
             indexing_progress.lock().await.remove(&vault_path);
 
-            DaemonResponse::ok_with_code(serde_json::json!({
-                "total_files": total_files,
-                "sections_new": p1_stats.sections_new,
-                "sections_modified": p1_stats.sections_modified,
-                "sections_embedded": p2_stats.sections_embedded,
-                "sections_remembered": p2_stats.sections_remembered,
-                "sections_revised": p2_stats.sections_revised,
-                "sections_forgotten": p2_stats.sections_forgotten,
-            }), status_code::INDEXING_COMPLETE)
+            DaemonResponse::ok_with_code(
+                serde_json::json!({
+                    "total_files": total_files,
+                    "sections_new": p1_stats.sections_new,
+                    "sections_modified": p1_stats.sections_modified,
+                    "sections_embedded": p2_stats.sections_embedded,
+                    "sections_remembered": p2_stats.sections_remembered,
+                    "sections_revised": p2_stats.sections_revised,
+                    "sections_forgotten": p2_stats.sections_forgotten,
+                }),
+                status_code::INDEXING_COMPLETE,
+            )
         }
 
         Command::List { sections } => {

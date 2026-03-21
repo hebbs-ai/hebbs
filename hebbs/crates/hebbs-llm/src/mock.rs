@@ -128,8 +128,8 @@ fn mock_generic_response(_request: &LlmRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::provider::ResponseFormat;
+    use std::collections::HashMap;
 
     #[test]
     fn mock_proposal_returns_valid_json() {

@@ -90,8 +90,8 @@ pub fn run(tier: &Tier, data_dir: Option<&Path>, seed: u64) -> LatencyResults {
                 context: input.context.clone(),
                 entity_id: input.entity_id.clone(),
                 edges: Vec::new(),
-            kind: None,
-        })
+                kind: None,
+            })
             .unwrap();
         memory_ids.push(m.memory_id.clone());
     }
@@ -110,8 +110,8 @@ pub fn run(tier: &Tier, data_dir: Option<&Path>, seed: u64) -> LatencyResults {
                     context: inp.context.clone(),
                     entity_id: inp.entity_id.clone(),
                     edges: Vec::new(),
-            kind: None,
-        })
+                    kind: None,
+                })
                 .ok();
         }
         let mut timings = Vec::with_capacity(runs);
@@ -124,8 +124,8 @@ pub fn run(tier: &Tier, data_dir: Option<&Path>, seed: u64) -> LatencyResults {
                     context: inp.context.clone(),
                     entity_id: inp.entity_id.clone(),
                     edges: Vec::new(),
-            kind: None,
-        })
+                    kind: None,
+                })
                 .ok();
             timings.push(start.elapsed().as_micros() as u64);
         }
@@ -240,8 +240,8 @@ pub fn run(tier: &Tier, data_dir: Option<&Path>, seed: u64) -> LatencyResults {
                     context: inp.context.clone(),
                     entity_id: inp.entity_id.clone(),
                     edges: Vec::new(),
-            kind: None,
-        })
+                    kind: None,
+                })
                 .unwrap();
             forget_ids.push(m.memory_id);
         }

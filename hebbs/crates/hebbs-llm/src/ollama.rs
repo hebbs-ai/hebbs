@@ -2,9 +2,7 @@ use serde::Serialize;
 
 use crate::error::{LlmError, Result};
 use crate::http::{http_post_json, make_http_agent};
-use crate::provider::{
-    LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat,
-};
+use crate::provider::{LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat};
 
 /// Ollama local provider.
 pub struct OllamaProvider {
@@ -97,9 +95,7 @@ impl LlmProvider for OllamaProvider {
         // Some models (e.g. qwen3) use a thinking/reasoning mode where the main
         // response lands in "content" only after internal reasoning completes.
         // If "content" is empty, fall back to the "thinking" field.
-        let content = parsed["message"]["content"]
-            .as_str()
-            .unwrap_or("");
+        let content = parsed["message"]["content"].as_str().unwrap_or("");
         let content = if content.is_empty() {
             parsed["message"]["thinking"]
                 .as_str()

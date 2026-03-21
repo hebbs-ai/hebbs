@@ -771,7 +771,9 @@ async fn run_local(cli: Cli) -> i32 {
                 // Resolve api_key_env to the actual key value so the daemon
                 // (a separate process) can use it without inheriting shell env.
                 let resolved_key = api_key.clone().or_else(|| {
-                    api_key_env.as_ref().and_then(|env_name| std::env::var(env_name).ok())
+                    api_key_env
+                        .as_ref()
+                        .and_then(|env_name| std::env::var(env_name).ok())
                 });
                 Some(hebbs_vault::config::LlmConfig {
                     provider: provider.clone().unwrap_or_default(),
@@ -825,7 +827,10 @@ async fn run_local(cli: Cli) -> i32 {
                             println!();
                             println!("  Your vault is live. {} file(s) found.", md_count);
                             println!();
-                            println!("  Run `hebbs index {}` to index your vault.", path.display());
+                            println!(
+                                "  Run `hebbs index {}` to index your vault.",
+                                path.display()
+                            );
                             println!("  Then: hebbs recall \"your question here\"");
                         }
                         Err(e) => {
@@ -1097,74 +1102,60 @@ async fn run_local(cli: Cli) -> i32 {
             };
             let hebbs_dir = path.join(".hebbs");
             match action {
-                ConfigAction::Show => {
-                    match VaultConfig::load(&hebbs_dir) {
-                        Ok(config) => {
-                            match toml::to_string_pretty(&config) {
-                                Ok(s) => {
-                                    println!("{}", s);
-                                    0
-                                }
-                                Err(e) => {
-                                    eprintln!("Error serializing config: {}", e);
-                                    1
-                                }
-                            }
+                ConfigAction::Show => match VaultConfig::load(&hebbs_dir) {
+                    Ok(config) => match toml::to_string_pretty(&config) {
+                        Ok(s) => {
+                            println!("{}", s);
+                            0
                         }
                         Err(e) => {
-                            eprintln!("Error: {}", e);
+                            eprintln!("Error serializing config: {}", e);
                             1
                         }
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        1
                     }
-                }
-                ConfigAction::Get { key } => {
-                    match VaultConfig::load(&hebbs_dir) {
-                        Ok(config) => {
-                            match config_get(&config, key) {
-                                Some(val) => {
-                                    println!("{}", val);
-                                    0
-                                }
-                                None => {
-                                    eprintln!("Unknown config key: {}", key);
-                                    1
-                                }
+                },
+                ConfigAction::Get { key } => match VaultConfig::load(&hebbs_dir) {
+                    Ok(config) => match config_get(&config, key) {
+                        Some(val) => {
+                            println!("{}", val);
+                            0
+                        }
+                        None => {
+                            eprintln!("Unknown config key: {}", key);
+                            1
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        1
+                    }
+                },
+                ConfigAction::Set { key, value } => match VaultConfig::load(&hebbs_dir) {
+                    Ok(mut config) => match config_set(&mut config, key, value) {
+                        Ok(()) => match config.save(&hebbs_dir) {
+                            Ok(()) => {
+                                println!("Set {} = {}", key, value);
+                                0
                             }
-                        }
-                        Err(e) => {
-                            eprintln!("Error: {}", e);
-                            1
-                        }
-                    }
-                }
-                ConfigAction::Set { key, value } => {
-                    match VaultConfig::load(&hebbs_dir) {
-                        Ok(mut config) => {
-                            match config_set(&mut config, key, value) {
-                                Ok(()) => {
-                                    match config.save(&hebbs_dir) {
-                                        Ok(()) => {
-                                            println!("Set {} = {}", key, value);
-                                            0
-                                        }
-                                        Err(e) => {
-                                            eprintln!("Error saving config: {}", e);
-                                            1
-                                        }
-                                    }
-                                }
-                                Err(msg) => {
-                                    eprintln!("Error: {}", msg);
-                                    1
-                                }
+                            Err(e) => {
+                                eprintln!("Error saving config: {}", e);
+                                1
                             }
-                        }
-                        Err(e) => {
-                            eprintln!("Error: {}", e);
+                        },
+                        Err(msg) => {
+                            eprintln!("Error: {}", msg);
                             1
                         }
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        1
                     }
-                }
+                },
             }
         }
 
@@ -1364,12 +1355,23 @@ async fn run_local(cli: Cli) -> i32 {
                                         let content_preview = truncate(&r.memory.content, 200);
                                         // Extract source from context
                                         let source = r.memory.context().ok().and_then(|ctx| {
-                                            let file = ctx.get("file_path").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                            let heading = ctx.get("heading_path").and_then(|v| v.as_array()).map(|arr| {
-                                                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" > ")
-                                            });
+                                            let file = ctx
+                                                .get("file_path")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            let heading = ctx
+                                                .get("heading_path")
+                                                .and_then(|v| v.as_array())
+                                                .map(|arr| {
+                                                    arr.iter()
+                                                        .filter_map(|v| v.as_str())
+                                                        .collect::<Vec<_>>()
+                                                        .join(" > ")
+                                                });
                                             match (file, heading) {
-                                                (Some(f), Some(h)) if !h.is_empty() => Some(format!("{} > {}", f, h)),
+                                                (Some(f), Some(h)) if !h.is_empty() => {
+                                                    Some(format!("{} > {}", f, h))
+                                                }
                                                 (Some(f), _) => Some(f),
                                                 _ => None,
                                             }
@@ -1993,7 +1995,8 @@ async fn run_local(cli: Cli) -> i32 {
                             return 1;
                         }
                     };
-                    let validation_provider = match hebbs_reflect::create_provider(&provider_config) {
+                    let validation_provider = match hebbs_reflect::create_provider(&provider_config)
+                    {
                         Ok(p) => p,
                         Err(e) => {
                             eprintln!("Error creating validation LLM provider: {}", e);
@@ -2022,7 +2025,10 @@ async fn run_local(cli: Cli) -> i32 {
                                     "clusters_processed": result.clusters_processed,
                                     "memories_processed": result.memories_processed,
                                 });
-                                println!("{}", serde_json::to_string_pretty(&json).unwrap_or_default());
+                                println!(
+                                    "{}",
+                                    serde_json::to_string_pretty(&json).unwrap_or_default()
+                                );
                             } else {
                                 println!(
                                     "Reflect complete: {} insights created from {} clusters ({} processed), {} memories scanned.",
@@ -2454,7 +2460,9 @@ fn humanize_error_with_code(err: &str, code: &str) -> String {
 /// Render a daemon response for CLI output.
 fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
     if response.status == ResponseStatus::Error {
-        let raw = response.error.unwrap_or_else(|| "unknown error".to_string());
+        let raw = response
+            .error
+            .unwrap_or_else(|| "unknown error".to_string());
         let code = response.status_code.as_deref().unwrap_or("ERR_UNKNOWN");
         let human = humanize_error_with_code(&raw, code);
         eprintln!("{}", human);
@@ -2501,11 +2509,19 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                         // Extract source from context
                         let source = r.get("context").and_then(|ctx| {
                             let file = ctx.get("file_path").and_then(|v| v.as_str());
-                            let heading = ctx.get("heading_path").and_then(|v| v.as_array()).map(|arr| {
-                                arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" > ")
-                            });
+                            let heading =
+                                ctx.get("heading_path")
+                                    .and_then(|v| v.as_array())
+                                    .map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_str())
+                                            .collect::<Vec<_>>()
+                                            .join(" > ")
+                                    });
                             match (file, heading) {
-                                (Some(f), Some(h)) if !h.is_empty() => Some(format!("{} > {}", f, h)),
+                                (Some(f), Some(h)) if !h.is_empty() => {
+                                    Some(format!("{} > {}", f, h))
+                                }
                                 (Some(f), _) => Some(f.to_string()),
                                 _ => None,
                             }
@@ -2520,7 +2536,8 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 // Show contradiction warnings when conflicting memories appear together
                 if let Some(conflicts) = data.get("contradictions").and_then(|v| v.as_array()) {
                     if !conflicts.is_empty() {
-                        println!("  Conflicting information found ({} conflict{}):",
+                        println!(
+                            "  Conflicting information found ({} conflict{}):",
                             conflicts.len(),
                             if conflicts.len() == 1 { "" } else { "s" }
                         );
@@ -2585,19 +2602,35 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             if let Some(root) = data.get("vault_root").and_then(|v| v.as_str()) {
                 println!("Vault: {}", root);
             }
-            let total_files = data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
-            let _total_sections = data.get("total_sections").and_then(|v| v.as_u64()).unwrap_or(0);
+            let total_files = data
+                .get("total_files")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let _total_sections = data
+                .get("total_sections")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             let synced = data.get("synced").and_then(|v| v.as_u64()).unwrap_or(0);
-            let content_stale = data.get("content_stale").and_then(|v| v.as_u64()).unwrap_or(0);
+            let content_stale = data
+                .get("content_stale")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             let orphaned = data.get("orphaned").and_then(|v| v.as_u64()).unwrap_or(0);
-            let memories = data.get("total_memories").and_then(|v| v.as_u64()).unwrap_or(synced);
+            let memories = data
+                .get("total_memories")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(synced);
 
             // Check for live indexing progress from the daemon
             let live_indexing = data.get("indexing");
 
             if live_indexing.is_some() || content_stale > 0 {
                 let total_sections = synced + content_stale + orphaned;
-                let pct = if total_sections > 0 { synced * 100 / total_sections } else { 100 };
+                let pct = if total_sections > 0 {
+                    synced * 100 / total_sections
+                } else {
+                    100
+                };
                 println!("Files:    {} ({}% indexed)", total_files, pct);
             } else {
                 println!("Files:    {} (all indexed)", total_files);
@@ -2609,7 +2642,10 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 let phase = idx.get("phase").and_then(|v| v.as_u64()).unwrap_or(0);
                 let idx_total = idx.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
                 let files_done = idx.get("files_done").and_then(|v| v.as_u64()).unwrap_or(0);
-                let current = idx.get("current_file").and_then(|v| v.as_str()).unwrap_or("");
+                let current = idx
+                    .get("current_file")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 print!("Indexing:  phase {}/2", phase);
                 if idx_total > 0 {
                     print!(", {}/{} files", files_done, idx_total);
@@ -2620,7 +2656,8 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
                 println!();
             } else if content_stale > 0 || orphaned > 0 {
                 if content_stale > 0 {
-                    let daemon_watching = data.get("daemon_watching")
+                    let daemon_watching = data
+                        .get("daemon_watching")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
                     if daemon_watching {
@@ -2652,10 +2689,22 @@ fn handle_daemon_response(cli: &Cli, response: DaemonResponse) -> i32 {
             println!("File watching is built into `hebbs serve`. No separate watcher needed.");
         }
         Commands::Index { .. } => {
-            let total = data.get("total_files").and_then(|v| v.as_u64()).unwrap_or(0);
-            let memories = data.get("sections_remembered").and_then(|v| v.as_u64()).unwrap_or(0);
-            let revised = data.get("sections_revised").and_then(|v| v.as_u64()).unwrap_or(0);
-            let forgotten = data.get("sections_forgotten").and_then(|v| v.as_u64()).unwrap_or(0);
+            let total = data
+                .get("total_files")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let memories = data
+                .get("sections_remembered")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let revised = data
+                .get("sections_revised")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let forgotten = data
+                .get("sections_forgotten")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             print!("Indexed {} file(s). {} memories created", total, memories);
             if revised > 0 {
                 print!(", {} revised", revised);
@@ -3133,7 +3182,11 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
         return None;
     }
     let model = model_input.trim();
-    let model = if model.is_empty() { default_model } else { model };
+    let model = if model.is_empty() {
+        default_model
+    } else {
+        model
+    };
 
     // Ask for API key env var for cloud providers
     let api_key_env = if provider != "ollama" {
@@ -3150,7 +3203,11 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
             return None;
         }
         let env_val = env_input.trim();
-        Some(if env_val.is_empty() { default_env.to_string() } else { env_val.to_string() })
+        Some(if env_val.is_empty() {
+            default_env.to_string()
+        } else {
+            env_val.to_string()
+        })
     } else {
         None
     };
@@ -3159,7 +3216,9 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
     println!("  Using {}/{}", provider, model);
 
     // Resolve env var to actual key so the daemon can use it
-    let resolved_key = api_key_env.as_ref().and_then(|env_name| std::env::var(env_name).ok());
+    let resolved_key = api_key_env
+        .as_ref()
+        .and_then(|env_name| std::env::var(env_name).ok());
 
     Some(hebbs_vault::config::LlmConfig {
         provider: provider.to_string(),
@@ -3172,9 +3231,18 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
 
 /// Recursively count .md files under `dir`, skipping internal/generated directories.
 fn count_md_files(dir: &std::path::Path) -> usize {
-    const SKIP_DIRS: &[&str] = &[".hebbs", ".git", ".obsidian", "node_modules", "contradictions", "insights"];
+    const SKIP_DIRS: &[&str] = &[
+        ".hebbs",
+        ".git",
+        ".obsidian",
+        "node_modules",
+        "contradictions",
+        "insights",
+    ];
     fn walk(dir: &std::path::Path, count: &mut usize) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -3207,8 +3275,12 @@ fn config_get(config: &VaultConfig, key: &str) -> Option<String> {
         "contradiction.candidates_k" => Some(config.contradiction.candidates_k.to_string()),
         "contradiction.min_similarity" => Some(config.contradiction.min_similarity.to_string()),
         "contradiction.min_confidence" => Some(config.contradiction.min_confidence.to_string()),
-        "extraction.large_file_threshold" => Some(config.extraction.large_file_threshold.to_string()),
-        "extraction.max_propositions_per_file" => Some(config.extraction.max_propositions_per_file.to_string()),
+        "extraction.large_file_threshold" => {
+            Some(config.extraction.large_file_threshold.to_string())
+        }
+        "extraction.max_propositions_per_file" => {
+            Some(config.extraction.max_propositions_per_file.to_string())
+        }
         _ => None,
     }
 }
@@ -3222,40 +3294,49 @@ fn config_set(config: &mut VaultConfig, key: &str, value: &str) -> std::result::
         "llm.base_url" => config.llm.base_url = Some(value.to_string()),
         "chunking.split_on" => config.chunking.split_on = value.to_string(),
         "chunking.min_section_length" => {
-            config.chunking.min_section_length = value.parse::<usize>()
+            config.chunking.min_section_length = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         "embedding.model" => config.embedding.model = value.to_string(),
         "embedding.dimensions" => {
-            config.embedding.dimensions = value.parse::<usize>()
+            config.embedding.dimensions = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         "embedding.batch_size" => {
-            config.embedding.batch_size = value.parse::<usize>()
+            config.embedding.batch_size = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         "contradiction.enabled" => {
-            config.contradiction.enabled = value.parse::<bool>()
+            config.contradiction.enabled = value
+                .parse::<bool>()
                 .map_err(|_| format!("invalid bool: {}", value))?;
         }
         "contradiction.candidates_k" => {
-            config.contradiction.candidates_k = value.parse::<usize>()
+            config.contradiction.candidates_k = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         "contradiction.min_similarity" => {
-            config.contradiction.min_similarity = value.parse::<f32>()
+            config.contradiction.min_similarity = value
+                .parse::<f32>()
                 .map_err(|_| format!("invalid f32: {}", value))?;
         }
         "contradiction.min_confidence" => {
-            config.contradiction.min_confidence = value.parse::<f32>()
+            config.contradiction.min_confidence = value
+                .parse::<f32>()
                 .map_err(|_| format!("invalid f32: {}", value))?;
         }
         "extraction.large_file_threshold" => {
-            config.extraction.large_file_threshold = value.parse::<usize>()
+            config.extraction.large_file_threshold = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         "extraction.max_propositions_per_file" => {
-            config.extraction.max_propositions_per_file = value.parse::<usize>()
+            config.extraction.max_propositions_per_file = value
+                .parse::<usize>()
                 .map_err(|_| format!("invalid usize: {}", value))?;
         }
         _ => return Err(format!("unknown config key: {}", key)),

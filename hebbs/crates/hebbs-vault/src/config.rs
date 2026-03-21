@@ -155,8 +155,6 @@ pub struct LlmConfig {
     pub base_url: Option<String>,
 }
 
-
-
 impl LlmConfig {
     /// Resolve the API key from either the direct value or the environment variable.
     pub fn resolved_api_key(&self) -> Option<String> {
@@ -194,7 +192,9 @@ impl LlmConfig {
     }
 
     /// Create an LLM provider from this config.
-    pub fn create_provider(&self) -> std::result::Result<Box<dyn hebbs_llm::LlmProvider>, hebbs_llm::LlmError> {
+    pub fn create_provider(
+        &self,
+    ) -> std::result::Result<Box<dyn hebbs_llm::LlmProvider>, hebbs_llm::LlmError> {
         let config = self.to_provider_config();
         hebbs_llm::create_provider(&config)
     }

@@ -75,10 +75,7 @@ pub fn extract_from_content(
 /// Summarize content for document-level memory.
 ///
 /// Complexity: O(1) LLM call.
-pub fn summarize_content(
-    provider: &dyn LlmProvider,
-    content: &str,
-) -> Result<String> {
+pub fn summarize_content(provider: &dyn LlmProvider, content: &str) -> Result<String> {
     if content.trim().is_empty() {
         return Ok(String::new());
     }
