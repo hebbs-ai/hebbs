@@ -31,21 +31,11 @@ pub struct ExtractedRelation {
 }
 
 /// Combined output from a single extraction call.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExtractionOutput {
     pub propositions: Vec<ExtractedProposition>,
     pub entities: Vec<ExtractedEntity>,
     pub relations: Vec<ExtractedRelation>,
-}
-
-impl Default for ExtractionOutput {
-    fn default() -> Self {
-        Self {
-            propositions: Vec::new(),
-            entities: Vec::new(),
-            relations: Vec::new(),
-        }
-    }
 }
 
 /// Extract propositions, entities, and relations from content using an LLM.

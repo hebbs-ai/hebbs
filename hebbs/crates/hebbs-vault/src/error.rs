@@ -88,41 +88,41 @@ pub fn humanize_error(err: &str) -> String {
 pub fn humanize_error_with_code(err: &str, code: &str) -> String {
     match code {
         "VAULT_NOT_INITIALIZED" => {
-            format!("Vault not initialized. Run `hebbs init <path>` to set up your vault.")
+            "Vault not initialized. Run `hebbs init <path>` to set up your vault.".to_string()
         }
         "ERR_LLM_REQUIRED" => {
-            format!("LLM provider not configured. Run `hebbs init` with --provider and --model, or `hebbs config set llm.provider <provider>`.")
+            "LLM provider not configured. Run `hebbs init` with --provider and --model, or `hebbs config set llm.provider <provider>`.".to_string()
         }
         "ERR_LLM_AUTH" => {
             // Extract HTTP status if present
             if err.contains("401") {
-                format!("LLM authentication failed (HTTP 401). Check your API key is valid and has not expired.")
+                "LLM authentication failed (HTTP 401). Check your API key is valid and has not expired.".to_string()
             } else {
                 format!("LLM authentication failed. Check your API key. Detail: {}", humanize_error(err))
             }
         }
         "ERR_LLM_RATE_LIMITED" => {
             if err.contains("429") {
-                format!("LLM rate limited (HTTP 429). Wait a moment and retry, or upgrade your API plan.")
+                "LLM rate limited (HTTP 429). Wait a moment and retry, or upgrade your API plan.".to_string()
             } else {
                 format!("LLM rate limited. Wait a moment and retry. Detail: {}", humanize_error(err))
             }
         }
         "ERR_LLM_TIMEOUT" => {
-            format!("LLM request timed out. The provider may be overloaded. Retry or try a different model.")
+            "LLM request timed out. The provider may be overloaded. Retry or try a different model.".to_string()
         }
         "ERR_MANIFEST_CORRUPT" => {
-            format!("Manifest is corrupt or unreadable. Run `hebbs rebuild` to recover from source files.")
+            "Manifest is corrupt or unreadable. Run `hebbs rebuild` to recover from source files.".to_string()
         }
         "ERR_ENGINE_UNAVAILABLE" => {
             if err.contains("Resource temporarily unavailable") || err.contains("LOCK") {
-                format!("Database locked by another process. Run `hebbs stop` first, then retry.")
+                "Database locked by another process. Run `hebbs stop` first, then retry.".to_string()
             } else {
                 format!("Database unavailable. Run `hebbs stop` and retry. Detail: {}", humanize_error(err))
             }
         }
         "INDEXING_IN_PROGRESS" => {
-            format!("Indexing already in progress. Run `hebbs status` to check progress.")
+            "Indexing already in progress. Run `hebbs status` to check progress.".to_string()
         }
         _ => {
             // Fall back to pattern-matching for unknown codes

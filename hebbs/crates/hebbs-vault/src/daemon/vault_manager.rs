@@ -25,6 +25,8 @@ use hebbs_embed::Embedder;
 
 use crate::config::VaultConfig;
 
+pub type VaultHandle = (Arc<Engine>, Arc<dyn Embedder>, DecayParams);
+
 /// Default idle timeout before a vault handle is closed: 5 minutes.
 const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -107,7 +109,7 @@ impl VaultManager {
     pub fn get_or_open(
         &mut self,
         vault_path: &Path,
-    ) -> Result<(Arc<Engine>, Arc<dyn Embedder>, DecayParams), String> {
+    ) -> Result<VaultHandle, String> {
         let canonical = vault_path
             .canonicalize()
             .unwrap_or_else(|_| vault_path.to_path_buf());

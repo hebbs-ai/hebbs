@@ -187,7 +187,7 @@ fn download_file(url: &str, dest: &Path) -> Result<()> {
     let mut session_bytes: u64 = 0;
     let mut last_report = std::time::Instant::now();
     let start = std::time::Instant::now();
-    let show_progress = total_length.map_or(false, |l| l > 1_000_000);
+    let show_progress = total_length.is_some_and(|l| l > 1_000_000);
 
     loop {
         let n = reader.read(&mut buffer).map_err(|e| EmbedError::Download {

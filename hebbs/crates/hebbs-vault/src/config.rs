@@ -136,7 +136,7 @@ pub struct ContradictionConfig {
 ///
 /// When configured, enables autonomous contradiction detection, reflection,
 /// and proposition extraction. `hebbs init` requires LLM configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct LlmConfig {
     /// Provider name: "anthropic", "openai", "gemini", "ollama".
     #[serde(default)]
@@ -155,17 +155,7 @@ pub struct LlmConfig {
     pub base_url: Option<String>,
 }
 
-impl Default for LlmConfig {
-    fn default() -> Self {
-        Self {
-            provider: String::new(),
-            model: String::new(),
-            api_key: None,
-            api_key_env: None,
-            base_url: None,
-        }
-    }
-}
+
 
 impl LlmConfig {
     /// Resolve the API key from either the direct value or the environment variable.

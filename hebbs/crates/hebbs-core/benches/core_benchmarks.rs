@@ -311,6 +311,7 @@ fn bench_recall_causal(c: &mut Criterion) {
                 context: None,
                 entity_id: Some("causal_entity".to_string()),
                 edges,
+                kind: None,
             })
             .unwrap();
         let mut id = [0u8; 16];

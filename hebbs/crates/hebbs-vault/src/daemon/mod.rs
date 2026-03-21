@@ -714,7 +714,7 @@ async fn dispatch_command(
 
             // Query audit log: fire-and-forget, never degrades recall latency
             let latency_us = recall_start.elapsed().as_micros() as u64;
-            if let Some(engine) = engines.first() {
+            if let Some(_engine) = engines.first() {
                 let result_ids: Vec<String> = results
                     .iter()
                     .filter_map(|r| {
@@ -822,7 +822,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -918,7 +918,7 @@ async fn dispatch_command(
                         total_temporal += output.temporal_count as u64;
                         total_similarity += output.similarity_count as u64;
                         for r in &output.results {
-                            let mut m = memory_to_json(&r.memory, &dp);
+                            let mut m = memory_to_json(&r.memory, dp);
                             m["score"] = serde_json::json!(r.score);
                             all_results.push((m, r.score as f64));
                         }
@@ -937,7 +937,7 @@ async fn dispatch_command(
 
             // Query audit log: fire-and-forget
             let latency_us = prime_start.elapsed().as_micros() as u64;
-            if let Some(engine) = engines.first() {
+            if let Some(_engine) = engines.first() {
                 let result_ids: Vec<String> = results
                     .iter()
                     .filter_map(|r| {
@@ -1200,7 +1200,7 @@ async fn dispatch_command(
             let run_contradictions = !is_first_index;
             let idx_progress = indexing_progress.clone();
             let vault_path_progress = vault_path.clone();
-            let progress_cb: Option<Box<dyn Fn(usize, usize, &str) + Send>> = Some(Box::new(move |done, total, file| {
+            let progress_cb: Option<crate::ingest::ProgressCallback> = Some(Box::new(move |done, total, file| {
                 if let Ok(mut prog) = idx_progress.try_lock() {
                     if let Some(snap) = prog.get_mut(&vault_path_progress) {
                         snap.files_done = done;
@@ -1298,7 +1298,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1347,7 +1347,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1370,7 +1370,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1405,7 +1405,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1510,7 +1510,7 @@ async fn dispatch_command(
                 Ok(p) => p,
                 Err(resp) => return resp,
             };
-            let (engine, _, dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
+            let (engine, _, _dp) = match vault_manager.lock().await.get_or_open(&vault_path) {
                 Ok(triple) => triple,
                 Err(e) => return DaemonResponse::err(e),
             };
@@ -1654,6 +1654,7 @@ impl VaultWatchState {
 
 /// Main watch loop: receives events from all vault watchers, debounces,
 /// and runs the two-phase ingest pipeline per vault.
+#[allow(clippy::too_many_arguments)]
 async fn run_watch_loop(
     mut rx: tokio::sync::mpsc::Receiver<VaultFsEvent>,
     vault_manager: Arc<Mutex<VaultManager>>,

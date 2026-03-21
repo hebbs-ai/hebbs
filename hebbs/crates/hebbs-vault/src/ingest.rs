@@ -37,6 +37,8 @@ pub struct Phase2Stats {
     pub errors: usize,
 }
 
+pub type ProgressCallback = Box<dyn Fn(usize, usize, &str) + Send>;
+
 /// Phase 1: Parse changed files and update manifest. Cheap, runs on every file change.
 ///
 /// For each file:
@@ -258,7 +260,7 @@ pub async fn phase2_ingest_with_progress(
     embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
     run_contradictions: bool,
-    progress: Option<Box<dyn Fn(usize, usize, &str) + Send>>,
+    progress: Option<ProgressCallback>,
 ) -> Result<Phase2Stats> {
     phase2_ingest_inner(vault_root, manifest, engine, embedder, config, run_contradictions, progress).await
 }
@@ -270,7 +272,7 @@ async fn phase2_ingest_inner(
     _embedder: &Arc<dyn Embedder>,
     config: &VaultConfig,
     run_contradictions: bool,
-    progress: Option<Box<dyn Fn(usize, usize, &str) + Send>>,
+    progress: Option<ProgressCallback>,
 ) -> Result<Phase2Stats> {
     // LLM provider is required for extraction
     let llm_provider: Arc<dyn hebbs_llm::LlmProvider> = if config.llm.is_configured() {
@@ -400,14 +402,16 @@ async fn phase2_ingest_inner(
 
         // Extract and store via LLM (with hash-based merge for propositions)
         let extraction_result = crate::extract::extract_and_store_file(
-            engine,
-            llm_provider.as_ref(),
-            &file_content,
-            rel_path,
-            &parsed_sections,
-            &config.extraction,
-            &existing_prop_ids,
-            &existing_prop_hashes,
+            crate::extract::ExtractFileParams {
+                engine,
+                provider: llm_provider.as_ref(),
+                file_content: &file_content,
+                rel_path,
+                sections: &parsed_sections,
+                config: &config.extraction,
+                existing_proposition_ids: &existing_prop_ids,
+                existing_proposition_hashes: &existing_prop_hashes,
+            },
         );
 
         // Update manifest with document and proposition IDs

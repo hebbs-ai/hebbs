@@ -82,6 +82,18 @@ fn estimate_tokens(content: &str) -> usize {
     content.len() / 4
 }
 
+/// Parameters for [`extract_and_store_file`].
+pub struct ExtractFileParams<'a> {
+    pub engine: &'a Engine,
+    pub provider: &'a dyn LlmProvider,
+    pub file_content: &'a str,
+    pub rel_path: &'a str,
+    pub sections: &'a [ParsedSection],
+    pub config: &'a ExtractionConfig,
+    pub existing_proposition_ids: &'a [String],
+    pub existing_proposition_hashes: &'a [String],
+}
+
 /// Extract and store triple-layer memories for a single file.
 ///
 /// The caller provides the file content (or per-section content for large files),
@@ -95,16 +107,17 @@ fn estimate_tokens(content: &str) -> usize {
 /// are stored, and missing ones are deleted.
 ///
 /// Returns the IDs of all created memories for manifest tracking.
-pub fn extract_and_store_file(
-    engine: &Engine,
-    provider: &dyn LlmProvider,
-    file_content: &str,
-    rel_path: &str,
-    sections: &[ParsedSection],
-    config: &ExtractionConfig,
-    existing_proposition_ids: &[String],
-    existing_proposition_hashes: &[String],
-) -> FileExtractionResult {
+pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionResult {
+    let ExtractFileParams {
+        engine,
+        provider,
+        file_content,
+        rel_path,
+        sections,
+        config,
+        existing_proposition_ids,
+        existing_proposition_hashes,
+    } = params;
     let mut result = FileExtractionResult::default();
 
     // Strip boilerplate before processing
