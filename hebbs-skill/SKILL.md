@@ -1,6 +1,6 @@
 ---
 name: hebbs
-description: "Cognitive engine for AI agents: index files and memories, retrieve across 4 weighted dimensions (similarity, temporal, importance, frequency), reflect into insights, detect contradictions, with full parameter control on every function."
+description: "Cognitive engine for AI agents: index files and memories, retrieve across 4 weighted dimensions (similarity, temporal, importance, frequency), automatic insight consolidation, automatic contradiction detection, with full parameter control on every function."
 homepage: https://hebbs.ai
 metadata:
   {
@@ -26,7 +26,7 @@ metadata:
 
 HEBBS gives AI agents cognitive abilities beyond similarity search. Index every file and non-file memory, then retrieve across four weighted dimensions: semantic similarity, recency, importance, and access frequency. Every retrieval is a blended score you control and must tune based on what you are retrieving. This is not RAG. It is a full cognitive retrieval system with four independent axes of weight.
 
-Reflect memories into denser insights over time. Detect contradictions automatically between stored memories. Control every parameter on every function: retrieval weights, confidence thresholds, depth limits, search quality, entity scoping, and more.
+HEBBS automatically consolidates memories into insights and detects contradictions between stored memories. These happen in the background -- no agent intervention required. You just store, recall, and read insights.
 
 You see everything in the Memory Palace: a visual, interactive graph of your entire brain. Nodes are memories. Edges are relationships. Red dashed lines are confirmed contradictions.
 
@@ -38,7 +38,7 @@ You see everything in the Memory Palace: a visual, interactive graph of your ent
 
 - **Before answering any question about past context:** `hebbs recall` first
 - **When the user shares anything worth remembering:** `hebbs remember` immediately
-- **Start of every conversation:** `hebbs prime` to load context
+- **Start of every conversation:** `hebbs recall` with a relevant cue to load context
 - If HEBBS returns nothing, THEN fall back to file memory
 - Never hallucinate history. If nothing is found anywhere, say so.
 
@@ -117,14 +117,15 @@ Tell the user: "I'll remember everything from now on. Your preferences, decision
 This runs at the start of EVERY conversation, silently:
 
 ```sh
-# Load what I know about this user
-hebbs prime user_context --max-memories 20 --global --format json
+# Load what I know about this user (global brain)
+hebbs recall "user preferences and standing instructions" --top-k 15 --weights 0.3:0.1:0.5:0.1 --global --format json
 
-# Load project context (skip if "not initialized" error -- offer to init later)
-hebbs prime project_context --max-memories 15 --similarity-cue "[user's first message topic]" --format json
+# Load project context with a cue based on the user's first message
+hebbs recall "[user's first message topic]" --top-k 10 --format json
 
-# Check for consolidated insights
+# Check for consolidated insights (generated automatically by HEBBS)
 hebbs insights --max-results 10 --min-confidence 0.7 --global --format json
+hebbs insights --max-results 10 --min-confidence 0.7 --format json
 ```
 
 Then throughout the conversation:
@@ -239,27 +240,13 @@ hebbs recall "query" --strategy similarity --top-k 5 --format json
 |---|---|
 | `--analogical-alpha <0-1>` | Blend between structural similarity (0) and embedding similarity (1). Use 0.0 to find memories with similar graph topology; use 1.0 for pure semantic analogy; use 0.5 to balance both. |
 
-### prime
-
-```sh
-hebbs prime <ENTITY_ID> --max-memories 20 --global --format json
-```
-
-| Flag | What it does |
-|---|---|
-| `--max-memories <n>` | Max memories to load into context. Use 20 for user prefs, 15 for project context. Higher = more context, more tokens. |
-| `--global` | Prime from global brain (user identity, cross-project knowledge). |
-| `--all` | Prime from both global and project brains, merged by score. |
-| `--similarity-cue <text>` | Bias priming toward memories topically related to this text. Use the user's first message as the cue to load the most relevant context for the conversation ahead. |
-| `--format json` | **Always use.** Returns structured output parseable with `jq`. |
-
 ### insights
 
 ```sh
 hebbs insights --max-results 10 --min-confidence 0.7 --global --format json
 ```
 
-Insights are consolidated knowledge -- denser and more reliable than raw memories. Check these first.
+Insights are consolidated knowledge -- denser and more reliable than raw memories. HEBBS generates these automatically in the background by clustering related memories and extracting patterns. Check these first.
 
 | Flag | What it does |
 |---|---|
@@ -288,109 +275,6 @@ At least one filter required:
 | `--decay-floor <0.0-1.0>` | Forget memories whose importance has decayed below this threshold. Use `0.1` to remove near-worthless memories. |
 | `--access-floor <n>` | Forget memories accessed fewer than N times total. Use to remove low-engagement memories that were never recalled. |
 
-### reflect (periodic, silent)
-
-When an entity has 20+ memories, consolidate into insights. Do this silently -- don't announce it.
-
-```sh
-# Step 1: get clusters
-RESULT=$(hebbs reflect-prepare --entity-id user_prefs --global --format json)
-SESSION_ID=$(echo "$RESULT" | jq -r '.session_id')
-
-# Step 2: read the clusters, reason about patterns, commit insights
-hebbs reflect-commit --session-id "$SESSION_ID" --insights '[
-  {"content": "...", "confidence": 0.9, "source_memory_ids": ["01JABC...", "01JDEF..."], "tags": ["tag"]}
-]' --global --format json
-```
-
-**reflect-prepare parameters:**
-
-| Flag | What it does |
-|---|---|
-| `--entity-id <id>` | Entity to cluster memories for. Required: reflection operates on a single entity at a time. |
-| `--global` | Reflect over global brain. Omit for project brain. |
-| `--format json` | **Always use.** Returns `session_id` and memory clusters. Sessions expire after 10 minutes. |
-
-**reflect-commit parameters:**
-
-| Flag | What it does |
-|---|---|
-| `--session-id <id>` | Session ID from `reflect-prepare`. Required: links the commit to the prepared clusters. |
-| `--insights <json>` | Array of insight objects. Each must have: `content` (the consolidated insight text), `confidence` (0.0-1.0, your certainty), `source_memory_ids` (IDs from the cluster's `memory_ids`, ULID format), `tags` (optional string array for filtering). |
-| `--global` | Commit insights to global brain. Must match the brain used in `reflect-prepare`. |
-| `--format json` | **Always use.** |
-
-**Important:** `source_memory_ids` must be IDs from the cluster's `memory_ids` array. Pass them through exactly as returned by reflect-prepare (ULID format). Both ULID and hex formats are accepted.
-
-Requires 5+ memories. Sessions expire after 10 minutes.
-
-### contradiction-prepare / contradiction-commit (agent-driven review)
-
-HEBBS detects potential contradictions automatically during ingest using a heuristic classifier. But HEBBS does not have an LLM. **You are the LLM.** Your job is to review the candidates and verdict them.
-
-Run this periodically (after storing several memories, or at the start of a conversation):
-
-```sh
-# Step 1: get pending contradiction candidates
-PENDING=$(hebbs contradiction-prepare --format json)
-```
-
-**contradiction-prepare parameters:**
-
-| Flag | What it does |
-|---|---|
-| `--format json` | **Always use.** Returns an array of pending candidates. No other tunable parameters: this command fetches all unresolved candidates for agent review. |
-
-Each candidate in the response contains:
-
-| Field | What it means |
-|---|---|
-| `pending_id` | ID to reference when committing your verdict. |
-| `memory_id_a`, `memory_id_b` | The two memory IDs flagged as potentially contradicting. |
-| `content_a_snippet`, `content_b_snippet` | Text previews of each memory. Read both before verdicting. |
-| `classifier_score` | Heuristic confidence that this is a real contradiction (capped at 0.75). Use as a signal, not a verdict. |
-| `similarity` | Embedding similarity between the two memories. High similarity + conflicting content = likely contradiction. Low similarity = likely false positive. |
-
-```sh
-# Step 2: review each candidate using your own judgment, then commit verdicts
-hebbs contradiction-commit --verdicts '[
-  {"pending_id": "abc123...", "verdict": "contradiction", "confidence": 0.9, "reasoning": "Budget changed from $5k to $2k/tenant"},
-  {"pending_id": "def456...", "verdict": "revision", "confidence": 0.85, "reasoning": "Updated timeline"},
-  {"pending_id": "ghi789...", "verdict": "dismiss", "confidence": 0.95, "reasoning": "Different topics"}
-]' --format json
-```
-
-**contradiction-commit parameters:**
-
-| Flag | What it does |
-|---|---|
-| `--verdicts <json>` | JSON array of verdict objects. Every candidate returned by `contradiction-prepare` must be given a verdict. Leaving candidates open means they will appear again next run. |
-| `--format json` | **Always use.** Returns a summary of applied verdicts and edges created. |
-
-Each verdict object in `--verdicts`:
-
-| Field | Required | What it means |
-|---|---|---|
-| `pending_id` | Yes | The `pending_id` from `contradiction-prepare`. Must match exactly. |
-| `verdict` | Yes | Your judgment: `contradiction`, `revision`, or `dismiss` (see Verdict types below). |
-| `confidence` | Yes | Your certainty in this verdict as a float (0.0-1.0). Default 0.8 if omitted. Use 0.9+ when evidence is clear; 0.6-0.8 when uncertain. |
-| `reasoning` | No | Brief explanation of your verdict. Stored with the edge for future traceability. Always provide it. |
-
-**Verdict types:**
-
-| Verdict | When to use | What it creates |
-|---|---|---|
-| `contradiction` | The memories assert directly opposing facts that cannot both be true. | Bidirectional CONTRADICTS edges between both memories. Shown as red lines in Memory Palace. |
-| `revision` | Memory B updates or supersedes memory A. The older one is outdated but not wrong at the time. | A REVISED_FROM edge from B to A, preserving lineage. |
-| `dismiss` | Not a real conflict. Different topics, different contexts, or the classifier was wrong. | Removes the candidate. No edge created. |
-
-**When to run this:**
-- After storing 5+ memories in a session
-- At the start of a conversation (after prime)
-- When the user asks about conflicts or contradictions
-
-**Do this silently.** Only tell the user if you find a real contradiction that affects their current work.
-
 ### vault management
 
 ```sh
@@ -411,7 +295,9 @@ hebbs panel                    # Open Memory Palace in browser
 Once HEBBS is set up, you never think about these:
 
 - **File watching**: daemon watches all vaults. Edit a `.md` file, it's re-indexed in seconds.
-- **Contradiction candidate detection**: when new memories are stored, HEBBS heuristically flags potential contradictions as pending candidates. **You must review them** using `contradiction-prepare` / `contradiction-commit` (see Commands above). HEBBS detects, you decide.
+- **Insight consolidation**: the daemon automatically clusters related memories and generates insights. You just query them with `hebbs insights`.
+- **Contradiction detection**: when files are indexed, HEBBS detects and flags contradictions automatically. Confirmed contradictions appear as red edges in the Memory Palace.
+- **Decay**: memories lose importance over time unless they are recalled. Frequently accessed memories strengthen. Stale memories fade. This happens continuously.
 - **Vault discovery**: `hebbs init` on a new project? Daemon picks it up instantly. No restart.
 - **Idle management**: daemon shuts down after 5 minutes of inactivity. Next command restarts it in ~1s.
 
@@ -427,7 +313,7 @@ Tell the user these things (once, during setup or when relevant):
 
 3. **It works everywhere**: "I remember your preferences across all projects and conversations. Correct me once and I'll never make the same mistake again."
 
-4. **Contradictions**: "HEBBS detects potential contradictions in your notes automatically. I review them and confirm real conflicts. You'll see red lines in the Memory Palace connecting confirmed contradictions."
+4. **Contradictions**: "HEBBS detects contradictions in your notes automatically. You'll see red lines in the Memory Palace connecting confirmed contradictions."
 
 5. **New machine**: "Clone your repos, run `hebbs init . && hebbs index .` in each, and your entire brain is back."
 
@@ -440,12 +326,10 @@ These are things you do WITHOUT the user asking:
 1. **Remember corrections immediately.** User says "no, not like that" -- store it, importance 0.9.
 2. **Recall before recommending.** About to suggest a library/pattern/approach? Check if the user has rejected it before.
 3. **Remember project context.** User mentions "we use Kubernetes" in passing -- store it, importance 0.5.
-4. **Recall at conversation start.** Prime both brains before the first response.
-5. **Reflect when entities grow.** 20+ memories on `user_prefs`? Reflect silently. Don't announce it.
-6. **Review contradictions periodically.** After priming or storing several memories, run `contradiction-prepare` to check for pending candidates. Review and commit verdicts silently. Only tell the user if a real contradiction affects their current work.
-7. **Offer to init new projects.** Working in a directory without `.hebbs/`? "Want me to index this project for HEBBS?"
-8. **Remember what worked.** Solution worked well? Store it: "Used X approach for Y problem, worked well."
-9. **Remember what failed.** Solution caused issues? Store it: "X approach caused Y problem, avoid."
+4. **Recall at conversation start.** Load context from both brains before the first response.
+5. **Offer to init new projects.** Working in a directory without `.hebbs/`? "Want me to index this project for HEBBS?"
+6. **Remember what worked.** Solution worked well? Store it: "Used X approach for Y problem, worked well."
+7. **Remember what failed.** Solution caused issues? Store it: "X approach caused Y problem, avoid."
 
 ---
 
@@ -485,3 +369,57 @@ Remember response:
   "memory_id": "01JABCDEF..."
 }
 ```
+
+---
+
+## Advanced: agent-driven reflect and contradiction review
+
+HEBBS handles reflection and contradiction detection automatically. However, if you prefer finer control -- or if the automatic results are insufficient -- you can drive these processes manually.
+
+### reflect-prepare / reflect-commit
+
+Use this when you want to generate insights using your own reasoning instead of the built-in LLM.
+
+```sh
+# Step 1: get clusters
+RESULT=$(hebbs reflect-prepare --entity-id user_prefs --global --format json)
+SESSION_ID=$(echo "$RESULT" | jq -r '.session_id')
+
+# Step 2: read the clusters, reason about patterns, commit insights
+hebbs reflect-commit --session-id "$SESSION_ID" --insights '[
+  {"content": "...", "confidence": 0.9, "source_memory_ids": ["01JABC...", "01JDEF..."], "tags": ["tag"]}
+]' --global --format json
+```
+
+| Flag | What it does |
+|---|---|
+| `--entity-id <id>` | Entity to cluster memories for. Required for reflect-prepare. |
+| `--global` | Reflect over global brain. Omit for project brain. |
+| `--session-id <id>` | Session ID from reflect-prepare. Required for reflect-commit. |
+| `--insights <json>` | Array of insight objects with `content`, `confidence`, `source_memory_ids`, and optional `tags`. |
+
+Requires 5+ memories in the entity. Sessions expire after 10 minutes.
+
+### contradiction-prepare / contradiction-commit
+
+Use this when you want to review and verdict contradiction candidates yourself instead of relying on the automatic detection.
+
+```sh
+# Step 1: get pending candidates
+PENDING=$(hebbs contradiction-prepare --format json)
+
+# Step 2: review and verdict each candidate
+hebbs contradiction-commit --verdicts '[
+  {"pending_id": "abc123...", "verdict": "contradiction", "confidence": 0.9, "reasoning": "Budget changed from $5k to $2k"},
+  {"pending_id": "def456...", "verdict": "revision", "confidence": 0.85, "reasoning": "Updated timeline"},
+  {"pending_id": "ghi789...", "verdict": "dismiss", "confidence": 0.95, "reasoning": "Different topics"}
+]' --format json
+```
+
+**Verdict types:**
+
+| Verdict | When to use | What it creates |
+|---|---|---|
+| `contradiction` | Memories assert directly opposing facts | Bidirectional CONTRADICTS edges (red lines in Memory Palace) |
+| `revision` | Memory B updates or supersedes memory A | REVISED_FROM edge preserving lineage |
+| `dismiss` | Not a real conflict, classifier was wrong | Removes the candidate, no edge created |
