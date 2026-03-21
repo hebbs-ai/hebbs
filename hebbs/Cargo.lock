@@ -1214,7 +1214,7 @@ checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 
 [[package]]
 name = "hebbs-bench"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "hebbs-core",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "comfy-table",
@@ -1258,7 +1258,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-client"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "hebbs-proto",
  "proptest",
@@ -1277,7 +1277,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bitcode",
  "criterion",
@@ -1302,7 +1302,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-embed"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "criterion",
  "dirs",
@@ -1323,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "hebbs-core",
  "hebbs-embed",
@@ -1340,7 +1340,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-index"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "criterion",
  "hebbs-storage",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-llm"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "proptest",
  "serde",
@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-proto"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "prost",
  "prost-types",
@@ -1374,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-reflect"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "criterion",
  "hebbs-embed",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-server"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "clap",
@@ -1424,7 +1424,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-storage"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "parking_lot",
  "proptest",
@@ -1436,7 +1436,7 @@ dependencies = [
 
 [[package]]
 name = "hebbs-vault"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "chrono",
