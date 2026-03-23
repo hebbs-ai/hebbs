@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,11 @@ pub struct VaultConfig {
     pub decay: DecayConfig,
     #[serde(default)]
     pub contradiction: ContradictionConfig,
-    #[serde(default, alias = "reflect_llm")]
+    #[serde(
+        default,
+        alias = "reflect_llm",
+        skip_serializing_if = "LlmConfig::is_empty"
+    )]
     pub llm: LlmConfig,
     #[serde(default)]
     pub extraction: ExtractionConfig,
@@ -156,6 +160,17 @@ pub struct LlmConfig {
 }
 
 impl LlmConfig {
+    /// Returns true when provider and model are both empty (default state).
+    /// Used by serde to skip serializing empty `[llm]` sections so they
+    /// don't shadow global config.
+    pub fn is_empty(&self) -> bool {
+        self.provider.is_empty()
+            && self.model.is_empty()
+            && self.api_key.is_none()
+            && self.api_key_env.is_none()
+            && self.base_url.is_none()
+    }
+
     /// Resolve the API key from either the direct value or the environment variable.
     pub fn resolved_api_key(&self) -> Option<String> {
         if let Some(ref key) = self.api_key {
@@ -442,14 +457,95 @@ impl Default for DecayConfig {
 }
 
 impl VaultConfig {
-    /// Load config from `.hebbs/config.toml`.
-    pub fn load(hebbs_dir: &Path) -> Result<Self> {
+    /// Returns the global config directory: `~/.hebbs/`.
+    pub fn global_config_dir() -> Option<PathBuf> {
+        dirs::home_dir().map(|h| h.join(".hebbs"))
+    }
+
+    /// Load the global config from `~/.hebbs/config.toml`.
+    /// Returns `Self::default()` if the file does not exist.
+    pub fn load_global() -> Result<Self> {
+        match Self::global_config_dir() {
+            Some(dir) => Self::load_local_only(&dir),
+            None => Ok(Self::default()),
+        }
+    }
+
+    /// Save config to `~/.hebbs/config.toml`, creating the directory if needed.
+    pub fn save_global(&self) -> Result<()> {
+        let dir = Self::global_config_dir().ok_or_else(|| crate::error::VaultError::Config {
+            reason: "could not determine home directory".to_string(),
+        })?;
+        std::fs::create_dir_all(&dir)?;
+        self.save(&dir)
+    }
+
+    /// Load config from a single `.hebbs/config.toml` without merging global.
+    /// Useful for `config show --global` or inspecting local-only values.
+    pub fn load_local_only(hebbs_dir: &Path) -> Result<Self> {
         let path = hebbs_dir.join("config.toml");
         if !path.exists() {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&path)?;
         let config: Self = toml::from_str(&content)?;
+        Ok(config)
+    }
+
+    /// Load config from `.hebbs/config.toml` with global inheritance.
+    ///
+    /// Loads `~/.hebbs/config.toml` first, then merges the local config on top.
+    /// Local values override global values at the field level. Empty strings in
+    /// local config do not shadow global values.
+    ///
+    /// If `hebbs_dir` IS the global config directory, only one read is performed.
+    pub fn load(hebbs_dir: &Path) -> Result<Self> {
+        let global_dir = Self::global_config_dir();
+
+        // If hebbs_dir is the global dir itself, skip double-read
+        let is_global_dir = global_dir.as_ref().is_some_and(|g| {
+            let g_canon = g.canonicalize().unwrap_or_else(|_| g.clone());
+            let h_canon = hebbs_dir
+                .canonicalize()
+                .unwrap_or_else(|_| hebbs_dir.to_path_buf());
+            g_canon == h_canon
+        });
+
+        if is_global_dir {
+            return Self::load_local_only(hebbs_dir);
+        }
+
+        let global_path = global_dir.map(|d| d.join("config.toml"));
+        let local_path = hebbs_dir.join("config.toml");
+
+        let global_toml = match global_path {
+            Some(ref p) if p.exists() => {
+                let content = std::fs::read_to_string(p)?;
+                content.parse::<toml::Value>().ok()
+            }
+            _ => None,
+        };
+
+        let local_toml = if local_path.exists() {
+            let content = std::fs::read_to_string(&local_path)?;
+            content.parse::<toml::Value>().ok()
+        } else {
+            None
+        };
+
+        let merged = match (global_toml, local_toml) {
+            (Some(g), Some(l)) => merge_toml(g, l),
+            (Some(g), None) => g,
+            (None, Some(l)) => l,
+            (None, None) => return Ok(Self::default()),
+        };
+
+        let config: Self =
+            merged
+                .try_into()
+                .map_err(|e: toml::de::Error| crate::error::VaultError::Config {
+                    reason: format!("failed to parse merged config: {e}"),
+                })?;
         Ok(config)
     }
 
@@ -611,6 +707,27 @@ impl VaultConfig {
     }
 }
 
+/// Recursively merge two TOML values. Local overrides global at the field level.
+/// Empty strings in local do not shadow global values.
+fn merge_toml(global: toml::Value, local: toml::Value) -> toml::Value {
+    match (global, local) {
+        (toml::Value::Table(mut g), toml::Value::Table(l)) => {
+            for (key, local_val) in l {
+                if let Some(global_val) = g.remove(&key) {
+                    g.insert(key, merge_toml(global_val, local_val));
+                } else {
+                    g.insert(key, local_val);
+                }
+            }
+            toml::Value::Table(g)
+        }
+        // Empty string in local: keep global value
+        (global_val, toml::Value::String(ref s)) if s.is_empty() => global_val,
+        // Local overrides global for all other types
+        (_global_val, local_val) => local_val,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,5 +846,210 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = VaultConfig::load(dir.path()).unwrap();
         assert_eq!(config, VaultConfig::default());
+    }
+
+    #[test]
+    fn test_merge_toml_field_level_override() {
+        let global: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = "openai"
+            model = "gpt-4o-mini"
+            api_key_env = "OPENAI_API_KEY"
+            "#,
+        )
+        .unwrap();
+        let local: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            model = "gpt-4o"
+            "#,
+        )
+        .unwrap();
+        let merged = merge_toml(global, local);
+        let config: VaultConfig = merged.try_into().unwrap();
+        assert_eq!(config.llm.provider, "openai");
+        assert_eq!(config.llm.model, "gpt-4o");
+        assert_eq!(config.llm.api_key_env.as_deref(), Some("OPENAI_API_KEY"));
+    }
+
+    #[test]
+    fn test_global_llm_inherited_when_local_has_no_llm() {
+        let global_dir = tempfile::tempdir().unwrap();
+        let local_dir = tempfile::tempdir().unwrap();
+
+        // Write global config with LLM
+        let global_cfg = VaultConfig {
+            llm: LlmConfig {
+                provider: "openai".to_string(),
+                model: "gpt-4o-mini".to_string(),
+                api_key: None,
+                api_key_env: Some("OPENAI_API_KEY".to_string()),
+                base_url: None,
+            },
+            ..VaultConfig::default()
+        };
+        global_cfg.save(global_dir.path()).unwrap();
+
+        // Write local config with NO llm section (default empty)
+        let local_cfg = VaultConfig::default();
+        local_cfg.save(local_dir.path()).unwrap();
+
+        // Manually merge to test the logic (since load() uses the real home dir)
+        let global_content =
+            std::fs::read_to_string(global_dir.path().join("config.toml")).unwrap();
+        let local_content = std::fs::read_to_string(local_dir.path().join("config.toml")).unwrap();
+        let global_toml: toml::Value = global_content.parse().unwrap();
+        let local_toml: toml::Value = local_content.parse().unwrap();
+        let merged = merge_toml(global_toml, local_toml);
+        let config: VaultConfig = merged.try_into().unwrap();
+
+        assert_eq!(config.llm.provider, "openai");
+        assert_eq!(config.llm.model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_local_llm_overrides_global() {
+        let global: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = "openai"
+            model = "gpt-4o-mini"
+            "#,
+        )
+        .unwrap();
+        let local: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = "anthropic"
+            model = "claude-haiku-4-5-20251001"
+            "#,
+        )
+        .unwrap();
+        let merged = merge_toml(global, local);
+        let config: VaultConfig = merged.try_into().unwrap();
+        assert_eq!(config.llm.provider, "anthropic");
+        assert_eq!(config.llm.model, "claude-haiku-4-5-20251001");
+    }
+
+    #[test]
+    fn test_no_global_config_backward_compatible() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = VaultConfig {
+            llm: LlmConfig {
+                provider: "ollama".to_string(),
+                model: "gemma3:1b".to_string(),
+                api_key: None,
+                api_key_env: None,
+                base_url: None,
+            },
+            ..VaultConfig::default()
+        };
+        config.save(dir.path()).unwrap();
+
+        // load_local_only should work without any global config
+        let loaded = VaultConfig::load_local_only(dir.path()).unwrap();
+        assert_eq!(loaded.llm.provider, "ollama");
+        assert_eq!(loaded.llm.model, "gemma3:1b");
+    }
+
+    #[test]
+    fn test_empty_string_does_not_shadow_global() {
+        let global: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = "openai"
+            model = "gpt-4o-mini"
+            "#,
+        )
+        .unwrap();
+        let local: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = ""
+            "#,
+        )
+        .unwrap();
+        let merged = merge_toml(global, local);
+        let config: VaultConfig = merged.try_into().unwrap();
+        // Empty string should NOT shadow the global value
+        assert_eq!(config.llm.provider, "openai");
+        assert_eq!(config.llm.model, "gpt-4o-mini");
+    }
+
+    #[test]
+    fn test_llm_is_empty() {
+        let empty = LlmConfig::default();
+        assert!(empty.is_empty());
+
+        let configured = LlmConfig {
+            provider: "openai".to_string(),
+            model: "gpt-4o".to_string(),
+            api_key: None,
+            api_key_env: None,
+            base_url: None,
+        };
+        assert!(!configured.is_empty());
+    }
+
+    #[test]
+    fn test_skip_serializing_empty_llm() {
+        let config = VaultConfig::default();
+        let serialized = toml::to_string_pretty(&config).unwrap();
+        // Empty LLM section should NOT appear in serialized output
+        assert!(
+            !serialized.contains("[llm]"),
+            "empty [llm] section should be skipped in serialization"
+        );
+    }
+
+    #[test]
+    fn test_mixed_config_merge() {
+        // Global has provider, local has base_url. Merge produces both.
+        let global: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            provider = "openai"
+            model = "gpt-4o-mini"
+            api_key_env = "OPENAI_API_KEY"
+            "#,
+        )
+        .unwrap();
+        let local: toml::Value = toml::from_str(
+            r#"
+            [llm]
+            base_url = "https://custom.api.example.com"
+            "#,
+        )
+        .unwrap();
+        let merged = merge_toml(global, local);
+        let config: VaultConfig = merged.try_into().unwrap();
+        assert_eq!(config.llm.provider, "openai");
+        assert_eq!(config.llm.model, "gpt-4o-mini");
+        assert_eq!(
+            config.llm.base_url.as_deref(),
+            Some("https://custom.api.example.com")
+        );
+    }
+
+    #[test]
+    fn test_global_save_and_load() {
+        // Test save/load roundtrip through a temp dir acting as global
+        let dir = tempfile::tempdir().unwrap();
+        let config = VaultConfig {
+            llm: LlmConfig {
+                provider: "anthropic".to_string(),
+                model: "claude-haiku-4-5-20251001".to_string(),
+                api_key: None,
+                api_key_env: Some("ANTHROPIC_API_KEY".to_string()),
+                base_url: None,
+            },
+            ..VaultConfig::default()
+        };
+        config.save(dir.path()).unwrap();
+        let loaded = VaultConfig::load_local_only(dir.path()).unwrap();
+        assert_eq!(loaded.llm.provider, "anthropic");
+        assert_eq!(loaded.llm.model, "claude-haiku-4-5-20251001");
+        assert_eq!(loaded.llm.api_key_env.as_deref(), Some("ANTHROPIC_API_KEY"));
     }
 }

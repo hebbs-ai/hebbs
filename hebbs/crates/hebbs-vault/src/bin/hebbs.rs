@@ -113,6 +113,9 @@ enum Commands {
         /// Base URL override for LLM provider
         #[arg(long)]
         base_url: Option<String>,
+        /// Store LLM config in this vault only (default: save to global ~/.hebbs/config.toml)
+        #[arg(long)]
+        local: bool,
     },
 
     /// View or modify vault configuration
@@ -458,14 +461,24 @@ enum ConfigAction {
         key: String,
         /// Value to set
         value: String,
+        /// Apply to global config (~/.hebbs/config.toml)
+        #[arg(long)]
+        global: bool,
     },
     /// Get a configuration value
     Get {
         /// Configuration key (dot-notation)
         key: String,
+        /// Read from global config (~/.hebbs/config.toml)
+        #[arg(long)]
+        global: bool,
     },
     /// Show full configuration
-    Show,
+    Show {
+        /// Show global config only (~/.hebbs/config.toml)
+        #[arg(long)]
+        global: bool,
+    },
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -758,6 +771,7 @@ async fn run_local(cli: Cli) -> i32 {
             ref api_key_env,
             ref api_key,
             ref base_url,
+            local,
         } => {
             let path = match vault_path.as_ref().or(cli.vault.as_ref()) {
                 Some(p) => p.clone(),
@@ -766,44 +780,76 @@ async fn run_local(cli: Cli) -> i32 {
                     return 1;
                 }
             };
-            let llm_config = if provider.is_some() || model.is_some() {
+
+            // Check if global config already has LLM configured
+            let global_llm = VaultConfig::load_global()
+                .ok()
+                .filter(|g| g.llm.is_configured())
+                .map(|g| g.llm);
+
+            let (llm_config, save_to_global) = if provider.is_some() || model.is_some() {
                 // Flags provided, use them directly.
-                // Resolve api_key_env to the actual key value so the daemon
-                // (a separate process) can use it without inheriting shell env.
                 let resolved_key = api_key.clone().or_else(|| {
                     api_key_env
                         .as_ref()
                         .and_then(|env_name| std::env::var(env_name).ok())
                 });
-                Some(hebbs_vault::config::LlmConfig {
+                let cfg = hebbs_vault::config::LlmConfig {
                     provider: provider.clone().unwrap_or_default(),
                     model: model.clone().unwrap_or_default(),
                     api_key: resolved_key,
                     api_key_env: api_key_env.clone(),
                     base_url: base_url.clone(),
-                })
+                };
+                // Save to global by default unless --local is specified
+                (Some(cfg), !local)
+            } else if global_llm.is_some() {
+                // Global LLM exists: skip wizard, inherit from global.
+                // Pass None so vault config has no [llm] section (inherits).
+                println!("  Using LLM from global config (~/.hebbs/config.toml)");
+                (None, false)
             } else if std::io::stdin().is_terminal() {
                 // Interactive mode: ask the user which LLM provider to use.
-                interactive_llm_setup()
+                let cfg = interactive_llm_setup();
+                // Save to global by default unless --local
+                (cfg, !local)
             } else {
                 // Non-interactive (piped stdin): LLM is required.
-                eprintln!("Error: LLM provider is required. Use --provider and --model flags in non-interactive mode.");
+                eprintln!("Error: LLM provider is required. Use --provider and --model flags, or configure globally with `hebbs config set llm.provider <provider> --global`.");
                 return 1;
             };
-            // LLM is required for HEBBS
-            if llm_config.is_none() {
+
+            // LLM is required (either explicit or inherited from global)
+            if llm_config.is_none() && global_llm.is_none() {
                 eprintln!("Error: LLM provider is required for HEBBS. Please select a provider.");
                 return 1;
             }
-            match hebbs_vault::init_with_llm(&path, force, llm_config) {
+
+            // Save LLM to global config if requested
+            if save_to_global {
+                if let Some(ref llm) = llm_config {
+                    let mut global_cfg = VaultConfig::load_global().unwrap_or_default();
+                    global_cfg.llm = llm.clone();
+                    if let Err(e) = global_cfg.save_global() {
+                        eprintln!("Warning: could not save global config: {}", e);
+                        eprintln!("LLM config will be saved to vault config instead.");
+                    } else {
+                        println!("  Saved LLM config to ~/.hebbs/config.toml");
+                    }
+                }
+            }
+
+            // If saving to global, pass None so vault has no [llm] (inherits).
+            // If --local, pass the config so it's written to the vault.
+            let vault_llm = if save_to_global { None } else { llm_config };
+            match hebbs_vault::init_with_llm(&path, force, vault_llm) {
                 Ok(()) => {
                     register_vault(&path);
                     println!("Initialized vault at {}", path.display());
 
                     // Pre-download embedding model into OS cache dir so daemon starts instantly.
                     // ~/Library/Caches/hebbs on macOS — survives all vault/daemon cleanups.
-                    let config = VaultConfig::load(&path.join(".hebbs").join("config.toml"))
-                        .unwrap_or_default();
+                    let config = VaultConfig::load(&path.join(".hebbs")).unwrap_or_default();
                     let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
                         &config.embedding.model,
                     );
@@ -1096,66 +1142,146 @@ async fn run_local(cli: Cli) -> i32 {
         }
 
         Commands::Config { ref action } => {
-            let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
-                Ok(p) => p,
-                Err(code) => return code,
-            };
-            let hebbs_dir = path.join(".hebbs");
             match action {
-                ConfigAction::Show => match VaultConfig::load(&hebbs_dir) {
-                    Ok(config) => match toml::to_string_pretty(&config) {
-                        Ok(s) => {
-                            println!("{}", s);
-                            0
+                ConfigAction::Show { global } => {
+                    if *global {
+                        match VaultConfig::load_global() {
+                            Ok(config) => match toml::to_string_pretty(&config) {
+                                Ok(s) => {
+                                    println!("{}", s);
+                                    0
+                                }
+                                Err(e) => {
+                                    eprintln!("Error serializing config: {}", e);
+                                    1
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                1
+                            }
                         }
-                        Err(e) => {
-                            eprintln!("Error serializing config: {}", e);
-                            1
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                        1
-                    }
-                },
-                ConfigAction::Get { key } => match VaultConfig::load(&hebbs_dir) {
-                    Ok(config) => match config_get(&config, key) {
-                        Some(val) => {
-                            println!("{}", val);
-                            0
-                        }
-                        None => {
-                            eprintln!("Unknown config key: {}", key);
-                            1
-                        }
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                        1
-                    }
-                },
-                ConfigAction::Set { key, value } => match VaultConfig::load(&hebbs_dir) {
-                    Ok(mut config) => match config_set(&mut config, key, value) {
-                        Ok(()) => match config.save(&hebbs_dir) {
-                            Ok(()) => {
-                                println!("Set {} = {}", key, value);
+                    } else {
+                        let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                            Ok(p) => p,
+                            Err(code) => return code,
+                        };
+                        let hebbs_dir = path.join(".hebbs");
+                        // Show effective (merged) config with provenance annotations
+                        let global_cfg = VaultConfig::load_global().ok();
+                        let local_cfg = VaultConfig::load_local_only(&hebbs_dir).ok();
+                        match VaultConfig::load(&hebbs_dir) {
+                            Ok(effective) => {
+                                config_show_with_provenance(
+                                    &effective,
+                                    global_cfg.as_ref(),
+                                    local_cfg.as_ref(),
+                                );
                                 0
                             }
                             Err(e) => {
-                                eprintln!("Error saving config: {}", e);
+                                eprintln!("Error: {}", e);
                                 1
                             }
-                        },
-                        Err(msg) => {
-                            eprintln!("Error: {}", msg);
-                            1
                         }
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                        1
                     }
-                },
+                }
+                ConfigAction::Get { key, global } => {
+                    if *global {
+                        match VaultConfig::load_global() {
+                            Ok(config) => match config_get(&config, key) {
+                                Some(val) => {
+                                    println!("{}", val);
+                                    0
+                                }
+                                None => {
+                                    eprintln!("Unknown config key: {}", key);
+                                    1
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                1
+                            }
+                        }
+                    } else {
+                        let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                            Ok(p) => p,
+                            Err(code) => return code,
+                        };
+                        let hebbs_dir = path.join(".hebbs");
+                        match VaultConfig::load(&hebbs_dir) {
+                            Ok(config) => match config_get(&config, key) {
+                                Some(val) => {
+                                    println!("{}", val);
+                                    0
+                                }
+                                None => {
+                                    eprintln!("Unknown config key: {}", key);
+                                    1
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                1
+                            }
+                        }
+                    }
+                }
+                ConfigAction::Set { key, value, global } => {
+                    if *global {
+                        match VaultConfig::load_global() {
+                            Ok(mut config) => match config_set(&mut config, key, value) {
+                                Ok(()) => match config.save_global() {
+                                    Ok(()) => {
+                                        println!("Set {} = {} (global)", key, value);
+                                        0
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Error saving global config: {}", e);
+                                        1
+                                    }
+                                },
+                                Err(msg) => {
+                                    eprintln!("Error: {}", msg);
+                                    1
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                1
+                            }
+                        }
+                    } else {
+                        let path = match require_vault_path(None, cli.vault.as_ref(), cli.global) {
+                            Ok(p) => p,
+                            Err(code) => return code,
+                        };
+                        let hebbs_dir = path.join(".hebbs");
+                        match VaultConfig::load_local_only(&hebbs_dir) {
+                            Ok(mut config) => match config_set(&mut config, key, value) {
+                                Ok(()) => match config.save(&hebbs_dir) {
+                                    Ok(()) => {
+                                        println!("Set {} = {}", key, value);
+                                        0
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Error saving config: {}", e);
+                                        1
+                                    }
+                                },
+                                Err(msg) => {
+                                    eprintln!("Error: {}", msg);
+                                    1
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                1
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -3342,6 +3468,58 @@ fn config_set(config: &mut VaultConfig, key: &str, value: &str) -> std::result::
         _ => return Err(format!("unknown config key: {}", key)),
     }
     Ok(())
+}
+
+/// Show effective config with provenance annotations: (global) or (local).
+fn config_show_with_provenance(
+    effective: &VaultConfig,
+    _global: Option<&VaultConfig>,
+    local: Option<&VaultConfig>,
+) {
+    // Serialize the effective config as TOML
+    let toml_str = toml::to_string_pretty(effective).unwrap_or_default();
+    println!("{}", toml_str);
+
+    // Show LLM provenance summary
+    if effective.llm.is_configured() {
+        let local_llm = local.map(|l| &l.llm);
+        let fields: &[(&str, &str, &str)] = &[
+            (
+                "llm.provider",
+                &effective.llm.provider,
+                local_llm.map(|l| l.provider.as_str()).unwrap_or(""),
+            ),
+            (
+                "llm.model",
+                &effective.llm.model,
+                local_llm.map(|l| l.model.as_str()).unwrap_or(""),
+            ),
+            (
+                "llm.api_key_env",
+                effective.llm.api_key_env.as_deref().unwrap_or(""),
+                local_llm
+                    .and_then(|l| l.api_key_env.as_deref())
+                    .unwrap_or(""),
+            ),
+            (
+                "llm.base_url",
+                effective.llm.base_url.as_deref().unwrap_or(""),
+                local_llm.and_then(|l| l.base_url.as_deref()).unwrap_or(""),
+            ),
+        ];
+        println!("# LLM provenance:");
+        for (key, eff_val, local_val) in fields {
+            if eff_val.is_empty() {
+                continue;
+            }
+            let source = if local_val.is_empty() {
+                "global"
+            } else {
+                "local"
+            };
+            println!("#   {} = \"{}\" ({})", key, eff_val, source);
+        }
+    }
 }
 
 fn is_json_format(fmt: &Option<FormatArg>) -> bool {
