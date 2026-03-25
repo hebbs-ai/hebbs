@@ -28,6 +28,9 @@ pub struct LlmResponse {
     pub content: String,
 }
 
+/// Default concurrency for parallel real-time calls.
+const DEFAULT_PARALLEL_CONCURRENCY: usize = 10;
+
 /// Trait for LLM completion providers.
 ///
 /// Implementations must be `Send + Sync` for use from background threads.
@@ -35,15 +38,48 @@ pub struct LlmResponse {
 pub trait LlmProvider: Send + Sync {
     fn complete(&self, request: LlmRequest) -> Result<LlmResponse>;
 
-    /// Process a batch of requests. Cloud providers (OpenAI, Anthropic, Gemini)
-    /// override this with their Batch API for 50% cost reduction.
-    /// Default: sequential fallback via `complete()`.
-    fn complete_batch(&self, requests: Vec<LlmRequest>) -> Result<Vec<LlmResponse>> {
-        requests.into_iter().map(|r| self.complete(r)).collect()
+    /// Process requests concurrently via real-time API calls.
+    /// Spawns up to `DEFAULT_PARALLEL_CONCURRENCY` threads at a time.
+    /// This is the fast path -- same API, just parallel.
+    fn complete_parallel(&self, requests: Vec<LlmRequest>) -> Vec<Result<LlmResponse>> {
+        if requests.is_empty() {
+            return Vec::new();
+        }
+        if requests.len() == 1 {
+            return vec![self.complete(requests.into_iter().next().unwrap())];
+        }
+
+        let concurrency = DEFAULT_PARALLEL_CONCURRENCY.min(requests.len());
+        let mut all_results = Vec::with_capacity(requests.len());
+
+        // Process in waves of `concurrency` parallel threads
+        let mut remaining: Vec<LlmRequest> = requests;
+        while !remaining.is_empty() {
+            let wave: Vec<LlmRequest> = remaining
+                .drain(..concurrency.min(remaining.len()))
+                .collect();
+            let wave_results: Vec<Result<LlmResponse>> = std::thread::scope(|s| {
+                let handles: Vec<_> = wave
+                    .into_iter()
+                    .map(|req| s.spawn(|| self.complete(req)))
+                    .collect();
+                handles.into_iter().map(|h| h.join().unwrap()).collect()
+            });
+            all_results.extend(wave_results);
+        }
+
+        all_results
     }
 
-    /// Whether this provider supports true batch processing (async, cheaper).
-    /// Used by ingest to decide whether to show batch progress info.
+    /// Process requests via async Batch API for 50% cost reduction.
+    /// Only cloud providers (OpenAI, Anthropic, Gemini) override this.
+    /// Default: falls back to complete_parallel().
+    fn complete_batch(&self, requests: Vec<LlmRequest>) -> Result<Vec<LlmResponse>> {
+        let results = self.complete_parallel(requests);
+        results.into_iter().collect()
+    }
+
+    /// Whether this provider supports the async Batch API (cheaper, not faster).
     fn supports_batch(&self) -> bool {
         false
     }

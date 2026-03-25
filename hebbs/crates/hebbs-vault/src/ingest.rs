@@ -426,14 +426,20 @@ async fn phase2_ingest_inner(
 
     // Submit batch (providers that support batch API use it; others fall back to sequential)
     info!(
-        "phase2: submitting {} extraction requests for {} files",
+        "phase2: submitting {} extraction requests for {} files (parallel)",
         all_requests.len(),
         file_preps.len()
     );
-    let all_responses = llm_provider.complete_batch(all_requests).unwrap_or_else(|e| {
-        warn!("batch extraction failed, falling back to empty results: {}", e);
-        Vec::new()
-    });
+    // Default: concurrent real-time calls for speed.
+    // Batch API (--batch flag) handled separately at the caller level.
+    let all_results = llm_provider.complete_parallel(all_requests);
+    let all_responses: Vec<hebbs_llm::LlmResponse> = all_results
+        .into_iter()
+        .map(|r| r.unwrap_or_else(|e| {
+            warn!("extraction request failed: {}", e);
+            hebbs_llm::LlmResponse { content: String::new() }
+        }))
+        .collect();
 
     // Process each file with its batch results
     for (file_idx, prep) in file_preps.iter().enumerate() {
