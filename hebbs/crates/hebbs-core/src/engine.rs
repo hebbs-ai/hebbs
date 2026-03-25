@@ -493,6 +493,46 @@ impl Engine {
         })
     }
 
+    /// Create a graph edge between two existing memories.
+    ///
+    /// Writes forward + reverse keys to the graph CF atomically.
+    /// Used by Layer 3 extraction to wire entity-relation edges
+    /// after propositions are stored.
+    pub fn add_edge(
+        &self,
+        source_id: &[u8; 16],
+        target_id: &[u8; 16],
+        edge_type: EdgeType,
+        confidence: f32,
+    ) -> Result<()> {
+        use hebbs_index::graph::{EdgeMetadata, GraphIndex};
+        use hebbs_storage::{BatchOperation, ColumnFamilyName};
+
+        let now_us = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_micros() as u64;
+
+        let fwd_key = GraphIndex::encode_forward_key(source_id, edge_type, target_id);
+        let rev_key = GraphIndex::encode_reverse_key(source_id, edge_type, target_id);
+        let meta = EdgeMetadata::new(confidence, now_us).to_bytes();
+
+        self.storage.write_batch(&[
+            BatchOperation::Put {
+                cf: ColumnFamilyName::Graph,
+                key: fwd_key,
+                value: meta.clone(),
+            },
+            BatchOperation::Put {
+                cf: ColumnFamilyName::Graph,
+                key: rev_key,
+                value: meta,
+            },
+        ])?;
+
+        Ok(())
+    }
+
     /// Check a newly remembered memory for contradictions against existing memories.
     ///
     /// Uses HNSW to find semantically similar memories and classifies pairs

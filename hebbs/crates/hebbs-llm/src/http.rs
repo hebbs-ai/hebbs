@@ -10,6 +10,34 @@ pub(crate) fn make_http_agent(timeout_secs: u64) -> ureq::Agent {
         .new_agent()
 }
 
+/// Build an HTTP agent with a long timeout for batch polling (5 min).
+pub(crate) fn make_batch_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(300)))
+        .build()
+        .new_agent()
+}
+
+/// GET a URL with headers, return response body as string.
+pub(crate) fn http_get(
+    agent: &ureq::Agent,
+    url: &str,
+    headers: &[(&str, &str)],
+) -> Result<String> {
+    let mut req = agent.get(url);
+    for &(k, v) in headers {
+        req = req.header(k, v);
+    }
+    let resp = req.call().map_err(|e| LlmError::Provider {
+        message: format!("GET {url} failed: {e}"),
+    })?;
+    resp.into_body()
+        .read_to_string()
+        .map_err(|e| LlmError::Provider {
+            message: format!("failed to read GET response: {e}"),
+        })
+}
+
 /// POST a JSON body with retry logic and exponential backoff.
 ///
 /// Complexity: O(max_retries) network calls in the worst case.

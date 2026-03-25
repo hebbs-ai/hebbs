@@ -353,7 +353,20 @@ async fn phase2_ingest_inner(
         v
     };
 
-    for (file_idx, rel_path) in stale_files_sorted.iter().enumerate() {
+    // Pre-read file content and parse sections for all stale files
+    struct FilePrep {
+        rel_path: String,
+        file_content: String,
+        parsed_sections: Vec<crate::parser::ParsedSection>,
+        existing_prop_ids: Vec<String>,
+        existing_prop_hashes: Vec<String>,
+        existing_doc_id: Option<String>,
+    }
+
+    let split_level = config.split_level();
+    let mut file_preps: Vec<FilePrep> = Vec::with_capacity(stale_files_sorted.len());
+
+    for rel_path in &stale_files_sorted {
         let file_path = vault_root.join(rel_path);
         let file_content = match std::fs::read_to_string(&file_path) {
             Ok(c) => c,
@@ -363,20 +376,6 @@ async fn phase2_ingest_inner(
                 continue;
             }
         };
-
-        // Report progress
-        if let Some(ref cb) = progress {
-            cb(file_idx + 1, total_files, rel_path);
-        }
-        info!(
-            "phase2: extracting [{}/{}] {}",
-            file_idx + 1,
-            total_files,
-            rel_path
-        );
-
-        // Get parsed sections for large-file chunking
-        let split_level = config.split_level();
         let parsed_sections = match crate::parser::parse_markdown_file(&file_path, split_level) {
             Ok(mut parsed) => {
                 crate::parser::merge_short_sections(
@@ -387,8 +386,6 @@ async fn phase2_ingest_inner(
             }
             Err(_) => Vec::new(),
         };
-
-        // Get existing extraction data for hash-based merge
         let (existing_prop_ids, existing_prop_hashes, existing_doc_id) =
             if let Some(file_entry) = manifest.files.get(rel_path.as_str()) {
                 (
@@ -399,26 +396,101 @@ async fn phase2_ingest_inner(
             } else {
                 (Vec::new(), Vec::new(), None)
             };
+        file_preps.push(FilePrep {
+            rel_path: rel_path.clone(),
+            file_content,
+            parsed_sections,
+            existing_prop_ids,
+            existing_prop_hashes,
+            existing_doc_id,
+        });
+    }
+
+    // Batch extraction: collect all LLM requests, then submit as one batch
+    // Each file may produce 1+ requests (large files split into chunks)
+    let mut all_requests: Vec<hebbs_llm::LlmRequest> = Vec::new();
+    let mut file_request_ranges: Vec<(usize, usize)> = Vec::new(); // (start, count) per file
+
+    for prep in &file_preps {
+        let requests = crate::extract::build_extraction_requests(
+            &prep.file_content,
+            &prep.rel_path,
+            &prep.parsed_sections,
+            &config.extraction,
+        );
+        let start = all_requests.len();
+        let count = requests.len();
+        all_requests.extend(requests);
+        file_request_ranges.push((start, count));
+    }
+
+    // Submit batch (providers that support batch API use it; others fall back to sequential)
+    info!(
+        "phase2: submitting {} extraction requests for {} files",
+        all_requests.len(),
+        file_preps.len()
+    );
+    let all_responses = llm_provider.complete_batch(all_requests).unwrap_or_else(|e| {
+        warn!("batch extraction failed, falling back to empty results: {}", e);
+        Vec::new()
+    });
+
+    // Process each file with its batch results
+    for (file_idx, prep) in file_preps.iter().enumerate() {
+        let rel_path = &prep.rel_path;
+
+        // Report progress
+        if let Some(ref cb) = progress {
+            cb(file_idx + 1, total_files, rel_path);
+        }
+        info!(
+            "phase2: processing [{}/{}] {}",
+            file_idx + 1,
+            total_files,
+            rel_path
+        );
+
+        // Reconstruct ExtractionOutput from batch responses for this file
+        let prefetched = if !all_responses.is_empty() {
+            let (start, count) = file_request_ranges[file_idx];
+            if start + count <= all_responses.len() {
+                let outputs: Vec<hebbs_llm::extraction::ExtractionOutput> = all_responses
+                    [start..start + count]
+                    .iter()
+                    .map(hebbs_llm::extraction::parse_extraction_result)
+                    .collect();
+                if outputs.len() == 1 {
+                    Some(outputs.into_iter().next().unwrap())
+                } else {
+                    Some(crate::extract::merge_extraction_outputs(outputs))
+                }
+            } else {
+                None // batch didn't return enough results for this file
+            }
+        } else {
+            None // batch failed entirely, extract_and_store_file will call LLM directly
+        };
 
         // Delete old document memory (will be replaced by new one)
-        if let Some(ref doc_id_str) = existing_doc_id {
+        if let Some(ref doc_id_str) = prep.existing_doc_id {
             if let Ok(ulid) = doc_id_str.parse::<ulid::Ulid>() {
                 let bytes = ulid.0.to_be_bytes();
                 let _ = engine.delete(&bytes);
             }
         }
 
-        // Extract and store via LLM (with hash-based merge for propositions)
+        // Extract and store (uses prefetched batch result if available, else calls LLM directly)
         let extraction_result =
             crate::extract::extract_and_store_file(crate::extract::ExtractFileParams {
                 engine,
                 provider: llm_provider.as_ref(),
-                file_content: &file_content,
+                file_content: &prep.file_content,
                 rel_path,
-                sections: &parsed_sections,
+                sections: &prep.parsed_sections,
                 config: &config.extraction,
-                existing_proposition_ids: &existing_prop_ids,
-                existing_proposition_hashes: &existing_prop_hashes,
+                existing_proposition_ids: &prep.existing_prop_ids,
+                existing_proposition_hashes: &prep.existing_prop_hashes,
+                prefetched_extraction: prefetched,
             });
 
         // Update manifest with document and proposition IDs
@@ -434,14 +506,20 @@ async fn phase2_ingest_inner(
                 .collect();
             file_entry.proposition_hashes = extraction_result.proposition_hashes.clone();
 
-            // Mark all stale sections as synced for this file
-            let now = Utc::now();
-            for section in &mut file_entry.sections {
-                if section.state == SectionState::ContentStale {
-                    section.state = SectionState::Synced;
+            // Only mark sections as synced if extraction succeeded (has propositions
+            // or no errors). If extraction failed, leave as ContentStale so the next
+            // index retries LLM extraction for this file.
+            let extraction_succeeded = extraction_result.errors == 0
+                || !extraction_result.proposition_memory_ids.is_empty();
+            if extraction_succeeded {
+                let now = Utc::now();
+                for section in &mut file_entry.sections {
+                    if section.state == SectionState::ContentStale {
+                        section.state = SectionState::Synced;
+                    }
                 }
+                file_entry.last_embedded = Some(now);
             }
-            file_entry.last_embedded = Some(now);
         }
 
         if !extraction_result.proposition_memory_ids.is_empty() {
@@ -457,6 +535,7 @@ async fn phase2_ingest_inner(
             stats.sections_embedded += 1;
         }
         stats.errors += extraction_result.errors;
+        stats.edges_created += extraction_result.edges_created;
 
         // Run contradiction detection on the document memory.
         // Document memories represent file-level content and are the right

@@ -35,6 +35,8 @@ pub struct FileExtractionResult {
     pub entities_extracted: usize,
     /// Number of relations extracted.
     pub relations_extracted: usize,
+    /// Number of graph edges created from relations (Layer 3).
+    pub edges_created: usize,
     /// Errors encountered during extraction.
     pub errors: usize,
 }
@@ -82,6 +84,47 @@ fn estimate_tokens(content: &str) -> usize {
     content.len() / 4
 }
 
+/// Find the primary entity mentioned in a proposition's content.
+///
+/// Returns the entity name with the earliest occurrence in the text (case-insensitive).
+/// This becomes the proposition's entity_id, enabling temporal recall by entity.
+fn find_primary_entity(
+    content: &str,
+    entities: &[extraction::ExtractedEntity],
+) -> Option<String> {
+    let lower = content.to_lowercase();
+    entities
+        .iter()
+        .filter_map(|e| {
+            lower
+                .find(&e.name.to_lowercase())
+                .map(|pos| (pos, &e.name))
+        })
+        .min_by_key(|(pos, _)| *pos)
+        .map(|(_, name)| name.to_lowercase())
+}
+
+/// Record which entities appear in a proposition's content.
+///
+/// Populates the entity-to-proposition-id mapping used later
+/// to create relation edges between propositions.
+fn record_entity_mentions(
+    content: &str,
+    entities: &[extraction::ExtractedEntity],
+    memory_id: [u8; 16],
+    entity_map: &mut HashMap<String, Vec<[u8; 16]>>,
+) {
+    let lower = content.to_lowercase();
+    for entity in entities {
+        if lower.contains(&entity.name.to_lowercase()) {
+            entity_map
+                .entry(entity.name.to_lowercase())
+                .or_default()
+                .push(memory_id);
+        }
+    }
+}
+
 /// Parameters for [`extract_and_store_file`].
 pub struct ExtractFileParams<'a> {
     pub engine: &'a Engine,
@@ -92,6 +135,8 @@ pub struct ExtractFileParams<'a> {
     pub config: &'a ExtractionConfig,
     pub existing_proposition_ids: &'a [String],
     pub existing_proposition_hashes: &'a [String],
+    /// Pre-fetched extraction output from batch mode. If Some, skips LLM call.
+    pub prefetched_extraction: Option<ExtractionOutput>,
 }
 
 /// Extract and store triple-layer memories for a single file.
@@ -117,6 +162,7 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         config,
         existing_proposition_ids,
         existing_proposition_hashes,
+        prefetched_extraction,
     } = params;
     let mut result = FileExtractionResult::default();
 
@@ -184,8 +230,10 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         }
     };
 
-    // Layer 2+3: Extract propositions and entities via LLM
-    let extraction_output = if tokens > config.large_file_threshold {
+    // Layer 2+3: Extract propositions and entities via LLM (or use prefetched batch result)
+    let extraction_output = if let Some(prefetched) = prefetched_extraction {
+        prefetched
+    } else if tokens > config.large_file_threshold {
         extract_large_file(provider, &cleaned_content, rel_path, sections, config)
     } else {
         match extraction::extract_from_content(provider, &cleaned_content, rel_path) {
@@ -222,6 +270,9 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
     // Track which existing hashes were matched (to know which to delete)
     let mut matched_existing_hashes: HashSet<String> = HashSet::new();
 
+    // Layer 3 prep: build entity-to-proposition mapping for relation edges
+    let mut entity_to_prop_ids: HashMap<String, Vec<[u8; 16]>> = HashMap::new();
+
     for prop in propositions {
         if prop.content.trim().is_empty() {
             continue;
@@ -243,6 +294,13 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
                     let bytes = ulid.0.to_be_bytes();
                     result.proposition_memory_ids.push(bytes);
                     result.proposition_hashes.push(hash);
+                    // Track entity mentions for relation edges (Layer 3)
+                    record_entity_mentions(
+                        &prop.content,
+                        &extraction_output.entities,
+                        bytes,
+                        &mut entity_to_prop_ids,
+                    );
                 }
             }
             continue;
@@ -273,11 +331,15 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
             Vec::new()
         };
 
+        // Layer 3: determine primary entity for this proposition
+        let primary_entity =
+            find_primary_entity(&prop.content, &extraction_output.entities);
+
         let prop_input = RememberInput {
             content: prop.content.clone(),
             importance: Some(0.5),
             context: Some(prop_context),
-            entity_id: None,
+            entity_id: primary_entity,
             edges,
             kind: Some(MemoryKind::Proposition),
         };
@@ -289,6 +351,13 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
                     arr.copy_from_slice(&memory.memory_id);
                     result.proposition_memory_ids.push(arr);
                     result.proposition_hashes.push(hash);
+                    // Track entity mentions for relation edges (Layer 3)
+                    record_entity_mentions(
+                        &prop.content,
+                        &extraction_output.entities,
+                        arr,
+                        &mut entity_to_prop_ids,
+                    );
                 }
             }
             Err(e) => {
@@ -312,11 +381,111 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         }
     }
 
-    // Layer 3: Entity and relation edges
+    // Layer 3: Create relation edges between proposition memories
+    let mut edges_created: usize = 0;
+    for relation in &extraction_output.relations {
+        let source_key = relation.source.to_lowercase();
+        let target_key = relation.target.to_lowercase();
+
+        let source_ids = entity_to_prop_ids.get(&source_key);
+        let target_ids = entity_to_prop_ids.get(&target_key);
+
+        if let (Some(src_ids), Some(tgt_ids)) = (source_ids, target_ids) {
+            // Connect first proposition mentioning source to first mentioning target.
+            // Avoids N*M edge explosion while capturing the relation.
+            if let (Some(&src_id), Some(&tgt_id)) = (src_ids.first(), tgt_ids.first()) {
+                if src_id != tgt_id {
+                    if let Err(e) = engine.add_edge(
+                        &src_id,
+                        &tgt_id,
+                        EdgeType::EntityRelation,
+                        relation.confidence,
+                    ) {
+                        debug!(
+                            "failed to create relation edge {} -[{}]-> {} in {}: {}",
+                            relation.source, relation.relation_type, relation.target,
+                            rel_path, e
+                        );
+                    } else {
+                        edges_created += 1;
+                    }
+                }
+            }
+        }
+    }
+
     result.entities_extracted = extraction_output.entities.len();
     result.relations_extracted = extraction_output.relations.len();
+    result.edges_created = edges_created;
 
     result
+}
+
+/// Build LLM extraction requests for a file without calling the provider.
+/// Used by batch mode to collect all requests before submitting them together.
+/// Returns a list of (context, content) pairs that need extraction.
+pub fn build_extraction_requests(
+    file_content: &str,
+    rel_path: &str,
+    sections: &[ParsedSection],
+    config: &ExtractionConfig,
+) -> Vec<hebbs_llm::LlmRequest> {
+    let cleaned_content = strip_boilerplate(file_content);
+    if cleaned_content.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let tokens = estimate_tokens(&cleaned_content);
+
+    if tokens > config.large_file_threshold {
+        // Large file: one request per section
+        let doc_context = format!(
+            "Document: {}. This chunk is part of a larger document.",
+            rel_path
+        );
+        if sections.is_empty() {
+            return vec![extraction::build_extraction_request(
+                &cleaned_content,
+                &doc_context,
+            )];
+        }
+        let mut requests = Vec::new();
+        for section in sections {
+            let cleaned = strip_boilerplate(&section.content);
+            if cleaned.trim().is_empty() {
+                continue;
+            }
+            let chunk_context = format!(
+                "{} Section: {}",
+                doc_context,
+                section.heading_path.join(" > ")
+            );
+            requests.push(extraction::build_extraction_request(&cleaned, &chunk_context));
+        }
+        requests
+    } else {
+        // Small file: one request for the whole file
+        vec![extraction::build_extraction_request(
+            &cleaned_content,
+            rel_path,
+        )]
+    }
+}
+
+/// Merge multiple extraction outputs into one (for large file chunks).
+pub fn merge_extraction_outputs(outputs: Vec<ExtractionOutput>) -> ExtractionOutput {
+    let mut combined = ExtractionOutput::default();
+    for output in outputs {
+        combined.propositions.extend(output.propositions);
+        combined.entities.extend(output.entities);
+        combined.relations.extend(output.relations);
+    }
+    // Deduplicate entities by name
+    let mut seen_entities = std::collections::HashSet::new();
+    combined
+        .entities
+        .retain(|e| seen_entities.insert(e.name.clone()));
+    combined
 }
 
 /// Extract from a large file by splitting into heading-based chunks.

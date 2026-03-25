@@ -1091,11 +1091,23 @@ async fn dispatch_command(
             let idx_snap = indexing_progress.lock().await.get(&vault_path).cloned();
             match crate::status(&vault_path) {
                 Ok(s) => {
+                    // Count actual memories: document + proposition memories from manifest
+                    let total_memories = {
+                        let hebbs_dir = vault_path.join(".hebbs");
+                        if let Ok(manifest) = crate::manifest::Manifest::load(&hebbs_dir) {
+                            manifest.files.values().map(|f| {
+                                let doc = if f.document_memory_id.is_some() { 1usize } else { 0 };
+                                doc + f.proposition_memory_ids.len()
+                            }).sum::<usize>()
+                        } else {
+                            s.synced
+                        }
+                    };
                     let mut resp = serde_json::json!({
                         "vault_root": s.vault_root.display().to_string(),
                         "total_files": s.total_files,
                         "total_sections": s.total_sections,
-                        "total_memories": s.synced,
+                        "total_memories": total_memories,
                         "synced": s.synced,
                         "content_stale": s.content_stale,
                         "orphaned": s.orphaned,
@@ -1210,7 +1222,7 @@ async fn dispatch_command(
             manifest.save(&hebbs_dir).ok();
 
             // Update progress: phase 1 complete, entering phase 2
-            let (synced, stale, orphaned) = manifest.section_counts();
+            let (_synced, stale, orphaned) = manifest.section_counts();
             let sections_to_process = stale + orphaned;
             {
                 let mut prog = indexing_progress.lock().await;
@@ -1226,10 +1238,10 @@ async fn dispatch_command(
             ));
 
             // Phase 2: LLM extraction (file-first pipeline)
-            // Skip contradiction detection on first full index
-            // (no existing memories to contradict against).
-            let is_first_index = synced == 0;
-            let run_contradictions = !is_first_index;
+            // Always run contradiction detection. During first index, earlier
+            // files are already in the HNSW index by the time later files are
+            // processed, so cross-document contradictions can be detected.
+            let run_contradictions = true;
             let idx_progress = indexing_progress.clone();
             let vault_path_progress = vault_path.clone();
             let progress_cb: Option<crate::ingest::ProgressCallback> =

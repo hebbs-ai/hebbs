@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{LlmError, Result};
-use crate::provider::{LlmProvider, LlmRequest, ResponseFormat};
+use crate::provider::{LlmProvider, LlmRequest, LlmResponse, ResponseFormat};
 
 /// An atomic fact extracted from content.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,6 +120,34 @@ fn parse_extraction_response(content: &str) -> Result<ExtractionOutput> {
     serde_json::from_str(content).map_err(|e| LlmError::ResponseParse {
         message: format!("invalid extraction JSON: {e}"),
     })
+}
+
+/// Build an LLM request for extraction without calling the provider.
+/// Used by batch mode to collect all requests before submitting them together.
+pub fn build_extraction_request(content: &str, context: &str) -> LlmRequest {
+    let mut metadata = HashMap::new();
+    metadata.insert("stage".into(), "extraction".into());
+
+    LlmRequest {
+        system_message: EXTRACTION_SYSTEM_PROMPT.to_string(),
+        user_message: format!(
+            "Context: {}\n\nContent:\n{}\n\nExtract propositions, entities, and relations as JSON.",
+            context, content
+        ),
+        max_tokens: 4000,
+        temperature: 0.0,
+        response_format: crate::provider::ResponseFormat::Json,
+        metadata,
+    }
+}
+
+/// Parse an LLM response into extraction output.
+/// Used by batch mode to process results after batch completes.
+pub fn parse_extraction_result(response: &LlmResponse) -> ExtractionOutput {
+    if response.content.trim().is_empty() {
+        return ExtractionOutput::default();
+    }
+    parse_extraction_response(&response.content).unwrap_or_default()
 }
 
 #[cfg(test)]

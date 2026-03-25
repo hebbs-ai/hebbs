@@ -34,6 +34,19 @@ pub struct LlmResponse {
 /// All calls are blocking (no async runtime required).
 pub trait LlmProvider: Send + Sync {
     fn complete(&self, request: LlmRequest) -> Result<LlmResponse>;
+
+    /// Process a batch of requests. Cloud providers (OpenAI, Anthropic, Gemini)
+    /// override this with their Batch API for 50% cost reduction.
+    /// Default: sequential fallback via `complete()`.
+    fn complete_batch(&self, requests: Vec<LlmRequest>) -> Result<Vec<LlmResponse>> {
+        requests.into_iter().map(|r| self.complete(r)).collect()
+    }
+
+    /// Whether this provider supports true batch processing (async, cheaper).
+    /// Used by ingest to decide whether to show batch progress info.
+    fn supports_batch(&self) -> bool {
+        false
+    }
 }
 
 /// Configuration for an LLM provider.
