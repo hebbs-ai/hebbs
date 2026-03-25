@@ -1,0 +1,182 @@
+---
+const posts = [
+  {
+    title: "Stop Building Opinionated Memory",
+    description: "Every agent memory system picks one retrieval strategy and optimizes for one benchmark. The right answer is to let agents tune retrieval themselves.",
+    date: "Mar 25, 2026",
+    tags: ["engineering", "agents"],
+    href: "https://blog.hebbs.ai/stop-building-opinionated-memory/",
+    image: "https://blog.hebbs.ai/images/stop-building-opinionated-memory.png",
+  },
+  {
+    title: "Your Agent Is Asking the Wrong Questions",
+    description: "Raw conversational queries score 0.49 relevance. Rewritten cues score 0.87. The difference is query rewriting, strategy selection, and weight tuning.",
+    date: "Mar 14, 2026",
+    tags: ["engineering", "recall"],
+    href: "https://blog.hebbs.ai/your-agent-is-asking-the-wrong-questions/",
+    image: "https://blog.hebbs.ai/images/your-agent-is-asking-the-wrong-questions.png",
+  },
+  {
+    title: "How HEBBS Scores Memories",
+    description: "A deep dive into how HEBBS ranks, reinforces, and decays memories. Four signals, three scoring systems, one lifecycle.",
+    date: "Mar 14, 2026",
+    tags: ["deep-dive", "scoring"],
+    href: "https://blog.hebbs.ai/how-hebbs-scores-memories/",
+    image: "https://blog.hebbs.ai/images/how-hebbs-scores-memories.png",
+  },
+  {
+    title: "Reflect and Contradict",
+    description: "Two pipelines that turn raw episodes into consolidated insights and surface conflicting facts before they cause problems.",
+    date: "Mar 14, 2026",
+    tags: ["engineering", "reflection"],
+    href: "https://blog.hebbs.ai/reflect-and-contradict/",
+    image: "https://blog.hebbs.ai/images/reflect-and-contradict.png",
+  },
+];
+---
+
+<section id="blog" class="py-20 md:py-28 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-12">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">From the Blog</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        Read the engineering notes.
+      </h2>
+      <p class="text-muted text-lg max-w-2xl mx-auto">
+        How we think about agent memory, scoring, retrieval, and the design decisions behind HEBBS.
+      </p>
+    </div>
+
+    <!-- Slider container -->
+    <div class="relative">
+      <!-- Scroll shadow hints -->
+      <div id="blog-fade-left" class="absolute left-0 top-0 bottom-0 w-12 z-10 pointer-events-none opacity-0 transition-opacity duration-300" style="background: linear-gradient(to right, var(--color-navy), transparent);"></div>
+      <div id="blog-fade-right" class="absolute right-0 top-0 bottom-0 w-12 z-10 pointer-events-none opacity-0 transition-opacity duration-300" style="background: linear-gradient(to left, var(--color-navy), transparent);"></div>
+
+      <!-- Cards track -->
+      <div id="blog-track" class="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide" style="-webkit-overflow-scrolling: touch;">
+        {posts.map((post, i) => (
+          <a
+            href={post.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            class:list={[
+              "blog-card group flex-shrink-0 snap-start",
+              "w-[320px] md:w-[340px]",
+              "rounded-xl border border-border/60 bg-surface/40",
+              "p-6 flex flex-col gap-4",
+              "hover:border-accent/40 hover:bg-surface/60 transition-all duration-300",
+              "no-underline",
+            ]}
+            style={`animation-delay: ${i * 100}ms`}
+          >
+            <div class="rounded-lg overflow-hidden border border-border/30 -mx-0.5">
+              <img
+                src={post.image}
+                alt={post.title}
+                class="w-full aspect-[1200/630] object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                loading="lazy"
+              />
+            </div>
+            <div class="flex items-center gap-2 text-xs font-mono text-muted">
+              <time>{post.date}</time>
+              <span class="text-border">|</span>
+              {post.tags.map(tag => (
+                <span class="bg-accent/[0.08] text-accent px-2 py-0.5 rounded-full">{tag}</span>
+              ))}
+            </div>
+            <h3 class="text-lg font-semibold tracking-tight leading-snug group-hover:text-accent transition-colors duration-200">
+              {post.title}
+            </h3>
+            <p class="text-sm text-muted leading-relaxed flex-1">
+              {post.description}
+            </p>
+            <div class="flex items-center gap-1.5 text-xs font-medium text-accent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              Read more
+              <svg class="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <!-- See more -->
+    <div class="text-center mt-8">
+      <a
+        href="https://blog.hebbs.ai"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border/60 text-sm font-medium text-muted hover:text-accent hover:border-accent/40 transition-all duration-200 no-underline"
+      >
+        See all posts
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Hide scrollbar but keep scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Fade-in animation for cards */
+  .blog-card {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .blog-card.visible {
+    animation: blog-card-in 0.5s ease-out forwards;
+  }
+
+  @keyframes blog-card-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+
+<script is:inline>
+(function() {
+  const track = document.getElementById('blog-track');
+  const fadeL = document.getElementById('blog-fade-left');
+  const fadeR = document.getElementById('blog-fade-right');
+  if (!track || !fadeL || !fadeR) return;
+
+  // Scroll fade indicators
+  function updateFades() {
+    const sl = track.scrollLeft;
+    const maxScroll = track.scrollWidth - track.clientWidth;
+    fadeL.style.opacity = sl > 12 ? '1' : '0';
+    fadeR.style.opacity = sl < maxScroll - 12 ? '1' : '0';
+  }
+  track.addEventListener('scroll', updateFades, { passive: true });
+  // Initial check after layout
+  requestAnimationFrame(() => {
+    updateFades();
+  });
+
+  // Intersection observer for card entry animation
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        // Animate all cards when section enters viewport
+        const cards = track.querySelectorAll('.blog-card');
+        cards.forEach(c => c.classList.add('visible'));
+        observer.disconnect();
+      }
+    });
+  }, { threshold: 0.15 });
+  observer.observe(track);
+})();
+</script>
