@@ -92,11 +92,12 @@ impl ApiEmbedder {
 
             match resp {
                 Ok(resp) => {
-                    let text = resp.into_body().read_to_string().map_err(|e| {
-                        EmbedError::Inference {
-                            message: format!("failed to read embedding response: {e}"),
-                        }
-                    })?;
+                    let text =
+                        resp.into_body()
+                            .read_to_string()
+                            .map_err(|e| EmbedError::Inference {
+                                message: format!("failed to read embedding response: {e}"),
+                            })?;
 
                     let parsed: serde_json::Value =
                         serde_json::from_str(&text).map_err(|e| EmbedError::Inference {
@@ -111,11 +112,12 @@ impl ApiEmbedder {
 
                     let mut results = Vec::with_capacity(data.len());
                     for item in data {
-                        let embedding = item["embedding"]
-                            .as_array()
-                            .ok_or_else(|| EmbedError::Inference {
-                                message: "no 'embedding' array in response item".into(),
-                            })?;
+                        let embedding =
+                            item["embedding"]
+                                .as_array()
+                                .ok_or_else(|| EmbedError::Inference {
+                                    message: "no 'embedding' array in response item".into(),
+                                })?;
 
                         let mut vec: Vec<f32> = embedding
                             .iter()

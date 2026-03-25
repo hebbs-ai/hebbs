@@ -435,10 +435,14 @@ async fn phase2_ingest_inner(
     let all_results = llm_provider.complete_parallel(all_requests);
     let all_responses: Vec<hebbs_llm::LlmResponse> = all_results
         .into_iter()
-        .map(|r| r.unwrap_or_else(|e| {
-            warn!("extraction request failed: {}", e);
-            hebbs_llm::LlmResponse { content: String::new() }
-        }))
+        .map(|r| {
+            r.unwrap_or_else(|e| {
+                warn!("extraction request failed: {}", e);
+                hebbs_llm::LlmResponse {
+                    content: String::new(),
+                }
+            })
+        })
         .collect();
 
     // Process each file with its batch results

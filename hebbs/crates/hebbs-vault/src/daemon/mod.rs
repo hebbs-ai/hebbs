@@ -1141,10 +1141,18 @@ async fn dispatch_command(
                     let total_memories = {
                         let hebbs_dir = vault_path.join(".hebbs");
                         if let Ok(manifest) = crate::manifest::Manifest::load(&hebbs_dir) {
-                            manifest.files.values().map(|f| {
-                                let doc = if f.document_memory_id.is_some() { 1usize } else { 0 };
-                                doc + f.proposition_memory_ids.len()
-                            }).sum::<usize>()
+                            manifest
+                                .files
+                                .values()
+                                .map(|f| {
+                                    let doc = if f.document_memory_id.is_some() {
+                                        1usize
+                                    } else {
+                                        0
+                                    };
+                                    doc + f.proposition_memory_ids.len()
+                                })
+                                .sum::<usize>()
                         } else {
                             s.synced
                         }

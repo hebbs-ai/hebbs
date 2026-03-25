@@ -1,7 +1,5 @@
 use serde::Serialize;
 
-
-
 use crate::error::{LlmError, Result};
 use crate::http::{http_get, http_post_json, make_batch_agent, make_http_agent};
 use crate::provider::{LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse};
@@ -103,18 +101,22 @@ impl LlmProvider for AnthropicProvider {
         eprintln!("Anthropic batch: submitting {} requests", requests.len());
 
         let batch_agent = make_batch_agent();
-        let batch_requests: Vec<serde_json::Value> = requests.iter().enumerate().map(|(i, req)| {
-            serde_json::json!({
-                "custom_id": format!("req-{i}"),
-                "params": {
-                    "model": self.model,
-                    "max_tokens": req.max_tokens,
-                    "temperature": req.temperature,
-                    "system": req.system_message,
-                    "messages": [{"role": "user", "content": req.user_message}]
-                }
+        let batch_requests: Vec<serde_json::Value> = requests
+            .iter()
+            .enumerate()
+            .map(|(i, req)| {
+                serde_json::json!({
+                    "custom_id": format!("req-{i}"),
+                    "params": {
+                        "model": self.model,
+                        "max_tokens": req.max_tokens,
+                        "temperature": req.temperature,
+                        "system": req.system_message,
+                        "messages": [{"role": "user", "content": req.user_message}]
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // 1. Create batch
         let create_url = format!("{}/v1/messages/batches", self.base_url);
@@ -124,13 +126,17 @@ impl LlmProvider for AnthropicProvider {
             ("anthropic-version", "2023-06-01"),
             ("anthropic-beta", "message-batches-2024-09-24"),
         ];
-        let create_text = http_post_json(
-            &batch_agent, &create_url, &headers, &create_body, 2, 2000,
-        )?;
-        let create_json: serde_json::Value = serde_json::from_str(&create_text)
-            .map_err(|e| LlmError::ResponseParse { message: format!("parse batch create: {e}") })?;
-        let batch_id = create_json["id"].as_str()
-            .ok_or_else(|| LlmError::ResponseParse { message: "no batch id".into() })?
+        let create_text =
+            http_post_json(&batch_agent, &create_url, &headers, &create_body, 2, 2000)?;
+        let create_json: serde_json::Value =
+            serde_json::from_str(&create_text).map_err(|e| LlmError::ResponseParse {
+                message: format!("parse batch create: {e}"),
+            })?;
+        let batch_id = create_json["id"]
+            .as_str()
+            .ok_or_else(|| LlmError::ResponseParse {
+                message: "no batch id".into(),
+            })?
             .to_string();
 
         eprintln!("Anthropic batch: created {}, polling...", batch_id);
@@ -145,16 +151,23 @@ impl LlmProvider for AnthropicProvider {
         let results_url = loop {
             std::thread::sleep(std::time::Duration::from_secs(5));
             let status_text = http_get(&batch_agent, &status_url, &poll_headers)?;
-            let status_json: serde_json::Value = serde_json::from_str(&status_text)
-                .map_err(|e| LlmError::ResponseParse { message: format!("parse batch status: {e}") })?;
+            let status_json: serde_json::Value =
+                serde_json::from_str(&status_text).map_err(|e| LlmError::ResponseParse {
+                    message: format!("parse batch status: {e}"),
+                })?;
 
-            let status = status_json["processing_status"].as_str().unwrap_or("unknown");
+            let status = status_json["processing_status"]
+                .as_str()
+                .unwrap_or("unknown");
             eprintln!("Anthropic batch {} status: {}", batch_id, status);
 
             match status {
                 "ended" => {
-                    let url = status_json["results_url"].as_str()
-                        .ok_or_else(|| LlmError::ResponseParse { message: "no results_url".into() })?
+                    let url = status_json["results_url"]
+                        .as_str()
+                        .ok_or_else(|| LlmError::ResponseParse {
+                            message: "no results_url".into(),
+                        })?
                         .to_string();
                     break url;
                 }
@@ -167,19 +180,28 @@ impl LlmProvider for AnthropicProvider {
             }
         };
 
-        eprintln!("Anthropic batch {} completed, downloading results", batch_id);
+        eprintln!(
+            "Anthropic batch {} completed, downloading results",
+            batch_id
+        );
 
         // 3. Download results (JSONL)
         let results_text = http_get(&batch_agent, &results_url, &poll_headers)?;
 
         // 4. Parse results
-        let mut result_map: std::collections::HashMap<usize, LlmResponse> = std::collections::HashMap::new();
+        let mut result_map: std::collections::HashMap<usize, LlmResponse> =
+            std::collections::HashMap::new();
         for line in results_text.lines() {
-            if line.trim().is_empty() { continue; }
-            let v: serde_json::Value = serde_json::from_str(line)
-                .map_err(|e| LlmError::ResponseParse { message: format!("parse batch result: {e}") })?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let v: serde_json::Value =
+                serde_json::from_str(line).map_err(|e| LlmError::ResponseParse {
+                    message: format!("parse batch result: {e}"),
+                })?;
             let custom_id = v["custom_id"].as_str().unwrap_or("");
-            let idx: usize = custom_id.strip_prefix("req-")
+            let idx: usize = custom_id
+                .strip_prefix("req-")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(usize::MAX);
 
@@ -202,7 +224,9 @@ impl LlmProvider for AnthropicProvider {
         // 5. Assemble in order
         let mut responses = Vec::with_capacity(requests.len());
         for i in 0..requests.len() {
-            let resp = result_map.remove(&i).unwrap_or(LlmResponse { content: String::new() });
+            let resp = result_map.remove(&i).unwrap_or(LlmResponse {
+                content: String::new(),
+            });
             responses.push(resp);
         }
 

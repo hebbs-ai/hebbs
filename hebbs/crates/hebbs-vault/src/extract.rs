@@ -88,18 +88,11 @@ fn estimate_tokens(content: &str) -> usize {
 ///
 /// Returns the entity name with the earliest occurrence in the text (case-insensitive).
 /// This becomes the proposition's entity_id, enabling temporal recall by entity.
-fn find_primary_entity(
-    content: &str,
-    entities: &[extraction::ExtractedEntity],
-) -> Option<String> {
+fn find_primary_entity(content: &str, entities: &[extraction::ExtractedEntity]) -> Option<String> {
     let lower = content.to_lowercase();
     entities
         .iter()
-        .filter_map(|e| {
-            lower
-                .find(&e.name.to_lowercase())
-                .map(|pos| (pos, &e.name))
-        })
+        .filter_map(|e| lower.find(&e.name.to_lowercase()).map(|pos| (pos, &e.name)))
         .min_by_key(|(pos, _)| *pos)
         .map(|(_, name)| name.to_lowercase())
 }
@@ -332,8 +325,7 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         };
 
         // Layer 3: determine primary entity for this proposition
-        let primary_entity =
-            find_primary_entity(&prop.content, &extraction_output.entities);
+        let primary_entity = find_primary_entity(&prop.content, &extraction_output.entities);
 
         let prop_input = RememberInput {
             content: prop.content.clone(),
@@ -403,8 +395,7 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
                     ) {
                         debug!(
                             "failed to create relation edge {} -[{}]-> {} in {}: {}",
-                            relation.source, relation.relation_type, relation.target,
-                            rel_path, e
+                            relation.source, relation.relation_type, relation.target, rel_path, e
                         );
                     } else {
                         edges_created += 1;
@@ -460,7 +451,10 @@ pub fn build_extraction_requests(
                 doc_context,
                 section.heading_path.join(" > ")
             );
-            requests.push(extraction::build_extraction_request(&cleaned, &chunk_context));
+            requests.push(extraction::build_extraction_request(
+                &cleaned,
+                &chunk_context,
+            ));
         }
         requests
     } else {

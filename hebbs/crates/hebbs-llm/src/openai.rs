@@ -1,7 +1,6 @@
 use serde::Serialize;
 // Note: hebbs-llm doesn't depend on tracing; use eprintln for diagnostics.
 
-
 use crate::error::{LlmError, Result};
 use crate::http::{http_get, http_post_json, make_batch_agent, make_http_agent};
 use crate::provider::{LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat};
@@ -156,14 +155,22 @@ impl LlmProvider for OpenAiProvider {
 
         // 2. Upload JSONL file
         let upload_url = format!("{}/v1/files", self.base_url);
-        let boundary = format!("hebbs-{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis());
+        let boundary = format!(
+            "hebbs-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        );
 
         let mut multipart_body = Vec::new();
         // purpose field
-        multipart_body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nbatch\r\n").as_bytes());
+        multipart_body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nbatch\r\n"
+            )
+            .as_bytes(),
+        );
         // file field
         multipart_body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"batch.jsonl\"\r\nContent-Type: application/jsonl\r\n\r\n").as_bytes());
         multipart_body.extend_from_slice(jsonl.as_bytes());
@@ -175,14 +182,26 @@ impl LlmProvider for OpenAiProvider {
             .header("Authorization", &auth_val)
             .header("Content-Type", &content_type)
             .send(multipart_body.as_slice())
-            .map_err(|e| LlmError::Provider { message: format!("batch file upload failed: {e}") })?;
+            .map_err(|e| LlmError::Provider {
+                message: format!("batch file upload failed: {e}"),
+            })?;
 
-        let upload_text = upload_resp.into_body().read_to_string()
-            .map_err(|e| LlmError::Provider { message: format!("read upload response: {e}") })?;
-        let upload_json: serde_json::Value = serde_json::from_str(&upload_text)
-            .map_err(|e| LlmError::ResponseParse { message: format!("parse upload response: {e}") })?;
-        let file_id = upload_json["id"].as_str()
-            .ok_or_else(|| LlmError::ResponseParse { message: "no file id in upload response".into() })?
+        let upload_text =
+            upload_resp
+                .into_body()
+                .read_to_string()
+                .map_err(|e| LlmError::Provider {
+                    message: format!("read upload response: {e}"),
+                })?;
+        let upload_json: serde_json::Value =
+            serde_json::from_str(&upload_text).map_err(|e| LlmError::ResponseParse {
+                message: format!("parse upload response: {e}"),
+            })?;
+        let file_id = upload_json["id"]
+            .as_str()
+            .ok_or_else(|| LlmError::ResponseParse {
+                message: "no file id in upload response".into(),
+            })?
             .to_string();
 
         eprintln!("OpenAI batch: uploaded file {}", file_id);
@@ -201,14 +220,22 @@ impl LlmProvider for OpenAiProvider {
             completion_window: "24h".into(),
         };
         let create_text = http_post_json(
-            &batch_agent, &create_url,
+            &batch_agent,
+            &create_url,
             &[("Authorization", auth_val.as_str())],
-            &create_body, 2, 2000,
+            &create_body,
+            2,
+            2000,
         )?;
-        let create_json: serde_json::Value = serde_json::from_str(&create_text)
-            .map_err(|e| LlmError::ResponseParse { message: format!("parse batch create: {e}") })?;
-        let batch_id = create_json["id"].as_str()
-            .ok_or_else(|| LlmError::ResponseParse { message: "no batch id".into() })?
+        let create_json: serde_json::Value =
+            serde_json::from_str(&create_text).map_err(|e| LlmError::ResponseParse {
+                message: format!("parse batch create: {e}"),
+            })?;
+        let batch_id = create_json["id"]
+            .as_str()
+            .ok_or_else(|| LlmError::ResponseParse {
+                message: "no batch id".into(),
+            })?
             .to_string();
 
         eprintln!("OpenAI batch: created {}, polling...", batch_id);
@@ -219,16 +246,21 @@ impl LlmProvider for OpenAiProvider {
         let output_file_id = loop {
             std::thread::sleep(std::time::Duration::from_secs(5));
             let status_text = http_get(&batch_agent, &status_url, &poll_headers)?;
-            let status_json: serde_json::Value = serde_json::from_str(&status_text)
-                .map_err(|e| LlmError::ResponseParse { message: format!("parse batch status: {e}") })?;
+            let status_json: serde_json::Value =
+                serde_json::from_str(&status_text).map_err(|e| LlmError::ResponseParse {
+                    message: format!("parse batch status: {e}"),
+                })?;
 
             let status = status_json["status"].as_str().unwrap_or("unknown");
             eprintln!("OpenAI batch {} status: {}", batch_id, status);
 
             match status {
                 "completed" => {
-                    let fid = status_json["output_file_id"].as_str()
-                        .ok_or_else(|| LlmError::ResponseParse { message: "no output_file_id".into() })?
+                    let fid = status_json["output_file_id"]
+                        .as_str()
+                        .ok_or_else(|| LlmError::ResponseParse {
+                            message: "no output_file_id".into(),
+                        })?
                         .to_string();
                     break fid;
                 }
@@ -249,13 +281,19 @@ impl LlmProvider for OpenAiProvider {
         let results_text = http_get(&batch_agent, &download_url, &poll_headers)?;
 
         // 6. Parse JSONL results, order by custom_id
-        let mut result_map: std::collections::HashMap<usize, LlmResponse> = std::collections::HashMap::new();
+        let mut result_map: std::collections::HashMap<usize, LlmResponse> =
+            std::collections::HashMap::new();
         for line in results_text.lines() {
-            if line.trim().is_empty() { continue; }
-            let v: serde_json::Value = serde_json::from_str(line)
-                .map_err(|e| LlmError::ResponseParse { message: format!("parse batch result line: {e}") })?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let v: serde_json::Value =
+                serde_json::from_str(line).map_err(|e| LlmError::ResponseParse {
+                    message: format!("parse batch result line: {e}"),
+                })?;
             let custom_id = v["custom_id"].as_str().unwrap_or("");
-            let idx: usize = custom_id.strip_prefix("req-")
+            let idx: usize = custom_id
+                .strip_prefix("req-")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(usize::MAX);
 
@@ -271,14 +309,21 @@ impl LlmProvider for OpenAiProvider {
             } else {
                 let err_msg = v["error"].to_string();
                 eprintln!("OpenAI batch item {} error: {}", custom_id, err_msg);
-                result_map.insert(idx, LlmResponse { content: String::new() });
+                result_map.insert(
+                    idx,
+                    LlmResponse {
+                        content: String::new(),
+                    },
+                );
             }
         }
 
         // 7. Assemble in order
         let mut responses = Vec::with_capacity(requests.len());
         for i in 0..requests.len() {
-            let resp = result_map.remove(&i).unwrap_or(LlmResponse { content: String::new() });
+            let resp = result_map.remove(&i).unwrap_or(LlmResponse {
+                content: String::new(),
+            });
             responses.push(resp);
         }
 

@@ -1,7 +1,5 @@
 use serde::Serialize;
 
-
-
 use crate::error::{LlmError, Result};
 use crate::http::{http_post_json, make_batch_agent, make_http_agent};
 use crate::provider::{LlmProvider, LlmProviderConfig, LlmRequest, LlmResponse, ResponseFormat};
@@ -136,28 +134,32 @@ impl LlmProvider for GeminiProvider {
         let batch_agent = make_batch_agent();
 
         // Build inline requests array for Gemini BatchGenerateContent
-        let inline_requests: Vec<serde_json::Value> = requests.iter().enumerate().map(|(i, req)| {
-            let response_mime_type = if req.response_format == ResponseFormat::Json {
-                Some("application/json")
-            } else {
-                None
-            };
-            let mut gen_config = serde_json::json!({
-                "temperature": req.temperature,
-                "maxOutputTokens": req.max_tokens,
-            });
-            if let Some(mime) = response_mime_type {
-                gen_config["responseMimeType"] = serde_json::json!(mime);
-            }
-            serde_json::json!({
-                "key": format!("req-{i}"),
-                "request": {
-                    "contents": [{"role": "user", "parts": [{"text": req.user_message}]}],
-                    "systemInstruction": {"parts": [{"text": req.system_message}]},
-                    "generationConfig": gen_config
+        let inline_requests: Vec<serde_json::Value> = requests
+            .iter()
+            .enumerate()
+            .map(|(i, req)| {
+                let response_mime_type = if req.response_format == ResponseFormat::Json {
+                    Some("application/json")
+                } else {
+                    None
+                };
+                let mut gen_config = serde_json::json!({
+                    "temperature": req.temperature,
+                    "maxOutputTokens": req.max_tokens,
+                });
+                if let Some(mime) = response_mime_type {
+                    gen_config["responseMimeType"] = serde_json::json!(mime);
                 }
+                serde_json::json!({
+                    "key": format!("req-{i}"),
+                    "request": {
+                        "contents": [{"role": "user", "parts": [{"text": req.user_message}]}],
+                        "systemInstruction": {"parts": [{"text": req.system_message}]},
+                        "generationConfig": gen_config
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Gemini uses a single POST with all requests inline
         let batch_url = format!(
@@ -166,17 +168,20 @@ impl LlmProvider for GeminiProvider {
         );
         let batch_body = serde_json::json!({ "requests": inline_requests });
 
-        let batch_text = http_post_json(
-            &batch_agent, &batch_url, &[], &batch_body,
-            3, 5000,
-        )?;
+        let batch_text = http_post_json(&batch_agent, &batch_url, &[], &batch_body, 3, 5000)?;
 
-        let batch_json: serde_json::Value = serde_json::from_str(&batch_text)
-            .map_err(|e| LlmError::ResponseParse { message: format!("parse Gemini batch: {e}") })?;
+        let batch_json: serde_json::Value =
+            serde_json::from_str(&batch_text).map_err(|e| LlmError::ResponseParse {
+                message: format!("parse Gemini batch: {e}"),
+            })?;
 
         // Gemini returns inline_responses array in order
-        let inline_responses = batch_json["inlineResponses"].as_array()
-            .ok_or_else(|| LlmError::ResponseParse { message: "no inlineResponses".into() })?;
+        let inline_responses =
+            batch_json["inlineResponses"]
+                .as_array()
+                .ok_or_else(|| LlmError::ResponseParse {
+                    message: "no inlineResponses".into(),
+                })?;
 
         let mut responses = Vec::with_capacity(requests.len());
         for (i, resp) in inline_responses.iter().enumerate() {
@@ -197,7 +202,9 @@ impl LlmProvider for GeminiProvider {
 
         // Pad if fewer responses than requests
         while responses.len() < requests.len() {
-            responses.push(LlmResponse { content: String::new() });
+            responses.push(LlmResponse {
+                content: String::new(),
+            });
         }
 
         eprintln!("Gemini batch: {} results returned", responses.len());

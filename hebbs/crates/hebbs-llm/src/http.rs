@@ -19,11 +19,7 @@ pub(crate) fn make_batch_agent() -> ureq::Agent {
 }
 
 /// GET a URL with headers, return response body as string.
-pub(crate) fn http_get(
-    agent: &ureq::Agent,
-    url: &str,
-    headers: &[(&str, &str)],
-) -> Result<String> {
+pub(crate) fn http_get(agent: &ureq::Agent, url: &str, headers: &[(&str, &str)]) -> Result<String> {
     let mut req = agent.get(url);
     for &(k, v) in headers {
         req = req.header(k, v);
