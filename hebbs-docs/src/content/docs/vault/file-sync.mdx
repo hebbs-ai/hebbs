@@ -7,22 +7,33 @@ HEBBS Vault turns your markdown files into searchable memories. This page explai
 
 ## Indexing
 
-When you run `hebbs index`, HEBBS:
+When you run `hebbs index`, HEBBS processes files through a two-phase pipeline:
+
+**Phase 1 (local, fast):**
 
 1. **Scans** the vault directory for `.md` files, respecting ignore patterns from `config.toml`.
 2. **Splits** each file by heading level (default: `##` headings). Sections shorter than `min_section_length` merge with their parent.
 3. **Hashes** each section's content (SHA-256) and compares against the manifest to detect changes.
-4. **Embeds** new or changed sections using the on-device ONNX model (EmbeddingGemma-300M, 768 dimensions).
-5. **Stores** each section as a HEBBS memory in RocksDB with the file path and heading as metadata.
-6. **Detects contradictions** against existing memories if contradiction detection is enabled.
 
-Unchanged sections are skipped. Deleted sections are forgotten. Revised sections create new revisions linked to the original memory.
+**Phase 2 (LLM + embedding):**
+
+For each file with changes, HEBBS creates a triple-layer memory structure:
+
+4. **Layer 1 -- Document memory**: The full file content (or an LLM summary for large files) is stored as a single Document memory with the file path as metadata.
+5. **Layer 2 -- Proposition extraction**: The LLM extracts atomic facts from the content. Each proposition ("The ransomware coverage is $2,000,000 per incident") becomes its own Proposition memory linked to the Document via a `PropositionOf` edge.
+6. **Layer 3 -- Entity & relation extraction**: The LLM identifies named entities (people, organizations, products) and relationships between them. Entities become `entity_id` values on propositions (enabling temporal recall by entity). Relationships become `EntityRelation` graph edges between propositions.
+7. **Embedding**: All memories are embedded using the on-device ONNX model (EmbeddingGemma-300M, 768 dimensions).
+8. **Contradiction detection**: Each Document memory is checked against existing memories. Confirmed contradictions create `Contradicts` edges; revisions create `RevisedFrom` edges.
+
+Extraction requests are sent to the LLM in parallel (10 concurrent by default) for speed. Unchanged sections are skipped via hash-based merge. Deleted sections are forgotten.
+
+If extraction fails for a file (e.g., LLM timeout), its sections remain marked as stale and will be retried on the next `hebbs index` run.
 
 ### What Gets Indexed
 
 - All `.md` files in the vault directory (recursive)
-- Each heading-delimited section becomes one memory
-- File path and heading are stored as context metadata
+- Each file produces: 1 Document memory + N Proposition memories + entity/relation graph edges
+- File path, heading, and content hash are stored as context metadata
 
 ### What Gets Ignored
 

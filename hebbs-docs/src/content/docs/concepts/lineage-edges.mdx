@@ -14,6 +14,9 @@ Memories in HEBBS are not isolated. They connect via typed edges that form a gra
 | **FollowedBy** | A → B | A happened before B in sequence. Temporal ordering. |
 | **RevisedFrom** | A → B | A is a revision that supersedes B. B is the predecessor. |
 | **InsightFrom** | A → B | A (an Insight) was derived from B (an Episode). Provenance. |
+| **Contradicts** | A ↔ B | A and B assert opposing facts. Detected automatically during indexing. |
+| **PropositionOf** | A → B | A (a Proposition) was extracted from B (a Document). Layer 2 provenance. |
+| **EntityRelation** | A → B | A and B are connected via an entity relationship extracted by the LLM. Created automatically during indexing (Layer 3). |
 
 Edges are stored with the memory record. They are indexed for graph traversal during causal recall and for lineage queries.
 
@@ -24,6 +27,16 @@ When you call `revise`, HEBBS creates a new memory with `kind: Revision` and an 
 When the reflection pipeline produces an insight, it creates an Insight-kind memory with `InsightFrom` edges to each source episode. The lineage graph answers: "Which raw memories support this insight?" This is critical for auditability and for explaining AI behavior.
 
 Causal edges (CausedBy, FollowedBy) are typically set at write time by the application. For example, when storing a conversation turn, you might add CausedBy to the previous user message. The agent can then use causal recall to trace reasoning chains.
+
+## Automatic Edge Creation During Indexing
+
+When files are indexed, HEBBS creates edges automatically at three layers:
+
+- **Layer 1 → Layer 2**: Each Proposition gets a `PropositionOf` edge to its parent Document memory.
+- **Layer 3**: The LLM extracts named entities and relationships from content. Relationships become `EntityRelation` edges between the propositions that mention the source and target entities.
+- **Contradiction detection**: After indexing, each Document memory is checked against existing memories. Confirmed contradictions create `Contradicts` edges; revisions create `RevisedFrom` edges.
+
+This means causal and graph traversal work on indexed content without any manual edge setup.
 
 ## Why Lineage Matters
 

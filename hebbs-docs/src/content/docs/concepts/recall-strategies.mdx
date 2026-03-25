@@ -23,13 +23,17 @@ HEBBS supports four recall strategies. Each targets a different access pattern. 
 
 ## Temporal
 
-**What it does**: Returns memories in a time range, ordered by recency (or optionally by importance within the range).
+**What it does**: Returns memories for a specific entity in time order, optionally within a time range.
 
-**When to use it**: When the agent needs "what happened recently" or "what happened between X and Y." Chronology matters more than semantic match.
+**When to use it**: When the agent needs "what happened with entity X" or "how has X changed over time." Chronology matters more than semantic match.
 
-**How it works internally**: A B-tree index on `(entity_id, created_at)` supports efficient range scans. The query specifies `start_time` and `end_time`. Results are streamed in time order. Time complexity is O(log n + k) where k is the number of memories in the range.
+**How it works internally**: A B-tree index on `(entity_id, created_at)` supports efficient range scans. The query specifies an `entity_id` and optional `start_time`/`end_time`. Results are streamed in time order. Time complexity is O(log n + k) where k is the number of memories in the range.
 
-**Example use case**: A support agent needs the last 10 interactions with this customer. Temporal recall fetches the most recent memories in order.
+**Requires `entity_id`**: Temporal recall needs an entity to scope the timeline. During indexing, entity_ids are automatically assigned to propositions from LLM-extracted entities (e.g., "cloudvault", "meridian analytics"). For manually stored memories, use `hebbs remember --entity-id <entity>`.
+
+**Example use case**: A legal agent asks "what happened with Meridian?" Temporal recall with `--entity-id meridian` returns the chronological timeline: DPA signing, subprocessor change, violation, risk escalation.
+
+**Alternative for indexed content**: If you don't know the entity_id, use similarity recall with recency-weighted scoring (`--weights 0.3:0.5:0.2:0`) to get time-ordered results across all entities.
 
 ### Defaults and Tuning
 
@@ -43,7 +47,9 @@ HEBBS supports four recall strategies. Each targets a different access pattern. 
 
 **When to use it**: When the agent needs to reason about *why* something happened or *what followed* from an event. "What led to this decision?" "What happened after the user said X?"
 
-**How it works internally**: Starts from one or more seed memory IDs. Performs bounded graph traversal (max depth configurable) following CausedBy and FollowedBy edges. Results are ranked by graph distance and recency. Time complexity is O(branching_factor ^ max_depth), bounded by configuration.
+**How it works internally**: Starts from one or more seed memory IDs. Performs bounded graph traversal (max depth configurable) following edges of the specified types. Results are ranked by graph distance and recency. Time complexity is O(branching_factor ^ max_depth), bounded by configuration.
+
+**Works with indexed content**: During indexing, the LLM extracts entity relationships which become `EntityRelation` graph edges. These edges connect propositions across documents, enabling causal traversal on indexed content without manual edge setup. For richer causal chains, store memories with explicit edges via `hebbs remember --edge TARGET:caused_by:0.9`.
 
 **Example use case**: A research assistant traces how a conclusion was reached. Causal recall walks backward from the conclusion to the supporting evidence and reasoning steps.
 
