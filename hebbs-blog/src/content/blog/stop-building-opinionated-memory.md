@@ -26,6 +26,8 @@ But in production, the same agent needs to recall differently depending on the s
 
 Four questions. Four retrieval strategies. Four different optimal weight configurations. A system optimized for LoCoMo handles the first case. It fumbles the other three.
 
+![Opinionated memory uses one fixed configuration for every query and gets 1 out of 4 right. Agent-tuned memory adapts strategy and weights per query and gets 4 out of 4.](/images/mixing-board-opinionated-vs-tuned.png)
+
 ## What Your Brain Actually Does
 
 Think about how you remember things. When someone asks "what happened with that deal?", you think chronologically. When they ask "why did we lose?", you trace causes. When they ask "have we seen this pattern before?", you search across domains for structural parallels.
