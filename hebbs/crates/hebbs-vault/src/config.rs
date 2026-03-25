@@ -52,6 +52,15 @@ pub struct EmbeddingConfig {
     /// Max sections per embed batch call.
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
+    /// Embedding provider: omit or "local" for ONNX, "openai" for OpenAI API.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// Environment variable holding the API key for the embedding provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_env: Option<String>,
+    /// Base URL override for the embedding API.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -408,6 +417,9 @@ impl Default for EmbeddingConfig {
             model: default_model(),
             dimensions: default_dimensions(),
             batch_size: default_batch_size(),
+            provider: None,
+            api_key_env: None,
+            base_url: None,
         }
     }
 }

@@ -650,11 +650,49 @@ async fn setup_engine(
     std::fs::create_dir_all(&db_path)?;
     let storage = Arc::new(hebbs_storage::RocksDbBackend::open(&db_path)?);
 
-    // Use OS cache dir for model files (macOS: ~/Library/Caches/hebbs, Linux: ~/.cache/hebbs).
-    // This survives vault and daemon cleanup, so model is only downloaded once ever.
-    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
-    std::fs::create_dir_all(&embed_config.model_dir)?;
-    let embedder: Arc<dyn Embedder> = Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?);
+    // Create embedder: API-based or local ONNX based on config
+    let embedder: Arc<dyn Embedder> = {
+        let provider = config.embedding.provider.as_deref().unwrap_or("local");
+        match provider {
+            "openai" => {
+                let api_key = config
+                    .embedding
+                    .api_key_env
+                    .as_ref()
+                    .and_then(|env_var| std::env::var(env_var).ok())
+                    .ok_or_else(|| {
+                        format!(
+                            "OpenAI embedding requires API key. Set {} env var.",
+                            config
+                                .embedding
+                                .api_key_env
+                                .as_deref()
+                                .unwrap_or("OPENAI_API_KEY")
+                        )
+                    })?;
+                let base_url = config
+                    .embedding
+                    .base_url
+                    .clone()
+                    .unwrap_or_else(|| "https://api.openai.com".to_string());
+                let api_config = hebbs_embed::ApiEmbedderConfig {
+                    provider: "openai".to_string(),
+                    api_key,
+                    model: config.embedding.model.clone(),
+                    base_url,
+                    dimensions: config.embedding.dimensions,
+                };
+                Arc::new(hebbs_embed::ApiEmbedder::new(api_config)?)
+            }
+            _ => {
+                // Local ONNX (default)
+                let embed_config =
+                    hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
+                std::fs::create_dir_all(&embed_config.model_dir)?;
+                Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?)
+            }
+        }
+    };
 
     let engine = Engine::new(storage, embedder.clone())?;
 
@@ -2240,10 +2278,17 @@ async fn run_local(cli: Cli) -> i32 {
                     c.idle_timeout_secs = idle_timeout;
                     c.panel_port = panel_port;
                     c.initial_vault = initial_vault.clone();
-                    // Try to pick embedding model from current vault's config
+                    // Pick embedding config from current vault's config
                     if let Ok(cwd) = std::env::current_dir() {
                         if let Ok(vc) = VaultConfig::load(&cwd.join(".hebbs")) {
                             c.embedding_model = vc.embedding.model.clone();
+                            c.embedding_dimensions = vc.embedding.dimensions;
+                            c.embedding_provider = vc.embedding.provider.clone();
+                            c.embedding_base_url = vc.embedding.base_url.clone();
+                            // Resolve API key from env var
+                            if let Some(ref env_var) = vc.embedding.api_key_env {
+                                c.embedding_api_key = std::env::var(env_var).ok();
+                            }
                         }
                     }
                     c

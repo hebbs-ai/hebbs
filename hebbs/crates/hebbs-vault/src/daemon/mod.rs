@@ -111,8 +111,16 @@ pub struct DaemonConfig {
     pub foreground: bool,
     /// HTTP port for the Memory Palace control panel. `0` disables panel.
     pub panel_port: u16,
-    /// Embedding model name (e.g. "bge-small-en-v1.5", "embeddinggemma-300m").
+    /// Embedding model name (e.g. "bge-small-en-v1.5", "text-embedding-3-small").
     pub embedding_model: String,
+    /// Embedding provider: None or "local" for ONNX, "openai" for API.
+    pub embedding_provider: Option<String>,
+    /// Embedding API key (resolved from env var).
+    pub embedding_api_key: Option<String>,
+    /// Embedding API base URL override.
+    pub embedding_base_url: Option<String>,
+    /// Embedding dimensions.
+    pub embedding_dimensions: usize,
     /// Initial vault path for the panel to open on startup.
     /// When set, the panel opens this vault instead of the home directory vault.
     /// Passed by `hebbs panel <path>` or `hebbs init <path>`.
@@ -130,9 +138,53 @@ impl DaemonConfig {
             idle_timeout_secs: DEFAULT_IDLE_SHUTDOWN_SECS,
             foreground: false,
             panel_port: DEFAULT_PANEL_PORT,
-            embedding_model: "bge-small-en-v1.5".to_string(),
+            embedding_model: "embeddinggemma-300m".to_string(),
+            embedding_provider: None,
+            embedding_api_key: None,
+            embedding_base_url: None,
+            embedding_dimensions: 768,
             initial_vault: None,
         })
+    }
+}
+
+/// Create an embedder from daemon config: API-based or local ONNX.
+fn create_embedder_from_daemon_config(
+    config: &DaemonConfig,
+) -> std::result::Result<Arc<dyn Embedder>, String> {
+    let provider = config.embedding_provider.as_deref().unwrap_or("local");
+
+    match provider {
+        "openai" => {
+            let api_key = config
+                .embedding_api_key
+                .clone()
+                .ok_or_else(|| "OpenAI embedding requires an API key".to_string())?;
+            let base_url = config
+                .embedding_base_url
+                .clone()
+                .unwrap_or_else(|| "https://api.openai.com".to_string());
+            let api_config = hebbs_embed::ApiEmbedderConfig {
+                provider: "openai".to_string(),
+                api_key,
+                model: config.embedding_model.clone(),
+                base_url,
+                dimensions: config.embedding_dimensions,
+            };
+            let embedder = hebbs_embed::ApiEmbedder::new(api_config)
+                .map_err(|e| format!("failed to create API embedder: {e}"))?;
+            Ok(Arc::new(embedder))
+        }
+        _ => {
+            // Local ONNX
+            let embed_config =
+                hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
+            std::fs::create_dir_all(&embed_config.model_dir)
+                .map_err(|e| format!("failed to create model directory: {e}"))?;
+            let embedder = hebbs_embed::OnnxEmbedder::new(embed_config)
+                .map_err(|e| format!("failed to load ONNX embedder: {e}"))?;
+            Ok(Arc::new(embedder))
+        }
     }
 }
 
@@ -153,15 +205,9 @@ pub async fn run_daemon(config: DaemonConfig) -> Result<(), String> {
     std::fs::write(&config.pid_path, pid.to_string())
         .map_err(|e| format!("failed to write PID file: {}", e))?;
 
-    // Load ONNX embedder once from OS cache dir (survives vault/daemon cleanup).
+    // Load embedder: API-based (OpenAI etc.) or local ONNX, based on config.
     info!("loading embedding model...");
-    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
-    std::fs::create_dir_all(&embed_config.model_dir)
-        .map_err(|e| format!("failed to create model directory: {}", e))?;
-    let embedder: Arc<dyn Embedder> = Arc::new(
-        hebbs_embed::OnnxEmbedder::new(embed_config)
-            .map_err(|e| format!("failed to load embedder: {}", e))?,
-    );
+    let embedder: Arc<dyn Embedder> = create_embedder_from_daemon_config(&config)?;
     info!(
         "embedding model loaded ({} dimensions)",
         embedder.dimensions()

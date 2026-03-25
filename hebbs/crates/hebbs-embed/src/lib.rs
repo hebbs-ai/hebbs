@@ -1,3 +1,4 @@
+pub mod api;
 pub mod config;
 pub mod error;
 pub mod mock;
@@ -6,6 +7,7 @@ pub mod normalize;
 pub mod onnx;
 pub mod traits;
 
+pub use api::{ApiEmbedder, ApiEmbedderConfig};
 pub use config::{EmbedderConfig, ModelConfig, PoolingStrategy};
 pub use error::{EmbedError, Result};
 pub use mock::MockEmbedder;
