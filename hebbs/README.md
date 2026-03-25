@@ -24,6 +24,16 @@ curl -sSf https://hebbs.ai/install | sh
 
 ---
 
+## Portable Cognition
+
+`.hebbs/` is a self-contained cognition layer that lives next to your files. Build the index once, then drop it anywhere: another machine, another agent, your whole team. Everyone gets the same memory instantly.
+
+`.hebbsignore` works like `.gitignore`. Your private files stay private. Your agents only see what you allow.
+
+Your files are the source of truth. The `.hebbs/` directory is derived, rebuildable, and disposable. Delete it and run `hebbs init . && hebbs index .` to get it back.
+
+---
+
 ## Works Out of the Box with Your Agent
 
 HEBBS ships as a **skill** for Claude Code and OpenClaw. No SDK integration. No glue code. No configuration. Install HEBBS, and your agent automatically stores memories, recalls with the right strategy, consolidates insights, and forgets what's stale.
@@ -121,30 +131,33 @@ Insight (with lineage):
 ### Quick Start (Local)
 
 ```bash
-# Initialize with LLM (required for autonomous features)
+# Initialize with OpenAI (recommended -- uses OpenAI embeddings by default)
+hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+
+# Or with other providers (uses local embeddings)
+hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
 hebbs init . --provider ollama --model qwen3:4b
 
-# Or with a cloud provider
-hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
-
-hebbs remember "hello world"          # store a memory
-hebbs recall "hello"                  # recall it
-hebbs config show                     # view configuration
+hebbs index .                         # index your markdown files
+hebbs recall "your question here"     # recall with any strategy
+hebbs panel                           # open the Memory Palace
 ```
+
+**Embedding model**: When `--provider openai` is set, HEBBS uses OpenAI's `text-embedding-3-small` for embeddings. Other providers default to a local ONNX model (embeddinggemma-300m, ~600MB, downloaded once). Override with `hebbs config set embedding.model <model>`.
 
 ### Controlling What Gets Indexed
 
 By default HEBBS indexes every `.md` file in your vault, skipping `.git/`, `.obsidian/`, `node_modules/`, and `.hebbs/`. To exclude additional files or directories, create a `.hebbsignore` file at the vault root:
 
 ```
-# .hebbsignore -- same syntax as .gitignore
+# .hebbsignore (same syntax as .gitignore)
 templates/
 drafts/*.md
 archive/
 *.template.md
 ```
 
-Patterns from `.hebbsignore` are merged with the built-in defaults and any patterns in `.hebbs/config.toml`. Comments (`#`) and blank lines are supported. The daemon picks up changes to `.hebbsignore` automatically on its next config reload -- no restart needed.
+Patterns from `.hebbsignore` are merged with the built-in defaults and any patterns in `.hebbs/config.toml`. Comments (`#`) and blank lines are supported. The daemon picks up changes to `.hebbsignore` automatically on its next config reload. No restart needed.
 
 See [docs/hebbsignore.md](../docs/hebbsignore.md) for the full reference.
 
@@ -276,9 +289,9 @@ Nine operations. Three groups. Each one is a cognitive primitive that didn't exi
 
 HEBBS has two scoping dimensions.
 
-**`entity_id`** -- what the memory is about (a customer, project, user). Optional. Scope recall, prime, and forget to a subject.
+**`entity_id`**: what the memory is about (a customer, project, user). Optional. Scope recall, prime, and forget to a subject.
 
-**`tenant_id`** -- who owns the data (an org, workspace). Structural isolation -- storage keys are prefixed, index traversal is partitioned, cross-tenant queries are impossible.
+**`tenant_id`**: who owns the data (an org, workspace). Structural isolation: storage keys are prefixed, index traversal is partitioned, cross-tenant queries are impossible.
 
 ```bash
 hebbs --tenant acme-corp remember "Q2 forecast looks strong" --entity-id project-alpha
@@ -377,7 +390,7 @@ And it does all of this in under 10ms. Benchmarked on a single `c6g.large` insta
   +-----------------------+  +------------------------+
   | Embedding Engine      |  | LLM Provider Interface |
   | (ONNX Runtime,        |  | (Anthropic, OpenAI,    |
-  |  built-in default)    |  |  Ollama -- pluggable)  |
+  |  built-in default)    |  |  Ollama, pluggable)    |
   +-----------------------+  +------------------------+
 ```
 
@@ -414,15 +427,15 @@ e.remember(...)
 
 ## Use Cases
 
-**Voice Sales Agents** -- Remember prospect history across calls, handle objections with proven responses, learn which pitches convert over time.
+**Voice Sales Agents**: Remember prospect history across calls, handle objections with proven responses, learn which pitches convert over time.
 
-**Customer Support** -- Recall past tickets, surface solutions from similar issues, reduce escalations through consolidated troubleshooting knowledge.
+**Customer Support**: Recall past tickets, surface solutions from similar issues, reduce escalations through consolidated troubleshooting knowledge.
 
-**Coding Agents** -- Remember what approaches worked, recall past debugging sessions, avoid repeating failed strategies.
+**Coding Agents**: Remember what approaches worked, recall past debugging sessions, avoid repeating failed strategies.
 
-**Robotics** -- Learn navigation patterns, share knowledge across a fleet, reflect on operational efficiency. Fully offline on edge hardware.
+**Robotics**: Learn navigation patterns, share knowledge across a fleet, reflect on operational efficiency. Fully offline on edge hardware.
 
-**Personal Assistants** -- Remember preferences, learn routines, pick up context across conversations.
+**Personal Assistants**: Remember preferences, learn routines, pick up context across conversations.
 
 ---
 

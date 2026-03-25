@@ -9,16 +9,41 @@ Initialize a vault in any directory. LLM configuration is required for new vault
 
 ```bash
 cd ~/projects/my-notes
-hebbs init --provider anthropic --model claude-sonnet-4-20250514 --api-key-env ANTHROPIC_API_KEY
+hebbs init --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
 ```
 
 Or specify a path:
 
 ```bash
-hebbs init ~/projects/my-notes --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init ~/projects/my-notes --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
 ```
 
 The `init` command validates LLM connectivity before completing. If the provider is unreachable or the API key is invalid, initialization fails with a descriptive error.
+
+### Embedding Model
+
+When you set `--provider openai`, HEBBS defaults to OpenAI's `text-embedding-3-small` for embeddings. The embedding model and LLM are configured independently:
+
+```bash
+# Check current embedding config
+hebbs config get embedding.model
+
+# Switch to a different embedding model
+hebbs config set embedding.model text-embedding-3-large
+
+# Use local embeddings instead (no API calls, ~600MB model download)
+hebbs config set embedding.model embeddinggemma-300m
+hebbs config set embedding.dimensions 768
+```
+
+| Provider | Default Embedding Model | Dimensions |
+|---|---|---|
+| OpenAI | `text-embedding-3-small` | 1536 |
+| Anthropic | `embeddinggemma-300m` (local) | 768 |
+| Gemini | `embeddinggemma-300m` (local) | 768 |
+| Ollama | `embeddinggemma-300m` (local) | 768 |
+
+Anthropic and Gemini do not offer embedding APIs that HEBBS integrates with, so they default to the local ONNX model. OpenAI's embedding API is used automatically when OpenAI is the configured provider.
 
 This creates a `.hebbs/` directory containing:
 
@@ -28,8 +53,8 @@ This creates a `.hebbs/` directory containing:
   manifest.json        # File hash tracking (detects changes)
   index/
     db/                # RocksDB database (memories, edges, metadata)
-    models/
-      embeddinggemma-300m/   # ONNX embedding model (~600 MB, downloaded once)
+    models/            # Only present when using local embeddings
+      embeddinggemma-300m/
         config.json
         tokenizer.json
 ```
@@ -93,6 +118,14 @@ Then start recalling:
 ```bash
 hebbs recall "your query here"
 ```
+
+## Portable Cognition
+
+`.hebbs/` is a self-contained cognition layer. Build the index once, then copy or share the directory across machines, agents, or team members. Everyone gets the same memory instantly.
+
+Your markdown files are the source of truth. The `.hebbs/` directory is entirely derived and rebuildable. Delete it anytime and run `hebbs init && hebbs index` to reconstruct it from your files.
+
+To control what gets indexed, create a `.hebbsignore` file at the vault root (same syntax as `.gitignore`). Your private files stay private; your agents only see what you allow. See [File Sync](/vault/file-sync/) for details on ignore patterns.
 
 ## .gitignore
 

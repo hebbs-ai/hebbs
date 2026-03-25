@@ -27,10 +27,25 @@ export PATH="$HOME/.hebbs/bin:$PATH"
 
 ```bash
 cd ~/projects/my-notes    # any directory with markdown files
-hebbs init
+hebbs init --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
 ```
 
-This creates a `.hebbs/` directory with the embedded engine and downloads the embedding model.
+This creates a `.hebbs/` directory, validates LLM connectivity, and configures the embedding model. HEBBS uses the LLM for proposition extraction, entity detection, and contradiction resolution during indexing.
+
+**Embedding model**: By default, HEBBS uses OpenAI's `text-embedding-3-small` when `--provider openai` is set. You can override this with `hebbs config set embedding.model <model>`. For local-only embeddings (no API calls for embedding), use `hebbs config set embedding.model embeddinggemma-300m`.
+
+Other providers:
+
+```bash
+# Anthropic
+hebbs init --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
+
+# Google Gemini
+hebbs init --provider gemini --model gemini-2.0-flash --api-key-env GEMINI_API_KEY
+
+# Local (Ollama, no API key needed)
+hebbs init --provider ollama --model qwen3:4b
+```
 
 ## 3. Index Your Files
 
@@ -38,7 +53,7 @@ This creates a `.hebbs/` directory with the embedded engine and downloads the em
 hebbs index
 ```
 
-HEBBS scans all `.md` files, splits them by heading, embeds each section locally, and stores them.
+HEBBS scans all `.md` files, extracts propositions and entities via the LLM, embeds everything, and stores triple-layer memories (document, propositions, entity/relation edges). Extraction runs in parallel (10 concurrent requests) for speed.
 
 ## 4. Recall
 
