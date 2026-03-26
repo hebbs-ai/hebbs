@@ -50,15 +50,38 @@ You do NOT need to check if `.hebbs/` exists before running commands. If a vault
 
 ---
 
-## 3. Configure LLM Provider
+## 3. Set Your API Key
 
-HEBBS uses an LLM internally for proposition extraction, contradiction detection, and reflection. This is not optional for full functionality.
+HEBBS needs an LLM API key for proposition extraction, contradiction detection, and reflection.
+
+**First, set the key as an environment variable in your shell:**
+
+```sh
+# Add to your ~/.zshrc or ~/.bashrc so it persists across sessions:
+export OPENAI_API_KEY="sk-proj-your-actual-key-here"
+
+# Or for Anthropic:
+export ANTHROPIC_API_KEY="sk-ant-your-actual-key-here"
+
+# Or for Gemini:
+export GEMINI_API_KEY="your-actual-key-here"
+```
+
+Then reload your shell (`source ~/.zshrc`) or open a new terminal.
+
+**How `api_key_env` works:** When you see `api_key_env = "OPENAI_API_KEY"` in config, that is the **name of the environment variable**, not your key. HEBBS reads the actual key from `$OPENAI_API_KEY` at runtime. Your key is never stored in config files.
+
+---
+
+## 4. Configure LLM Provider
 
 ### Option A: Configure during init
 
 ```sh
 hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
 ```
+
+`--api-key-env OPENAI_API_KEY` tells HEBBS to read the key from the `$OPENAI_API_KEY` environment variable you set in step 3.
 
 ### Option B: Edit config directly
 
@@ -68,7 +91,7 @@ Edit `.hebbs/config.toml`:
 [llm]
 provider = "openai"
 model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
+api_key_env = "OPENAI_API_KEY"    # name of env var, NOT the key itself
 ```
 
 ### Option C: Use the config command
@@ -125,7 +148,7 @@ Global config at `~/.hebbs/config.toml` is inherited by project configs. A proje
 
 ---
 
-## 4. Configure Embedding Provider
+## 5. Configure Embedding Provider
 
 **LLM and embedding are independent configurations.** You can use Anthropic for LLM extraction and local embeddings. Or OpenAI for both. Or Ollama for LLM and OpenAI for embeddings. They are separate `[llm]` and `[embedding]` sections.
 
@@ -205,7 +228,7 @@ Embeddings from different models are incompatible. You cannot mix local 768-dim 
 
 ---
 
-## 5. Index Files
+## 6. Index Files
 
 ```sh
 hebbs index .
@@ -257,7 +280,7 @@ The daemon watches for file changes and re-indexes automatically. Edit a `.md` f
 
 ---
 
-## 6. Add More Folders
+## 7. Add More Folders
 
 Each vault is independent with its own `.hebbs/` directory and config.
 
@@ -275,7 +298,7 @@ Each vault can have its own LLM and embedding config, or inherit from the global
 
 ---
 
-## 7. Test Recall
+## 8. Test Recall
 
 ### Basic similarity search
 
@@ -324,7 +347,7 @@ Default: `0.5:0.2:0.2:0.1`. Adjust per query type.
 
 ---
 
-## 8. Store Non-File Memories
+## 9. Store Non-File Memories
 
 Not everything lives in files. Store conversations, decisions, corrections, and preferences directly.
 
@@ -390,7 +413,7 @@ echo "Long memory content here..." | hebbs remember --importance 0.6 --format js
 
 ---
 
-## 9. Verify Everything
+## 10. Verify Everything
 
 ### Check vault health
 
