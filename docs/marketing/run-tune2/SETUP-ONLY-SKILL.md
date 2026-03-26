@@ -6,21 +6,34 @@ Everything to get HEBBS running. Init, configure, index, test recall, store memo
 
 ## 1. Install
 
+**macOS (Apple Silicon):**
+
 ```sh
 brew install hebbs-ai/tap/hebbs
 ```
 
-If Homebrew is unavailable:
+**Linux / macOS (curl):**
 
 ```sh
 curl -sSf https://hebbs.ai/install | sh
 ```
 
-Verify:
+After the curl install, add hebbs to your PATH. The installer prints the exact line, but it's:
+
+```sh
+# Add to ~/.bashrc, ~/.zshrc, or ~/.profile:
+export PATH="$HOME/.hebbs/bin:$PATH"
+```
+
+Then reload your shell (`source ~/.bashrc` or open a new terminal).
+
+**Verify:**
 
 ```sh
 hebbs --version
 ```
+
+If this prints "command not found", the PATH step above was missed. Run the export line and try again.
 
 ---
 
