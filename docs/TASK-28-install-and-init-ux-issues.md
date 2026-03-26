@@ -7,18 +7,21 @@
 
 ---
 
-## Issue 1: OpenAI provider should default to OpenAI embeddings
+## Issue 1: Default embedding provider should be OpenAI, not local gemma
 
-**Severity:** High (every OpenAI user hits this)
+**Severity:** High (every user hits this)
 
-When a user selects OpenAI as their LLM provider during `hebbs init`, the embedding model still defaults to `embeddinggemma-300m` (local ONNX, 1.2GB download). This is confusing:
+The default embedding model is `embeddinggemma-300m` (local ONNX, 1.2GB download) regardless of what LLM provider the user picks. This should be changed:
 
-- User already provided an OpenAI key
-- They didn't ask for a 1.2GB model download
-- OpenAI's `text-embedding-3-small` would work immediately with the same key
-- The local model adds unnecessary setup friction
+**Current behavior:** Embedding always defaults to local gemma. User selects OpenAI as LLM provider, enters their OpenAI key, then watches a 1.2GB model download they didn't ask for. The downloaded model isn't even OpenAI -- it's a local ONNX model that has nothing to do with their provider choice.
 
-**Expected behavior:** When `--provider openai` is set (or selected interactively), auto-configure:
+**Expected behavior:** Default embedding provider should be `openai` with `text-embedding-3-small`. When a user picks OpenAI as their LLM provider, embeddings should use OpenAI too -- same key, no extra download, no confusion.
+
+For non-OpenAI providers (Anthropic, Gemini, Ollama), the init should either:
+- Ask "Use OpenAI for embeddings? (requires OPENAI_API_KEY)"
+- Or default to local gemma since those providers don't have embedding APIs
+
+**Default config for OpenAI users:**
 
 ```toml
 [embedding]
@@ -28,9 +31,12 @@ api_key_env = "OPENAI_API_KEY"   # same env var as [llm]
 dimensions = 1536
 ```
 
-Skip the 1.2GB model download entirely.
+No model download. No confusion. Just works.
 
-**Fix location:** `hebbs-vault/src/bin/hebbs.rs` in the init command handler. After LLM provider is configured, if provider is `openai`, set the embedding config to OpenAI defaults.
+**Fix location:**
+1. Change the default in `hebbs-vault/src/config.rs` -- `EmbeddingConfig::default()` should check if an OpenAI LLM config exists
+2. `hebbs-vault/src/bin/hebbs.rs` init handler -- after LLM provider is configured, if provider is `openai`, auto-set embedding to OpenAI defaults
+3. Skip the `ensure_model_files` download when embedding provider is not local
 
 ---
 
