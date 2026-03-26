@@ -55,64 +55,47 @@ hebbs init ~
 
 What happens:
 - Creates a `.hebbs/` directory at the target path
-- Downloads the embedding model (~600MB, once)
 - Auto-starts the daemon (one daemon serves all vaults)
 - Validates LLM connectivity if configured
+- Downloads the local embedding model (~600MB, once) only if using local embeddings. Skipped when using API embeddings (e.g. OpenAI).
 
 You do NOT need to check if `.hebbs/` exists before running commands. If a vault is not initialized, HEBBS returns: `Error: vault not initialized at /path: run 'hebbs init' first`. Run `hebbs init <path>` and retry.
 
 ---
 
-## 3. Set Your API Key
-
-HEBBS needs an LLM API key for proposition extraction, contradiction detection, and reflection.
-
-**First, set the key as an environment variable in your shell:**
-
-```sh
-# Add to your ~/.zshrc or ~/.bashrc so it persists across sessions:
-export OPENAI_API_KEY="sk-proj-your-actual-key-here"
-
-# Or for Anthropic:
-export ANTHROPIC_API_KEY="sk-ant-your-actual-key-here"
-
-# Or for Gemini:
-export GEMINI_API_KEY="your-actual-key-here"
-```
-
-Then reload your shell (`source ~/.zshrc`) or open a new terminal.
-
-**How `api_key_env` works:** When you see `api_key_env = "OPENAI_API_KEY"` in config, that is the **name of the environment variable**, not your key. HEBBS reads the actual key from `$OPENAI_API_KEY` at runtime. Your key is never stored in config files.
-
----
-
-## 4. Configure LLM Provider
+## 3. Configure LLM Provider
 
 **You only do this once.** The LLM config is saved to `~/.hebbs/config.toml` (global) by default. Every project vault you create after this inherits it automatically.
 
-### Option A: Configure during init (recommended for first time)
+### Option A: Configure during init (recommended)
 
 ```sh
-hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init . --provider openai --key sk-proj-your-key-here
 ```
 
-This saves the LLM config globally. Next time you run `hebbs init` in another project, you just need:
+One command. `--model` defaults to `gpt-4o-mini` for OpenAI (each provider has a sensible default). Embedding auto-configures to OpenAI `text-embedding-3-small` when the provider is OpenAI, so no manual embedding setup is needed and no local model download occurs.
+
+This saves LLM and embedding config to `~/.hebbs/config.toml` (global). Next time you run `hebbs init` in another project, you just need:
 
 ```sh
-hebbs init /path/to/another/project    # inherits LLM config from ~/.hebbs/config.toml
+hebbs init /path/to/another/project    # inherits LLM + embedding from ~/.hebbs/config.toml
 ```
 
-`--api-key-env OPENAI_API_KEY` tells HEBBS to read the key from the `$OPENAI_API_KEY` environment variable you set in step 3.
+### Option B: Edit config directly (simplest if you have your key ready)
 
-### Option B: Edit config directly
-
-Edit `.hebbs/config.toml`:
+Edit `~/.hebbs/config.toml` and paste your key directly:
 
 ```toml
 [llm]
 provider = "openai"
 model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"    # name of env var, NOT the key itself
+api_key = "sk-proj-your-actual-key-here"
+
+[embedding]
+provider = "openai"
+model = "text-embedding-3-small"
+api_key = "sk-proj-your-actual-key-here"
+dimensions = 1536
 ```
 
 ### Option C: Use the config command
@@ -164,48 +147,39 @@ Global config at `~/.hebbs/config.toml` is inherited by project configs. A proje
 
 ### Optional fields
 
+- `--key` / `--api-key`: Pass the API key directly. This is the simplest option. The key is saved to `~/.hebbs/config.toml`.
+- `--api-key-env`: Reference an environment variable name (e.g. `OPENAI_API_KEY`) instead of passing the key directly. Better for CI/pipelines.
+- `--model`: Override the default model for the provider. Defaults: `gpt-4o-mini` (openai), `claude-haiku-4-5-20251001` (anthropic), `gemini-2.0-flash` (gemini), `gemma3:1b` (ollama).
 - `base_url`: Override the API endpoint (useful for proxies or self-hosted models)
-- `api_key`: Hardcoded API key (NOT recommended; use `api_key_env` to reference an environment variable)
 
 ---
 
 ## 5. Configure Embedding Provider
 
-**LLM and embedding are independent configurations.** You can use Anthropic for LLM extraction and local embeddings. Or OpenAI for both. Or Ollama for LLM and OpenAI for embeddings. They are separate `[llm]` and `[embedding]` sections.
+**When you use `--provider openai --key ...` during init, embedding is auto-configured.** You get `text-embedding-3-small` with the same key, no manual setup needed. This section is only relevant if you want to customize the embedding provider independently.
 
-### Default: Local embeddings (no config needed)
+LLM and embedding are independent configurations. You can use Anthropic for LLM extraction and OpenAI for embeddings. They are separate `[llm]` and `[embedding]` sections in config.
 
-Out of the box, HEBBS uses `embeddinggemma-300m` locally via ONNX:
-- 768 dimensions
-- Free, no API key
-- Fast, runs on CPU
-- Good quality for most use cases
+### Default behavior
 
-The default config (you don't need to write this):
+- **OpenAI provider**: embedding auto-configures to `text-embedding-3-small` (1536 dims), inherits the LLM API key. No local model download.
+- **Other providers** (anthropic, gemini, ollama): embedding defaults to local `embeddinggemma-300m` (768 dims, ONNX, ~600MB download on first use).
 
-```toml
-[embedding]
-model = "embeddinggemma-300m"
-dimensions = 768
-provider = "local"
-batch_size = 50
-```
+### Manual embedding config
 
-### API option: OpenAI embeddings
-
-For higher quality embeddings at the cost of API calls, edit `.hebbs/config.toml`:
+To override the auto-configured embedding, edit `~/.hebbs/config.toml`:
 
 ```toml
 [embedding]
 provider = "openai"
 model = "text-embedding-3-small"
-api_key_env = "OPENAI_API_KEY"
+api_key = "sk-proj-your-key-here"    # or use api_key_env = "OPENAI_API_KEY"
 dimensions = 1536
 batch_size = 50
 # base_url = "https://api.openai.com"   # optional, for proxies or Azure
 ```
 
-The `api_key_env` points to an environment variable, not the key itself. The same env var can be shared with `[llm]` if both use OpenAI.
+The `api_key` field accepts the key directly. Alternatively, `api_key_env` references an environment variable name. If both are set, `api_key` takes precedence.
 
 ### Mixed provider example
 

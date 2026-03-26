@@ -10,8 +10,6 @@ pub struct VaultConfig {
     #[serde(default)]
     pub chunking: ChunkingConfig,
     #[serde(default)]
-    pub embedding: EmbeddingConfig,
-    #[serde(default)]
     pub watch: WatchConfig,
     #[serde(default)]
     pub output: OutputConfig,
@@ -27,6 +25,8 @@ pub struct VaultConfig {
         skip_serializing_if = "LlmConfig::is_empty"
     )]
     pub llm: LlmConfig,
+    #[serde(default, skip_serializing_if = "EmbeddingConfig::is_default")]
+    pub embedding: EmbeddingConfig,
     #[serde(default)]
     pub extraction: ExtractionConfig,
     #[serde(default)]
@@ -55,12 +55,65 @@ pub struct EmbeddingConfig {
     /// Embedding provider: omit or "local" for ONNX, "openai" for OpenAI API.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// Direct API key for the embedding provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
     /// Environment variable holding the API key for the embedding provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_env: Option<String>,
     /// Base URL override for the embedding API.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+}
+
+impl EmbeddingConfig {
+    /// Returns true if this is the default config (local gemma, no API provider).
+    /// Used by serde to skip serializing defaults in local config, allowing global inheritance.
+    pub fn is_default(&self) -> bool {
+        self.provider.is_none()
+            && self.api_key.is_none()
+            && self.api_key_env.is_none()
+            && self.base_url.is_none()
+            && self.model == default_model()
+            && self.dimensions == default_dimensions()
+    }
+
+    /// Resolve the actual API key: check api_key first, then api_key_env env lookup.
+    pub fn resolved_api_key(&self) -> Option<String> {
+        if let Some(ref key) = self.api_key {
+            if !key.is_empty() {
+                return Some(key.clone());
+            }
+        }
+        if let Some(ref env_name) = self.api_key_env {
+            if let Ok(val) = std::env::var(env_name) {
+                if !val.is_empty() {
+                    return Some(val);
+                }
+            }
+        }
+        None
+    }
+
+    /// Auto-configure embedding from LLM config when embedding is unconfigured.
+    /// If LLM is openai, sets embedding to text-embedding-3-small with same key.
+    pub fn inherit_from_llm(&mut self, llm: &LlmConfig) {
+        if self.provider.is_some() {
+            return; // already explicitly configured
+        }
+        if llm.provider == "openai" {
+            self.provider = Some("openai".to_string());
+            self.model = "text-embedding-3-small".to_string();
+            self.dimensions = 1536;
+            // Inherit key: prefer direct key, then env var name
+            if self.api_key.is_none() {
+                self.api_key = llm.api_key.clone();
+            }
+            if self.api_key_env.is_none() {
+                self.api_key_env = llm.api_key_env.clone();
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -418,6 +471,7 @@ impl Default for EmbeddingConfig {
             dimensions: default_dimensions(),
             batch_size: default_batch_size(),
             provider: None,
+            api_key: None,
             api_key_env: None,
             base_url: None,
         }

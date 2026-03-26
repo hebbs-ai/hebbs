@@ -66,13 +66,17 @@ Controls how markdown files are split into memory sections.
 
 ### `[embedding]`
 
-Controls the on-device embedding model.
+Controls the embedding model. When `--provider openai` is used during init, embedding auto-configures to `text-embedding-3-small` with the same API key. No manual setup needed for the common case.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | `"embeddinggemma-300m"` | ONNX model name. Downloaded on first `hebbs init`. |
-| `dimensions` | integer | `768` | Embedding vector dimensions. Must match the model. |
+| `model` | string | `"embeddinggemma-300m"` | Model name. Local ONNX model or API model (e.g. `text-embedding-3-small`). |
+| `dimensions` | integer | `768` | Embedding vector dimensions. Must match the model (`768` for gemma, `1536` for text-embedding-3-small). |
 | `batch_size` | integer | `50` | Maximum sections embedded in a single batch call. |
+| `provider` | string | none | Embedding provider: `"openai"` for API embeddings, omit or `"local"` for on-device ONNX. |
+| `api_key` | string | none | API key for the embedding provider. If omitted, inherits from `[llm].api_key`. |
+| `api_key_env` | string | none | Environment variable name containing the API key (e.g. `"OPENAI_API_KEY"`). If both `api_key` and `api_key_env` are set, `api_key` takes precedence. |
+| `base_url` | string | none | Override the API endpoint (useful for proxies or Azure). |
 
 ### `[watch]`
 

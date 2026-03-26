@@ -107,8 +107,8 @@ enum Commands {
         /// Environment variable name holding the API key
         #[arg(long)]
         api_key_env: Option<String>,
-        /// LLM API key (prefer --api-key-env for security)
-        #[arg(long)]
+        /// LLM API key
+        #[arg(long, visible_alias = "key")]
         api_key: Option<String>,
         /// Base URL override for LLM provider
         #[arg(long)]
@@ -657,18 +657,10 @@ async fn setup_engine(
             "openai" => {
                 let api_key = config
                     .embedding
-                    .api_key_env
-                    .as_ref()
-                    .and_then(|env_var| std::env::var(env_var).ok())
+                    .resolved_api_key()
+                    .or_else(|| config.llm.resolved_api_key())
                     .ok_or_else(|| {
-                        format!(
-                            "OpenAI embedding requires API key. Set {} env var.",
-                            config
-                                .embedding
-                                .api_key_env
-                                .as_deref()
-                                .unwrap_or("OPENAI_API_KEY")
-                        )
+                        "OpenAI embedding requires API key. Set api_key in [embedding] config, or set OPENAI_API_KEY env var.".to_string()
                     })?;
                 let base_url = config
                     .embedding
@@ -832,20 +824,48 @@ async fn run_local(cli: Cli) -> i32 {
                         .as_ref()
                         .and_then(|env_name| std::env::var(env_name).ok())
                 });
+                let prov = provider.clone().unwrap_or_default();
+                let mdl = model.clone().unwrap_or_else(|| {
+                    match prov.as_str() {
+                        "openai" => "gpt-4o-mini".to_string(),
+                        "anthropic" => "claude-haiku-4-5-20251001".to_string(),
+                        "gemini" => "gemini-2.0-flash".to_string(),
+                        "ollama" => "gemma3:1b".to_string(),
+                        _ => String::new(),
+                    }
+                });
                 let cfg = hebbs_vault::config::LlmConfig {
-                    provider: provider.clone().unwrap_or_default(),
-                    model: model.clone().unwrap_or_default(),
+                    provider: prov,
+                    model: mdl,
                     api_key: resolved_key,
                     api_key_env: api_key_env.clone(),
                     base_url: base_url.clone(),
                 };
                 // Save to global by default unless --local is specified
                 (Some(cfg), !local)
-            } else if global_llm.is_some() {
-                // Global LLM exists: skip wizard, inherit from global.
-                // Pass None so vault config has no [llm] section (inherits).
-                println!("  Using LLM from global config (~/.hebbs/config.toml)");
-                (None, false)
+            } else if let Some(ref global) = global_llm {
+                // Global LLM exists: confirm with user or let them reconfigure.
+                println!(
+                    "  Found existing config: {}/{}",
+                    global.provider, global.model
+                );
+                print!("  Use this? [Y/n]: ");
+                io::stdout().flush().ok();
+                let mut yn = String::new();
+                let use_global = if io::stdin().read_line(&mut yn).is_ok() {
+                    let yn = yn.trim().to_lowercase();
+                    yn.is_empty() || yn == "y" || yn == "yes"
+                } else {
+                    true
+                };
+                if use_global {
+                    println!("  Using LLM from global config (~/.hebbs/config.toml)");
+                    (None, false)
+                } else {
+                    // User wants different config -- run wizard, update global
+                    let cfg = interactive_llm_setup();
+                    (cfg, !local)
+                }
             } else if std::io::stdin().is_terminal() {
                 // Interactive mode: ask the user which LLM provider to use.
                 let cfg = interactive_llm_setup();
@@ -863,11 +883,24 @@ async fn run_local(cli: Cli) -> i32 {
                 return 1;
             }
 
-            // Save LLM to global config if requested
+            // Auto-configure embedding from LLM provider
+            let mut embedding_config: Option<hebbs_vault::config::EmbeddingConfig> = None;
+            if let Some(ref llm) = llm_config {
+                let mut embed = hebbs_vault::config::EmbeddingConfig::default();
+                embed.inherit_from_llm(llm);
+                if !embed.is_default() {
+                    embedding_config = Some(embed);
+                }
+            }
+
+            // Save LLM + embedding to global config if requested
             if save_to_global {
                 if let Some(ref llm) = llm_config {
                     let mut global_cfg = VaultConfig::load_global().unwrap_or_default();
                     global_cfg.llm = llm.clone();
+                    if let Some(ref embed) = embedding_config {
+                        global_cfg.embedding = embed.clone();
+                    }
                     if let Err(e) = global_cfg.save_global() {
                         eprintln!("Warning: could not save global config: {}", e);
                         eprintln!("LLM config will be saved to vault config instead.");
@@ -877,27 +910,46 @@ async fn run_local(cli: Cli) -> i32 {
                 }
             }
 
-            // If saving to global, pass None so vault has no [llm] (inherits).
+            // If saving to global, pass None so vault has no [llm]/[embedding] (inherits).
             // If --local, pass the config so it's written to the vault.
             let vault_llm = if save_to_global { None } else { llm_config };
-            match hebbs_vault::init_with_llm(&path, force, vault_llm) {
+            let vault_embed = if save_to_global {
+                None
+            } else {
+                embedding_config.clone()
+            };
+            match hebbs_vault::init_with_llm(&path, force, vault_llm, vault_embed) {
                 Ok(()) => {
                     register_vault(&path);
                     println!("Initialized vault at {}", path.display());
 
-                    // Pre-download embedding model into OS cache dir so daemon starts instantly.
-                    // ~/Library/Caches/hebbs on macOS — survives all vault/daemon cleanups.
+                    // Pre-download embedding model only if using local ONNX.
+                    // Skip download for API embeddings (OpenAI etc).
                     let config = VaultConfig::load(&path.join(".hebbs")).unwrap_or_default();
-                    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
-                        &config.embedding.model,
-                    );
-                    std::fs::create_dir_all(&embed_config.model_dir).ok();
-                    println!("Ensuring embedding model ({})...", config.embedding.model);
-                    match hebbs_embed::ensure_model_files(&embed_config) {
-                        Ok(_) => println!("Embedding model ready."),
-                        Err(e) => {
-                            eprintln!("Warning: model download failed: {}", e);
-                            eprintln!("The daemon will retry on first start.");
+                    let is_api_embedding = config
+                        .embedding
+                        .provider
+                        .as_deref()
+                        .is_some_and(|p| p != "local");
+
+                    if is_api_embedding {
+                        println!(
+                            "Using API embeddings ({}/{}). No local model needed.",
+                            config.embedding.provider.as_deref().unwrap_or("openai"),
+                            config.embedding.model
+                        );
+                    } else {
+                        let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
+                            &config.embedding.model,
+                        );
+                        std::fs::create_dir_all(&embed_config.model_dir).ok();
+                        println!("Ensuring embedding model ({})...", config.embedding.model);
+                        match hebbs_embed::ensure_model_files(&embed_config) {
+                            Ok(_) => println!("Embedding model ready."),
+                            Err(e) => {
+                                eprintln!("Warning: model download failed: {}", e);
+                                eprintln!("The daemon will retry on first start.");
+                            }
                         }
                     }
 
@@ -2285,10 +2337,11 @@ async fn run_local(cli: Cli) -> i32 {
                             c.embedding_dimensions = vc.embedding.dimensions;
                             c.embedding_provider = vc.embedding.provider.clone();
                             c.embedding_base_url = vc.embedding.base_url.clone();
-                            // Resolve API key from env var
-                            if let Some(ref env_var) = vc.embedding.api_key_env {
-                                c.embedding_api_key = std::env::var(env_var).ok();
-                            }
+                            // Resolve API key: direct key, env var, or inherit from LLM
+                            c.embedding_api_key = vc
+                                .embedding
+                                .resolved_api_key()
+                                .or_else(|| vc.llm.resolved_api_key());
                         }
                     }
                     c
@@ -3359,42 +3412,53 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
         model
     };
 
-    // Ask for API key env var for cloud providers
-    let api_key_env = if provider != "ollama" {
+    // Ask for API key directly for cloud providers
+    let (api_key, api_key_env) = if provider != "ollama" {
         let default_env = match provider {
             "anthropic" => "ANTHROPIC_API_KEY",
             "openai" => "OPENAI_API_KEY",
             "gemini" => "GEMINI_API_KEY",
             _ => "",
         };
-        print!("  API key env var [{}]: ", default_env);
+        print!("  API key: ");
         io::stdout().flush().ok();
-        let mut env_input = String::new();
-        if io::stdin().read_line(&mut env_input).is_err() {
+        let mut key_input = String::new();
+        if io::stdin().read_line(&mut key_input).is_err() {
             return None;
         }
-        let env_val = env_input.trim();
-        Some(if env_val.is_empty() {
-            default_env.to_string()
+        let key_val = key_input.trim().to_string();
+
+        if key_val.is_empty() {
+            // No key pasted -- try reading from the default env var
+            if let Ok(env_key) = std::env::var(default_env) {
+                if !env_key.is_empty() {
+                    println!("  (using key from ${default_env})");
+                    (Some(env_key), Some(default_env.to_string()))
+                } else {
+                    eprintln!("  Warning: no API key provided and ${default_env} is empty.");
+                    (None, Some(default_env.to_string()))
+                }
+            } else {
+                eprintln!(
+                    "  Warning: no API key provided. Set ${default_env} or re-run with --key."
+                );
+                (None, Some(default_env.to_string()))
+            }
         } else {
-            env_val.to_string()
-        })
+            // User pasted a key directly
+            (Some(key_val), Some(default_env.to_string()))
+        }
     } else {
-        None
+        (None, None)
     };
 
     println!();
     println!("  Using {}/{}", provider, model);
 
-    // Resolve env var to actual key so the daemon can use it
-    let resolved_key = api_key_env
-        .as_ref()
-        .and_then(|env_name| std::env::var(env_name).ok());
-
     Some(hebbs_vault::config::LlmConfig {
         provider: provider.to_string(),
         model: model.to_string(),
-        api_key: resolved_key,
+        api_key,
         api_key_env,
         base_url: None,
     })

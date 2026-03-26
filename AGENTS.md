@@ -1,4 +1,4 @@
-# AGENTS.md -- Instructions for AI Coding Agents
+# AGENTS.md: Instructions for AI Coding Agents
 
 This file governs how AI agents (Cursor, Codex, Copilot, or any other coding assistant) must operate across the HEBBS workspace.
 
@@ -33,10 +33,10 @@ hebbs-repos/
 
 **HEBBS is built to the standard of government-grade, security-audited infrastructure.** Every line of code you produce will be scrutinized by security auditors, performance engineers, and formal reviewers who examine every allocation, every branch, every data flow, and every failure mode.
 
-**You must code as the world's best systems engineer -- obsessive about latency, paranoid about correctness, and relentless about algorithmic efficiency.**
+**You must code as the world's best systems engineer: obsessive about latency, paranoid about correctness, and relentless about algorithmic efficiency.**
 
 This means:
-- Know the time complexity of every operation you write. Document it. `O(log n)` lookup, `O(k)` traversal with bounded `k` -- be explicit.
+- Know the time complexity of every operation you write. Document it. `O(log n)` lookup, `O(k)` traversal with bounded `k`. Be explicit.
 - Know the cost of every allocation. Pre-allocate buffers. Reuse vectors. Use arena allocators for batch operations. Profile allocation counts, not just wall-clock time.
 - Choose the provably optimal data structure for each access pattern. Do not default to `Vec` or `HashMap` without analyzing the workload.
 - No `unsafe` without a written safety invariant. No `unwrap()` on external input paths. No dead code. No TODO comments in merged code.
@@ -92,7 +92,7 @@ Every code change must comply with the guiding principles. The most commonly rel
 - Error handling uses `thiserror` for library crates, `anyhow` for binary crates. No `unwrap()` or `expect()` on paths reachable by external input. Panics in production are audit failures.
 - No `unsafe` blocks without a written safety invariant comment. Every `unsafe` block must document: why it is needed, what invariants must hold, and what happens if they are violated.
 - Public APIs accept `impl AsRef<str>` over `String`, return references over owned values where lifetime permits.
-- Every search, sort, and traversal has documented time complexity. `O(log n)`, `O(k * ef_search)`, `O(d * branching_factor)` -- be explicit in code comments.
+- Every search, sort, and traversal has documented time complexity. `O(log n)`, `O(k * ef_search)`, `O(d * branching_factor)`. Be explicit in code comments.
 - Pre-allocate buffers and reuse vectors on hot paths. No heap allocations in tight loops. Profile with `dhat` or allocation counters.
 - Tests live next to the code they test (`#[cfg(test)] mod tests`). Integration tests live in `tests/`.
 - Property-based tests (via `proptest`) for serialization round-trips, index consistency, and invariant verification.
@@ -109,10 +109,10 @@ Every change must propagate across all affected layers: proto → server (gRPC +
 - **Commit messages MUST be a single line. No multi-line bodies, no blank lines, no paragraphs.**
 - **Do not run `git commit` or `git push` unless explicitly told by the user.** By default, only generate a single-line commit message for the user to run themselves.
 - Use conventional commit tags: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `perf:`, `ci:`.
-- Format: `<tag>(<scope>): <concise description>` — e.g. `fix(server): return 404 instead of 500 for missing memory`.
+- Format: `<tag>(<scope>): <concise description>`, e.g. `fix(server): return 404 instead of 500 for missing memory`.
 - If a code change requires a doc update, mention it in the commit message scope or body.
 
-### Subtree Push — NON-NEGOTIABLE
+### Subtree Push (NON-NEGOTIABLE)
 
 **Every time you push to `origin main`, you MUST check ALL subtrees for unpushed changes and report them.** This is mandatory, no exceptions.
 
@@ -157,7 +157,7 @@ Use debug mode **only when the user explicitly asks** (e.g., "debug this", "use 
 
 1. **Understand the bug.** Read logs, error output, and relevant source code to build context. Trace the data flow end-to-end through the component map.
 
-2. **Generate 3–5 hypotheses.** Each must be specific, testable, and describe a concrete mechanism (e.g., "empty `kind_filter` from proto maps to `memory_kinds: []`, which causes `.contains()` to reject every memory in the scope scan"). Cast a wide net — the real cause is often not the most obvious one. Rank by likelihood.
+2. **Generate 3–5 hypotheses.** Each must be specific, testable, and describe a concrete mechanism (e.g., "empty `kind_filter` from proto maps to `memory_kinds: []`, which causes `.contains()` to reject every memory in the scope scan"). Cast a wide net; the real cause is often not the most obvious one. Rank by likelihood.
 
 3. **Instrument code with debug logs.** Add temporary log statements at decision points so a single reproduction run can confirm or reject **all** hypotheses in parallel.
    - **Where to log:** function entry with params, function exit with return value, values before/after critical operations, which branch was taken, suspected edge-case values.
@@ -169,12 +169,12 @@ Use debug mode **only when the user explicitly asks** (e.g., "debug this", "use 
 
 4. **Reproduce the bug.** For compiled languages: rebuild the binary and restart the service (a stale binary is the #1 reason for "missing" logs). Run the failing test or repro steps. Collect the log file.
 
-5. **Analyze logs — evaluate every hypothesis.**
+5. **Analyze logs: evaluate every hypothesis.**
    - For each hypothesis, cite specific log lines as evidence.
    - Verdict per hypothesis: **CONFIRMED** (log proves it), **REJECTED** (log disproves it), or **INCONCLUSIVE** (need more instrumentation).
    - If all are rejected: generate new hypotheses targeting different subsystems, add more instrumentation, and re-run.
 
-6. **Fix with 100% confidence.** Only apply a fix when log evidence points to a confirmed root cause. Keep all instrumentation in place — do not remove it yet.
+6. **Fix with 100% confidence.** Only apply a fix when log evidence points to a confirmed root cause. Keep all instrumentation in place. Do not remove it yet.
 
 7. **Verify the fix.** Re-run with instrumentation still active. Compare before/after logs with cited entries to prove the fix works. A fix is not proven until the post-fix log output demonstrates the corrected behavior.
 
@@ -187,6 +187,17 @@ Use debug mode **only when the user explicitly asks** (e.g., "debug this", "use 
 - **Revert rejected hypotheses.** If logs disprove a hypothesis, immediately remove any code changes introduced for it. Never accumulate speculative guards or defensive checks from discarded theories.
 - **Iteration is expected.** First-attempt fixes frequently fail. More data and more iterations yield more precise fixes.
 - **Rebuild and restart.** Always rebuild and restart for compiled languages before every reproduction run.
+
+---
+
+## Testing Rules
+
+- **Prefer CLI-based testing over internal unit tests.** The best tests are CLI commands that exercise the full flow as a user would: `hebbs init .`, `hebbs status`, `hebbs index`, etc. Write test plans as a sequence of shell commands with expected outputs, not as Rust test functions calling library internals.
+- **Only touch code for tests when debugging requires it.** If you need to verify a fix, run the CLI. If you need to inspect internal state that the CLI doesn't expose, then (and only then) write or modify a Rust test.
+- **Never run the full test suite (`cargo test`) without user confirmation.** The full suite includes scale tests (10k+ memories, concurrency stress) that take minutes. Only run targeted tests for the crate or module you changed.
+- **Run only the tests relevant to your changes.** Use `cargo test -p <crate>` or `cargo test -p <crate> -- <test_name>` to scope test runs. For example, if you changed `hebbs-vault/src/config.rs`, run `cargo test -p hebbs-vault -- config`.
+- **Do not run scale, stress, or benchmark tests unless the user explicitly asks.** Tests with names like `recall_at_10k_scale`, `concurrent_writes_no_corruption`, or anything in `benches/` are expensive. Skip them during normal development.
+- **Build + clippy + fmt is the minimum verification.** Always run `cargo build`, `cargo clippy`, and `cargo fmt --check` before declaring work complete.
 
 ---
 

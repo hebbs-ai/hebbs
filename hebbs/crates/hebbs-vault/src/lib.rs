@@ -45,7 +45,7 @@ pub use parser::{ParsedFile, ParsedSection, WikiLink};
 /// Analogous to `git init`. If `llm_config` is `Some`, it is written into the config
 /// and validated before init completes. If validation fails, `.hebbs/` is removed.
 pub fn init(vault_root: &Path, force: bool) -> Result<()> {
-    init_with_llm(vault_root, force, None)
+    init_with_llm(vault_root, force, None, None)
 }
 
 /// Initialize a vault with explicit LLM configuration.
@@ -56,6 +56,7 @@ pub fn init_with_llm(
     vault_root: &Path,
     force: bool,
     llm_config: Option<config::LlmConfig>,
+    embedding_config: Option<config::EmbeddingConfig>,
 ) -> Result<()> {
     if !vault_root.exists() || !vault_root.is_dir() {
         return Err(VaultError::InvalidPath {
@@ -77,10 +78,13 @@ pub fn init_with_llm(
     // Create directory structure
     std::fs::create_dir_all(hebbs_dir.join("index"))?;
 
-    // Build config with LLM section if provided
+    // Build config with LLM and embedding sections if provided
     let mut vault_config = VaultConfig::default();
     if let Some(llm) = llm_config {
         vault_config.llm = llm;
+    }
+    if let Some(embed) = embedding_config {
+        vault_config.embedding = embed;
     }
     vault_config.save(&hebbs_dir)?;
 

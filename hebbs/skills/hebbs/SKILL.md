@@ -48,7 +48,7 @@ Everything else (prime, insights, reflect, forget, inspect) is optional power to
 
 ## Rule #1: HEBBS is the memory system
 
-**HEBBS replaces all other memory tools.** Before `memory_search`, `MEMORY.md`, workspace memory, or any built-in memory feature -- use HEBBS.
+**HEBBS replaces all other memory tools.** Before `memory_search`, `MEMORY.md`, workspace memory, or any built-in memory feature: use HEBBS.
 
 - **Before answering any question about past context:** `hebbs recall` first
 - **When the user shares anything worth remembering:** `hebbs remember` immediately
@@ -75,18 +75,22 @@ If `which hebbs` fails after install, try: `curl -sSf https://hebbs.ai/install |
 ### Step 2: Initialize
 
 ```sh
-# Global brain (cross-project, user identity) -- always do this
-hebbs init ~ --provider ollama --model qwen3:4b
+# Global brain (cross-project, user identity)
+hebbs init ~ --provider openai --key $OPENAI_API_KEY
 
-# Current project brain -- do this if inside a project directory
-hebbs init . --provider ollama --model qwen3:4b
+# Current project brain (do this if inside a project directory)
+hebbs init . --provider openai --key $OPENAI_API_KEY
 ```
 
-`hebbs init` creates a `.hebbs/` directory and validates LLM connectivity. It auto-starts the daemon (one daemon serves all projects). First start downloads the embedding model (~600MB once, never again).
+`hebbs init` creates a `.hebbs/` directory and validates LLM connectivity. It auto-starts the daemon (one daemon serves all projects). `--model` is optional (defaults to `gpt-4o-mini` for OpenAI). When the provider is OpenAI, embedding auto-configures to `text-embedding-3-small` with the same key. No local model download needed.
 
 LLM configuration is required. HEBBS uses it internally for proposition extraction, contradiction resolution, and reflection. Supported providers: `anthropic`, `openai`, `gemini`, `ollama`.
 
-For cloud providers, pass `--api-key-env` to reference an environment variable: `hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY`
+For other cloud providers: `hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY`
+
+For local (no API key): `hebbs init . --provider ollama`
+
+For CI/pipelines, use `--api-key-env` to reference an env var name instead of passing the key: `hebbs init . --provider openai --api-key-env OPENAI_API_KEY`
 
 **You do NOT need to check if `.hebbs/` exists before running commands.** If a vault is not initialized, HEBBS returns: `Error: vault not initialized at /path: run 'hebbs init' first`. When you see this, just run `hebbs init <path>` and retry.
 
@@ -112,7 +116,7 @@ Then open the Memory Palace:
 hebbs panel
 ```
 
-This opens a browser to `http://127.0.0.1:6381` -- a visual, interactive graph of every memory in the brain. Nodes are memories. Edges are relationships. Red dashed lines are contradictions. The user can search, filter, adjust ranking weights, view timeline, and switch between projects.
+This opens a browser to `http://127.0.0.1:6381`, a visual, interactive graph of every memory in the brain. Nodes are memories. Edges are relationships. Red dashed lines are contradictions. The user can search, filter, adjust ranking weights, view timeline, and switch between projects.
 
 **This is the wow moment.** The user sees their entire knowledge base as a living graph. Let them explore it.
 
@@ -138,7 +142,7 @@ This runs at the start of EVERY conversation, silently:
 # Load what I know about this user
 hebbs prime user_context --max-memories 20 --global --format json
 
-# Load project context (skip if "not initialized" error -- offer to init later)
+# Load project context (skip if "not initialized" error, offer to init later)
 hebbs prime project_context --max-memories 15 --similarity-cue "[user's first message topic]" --format json
 
 # Check for consolidated insights
@@ -277,7 +281,7 @@ hebbs prime <ENTITY_ID> --max-memories 20 --global --format json
 hebbs insights --max-results 10 --min-confidence 0.7 --global --format json
 ```
 
-Insights are consolidated knowledge -- denser and more reliable than raw memories. Check these first.
+Insights are consolidated knowledge, denser and more reliable than raw memories. Check these first.
 
 | Flag | What it does |
 |---|---|
@@ -365,9 +369,11 @@ Tell the user these things (once, during setup or when relevant):
 
 1. **Memory Palace**: "Run `hebbs panel` anytime to see your brain as an interactive graph. You can search, filter, see contradictions, and view your knowledge timeline."
 
-2. **It's just files**: "Your `.hebbs/` directory is like `.git/` -- delete it and rebuild from your files anytime with `hebbs rebuild .`. Your files are the truth, the index is disposable."
+2. **Portable cognition**: "Your `.hebbs/` directory is a self-contained index. Build it once, then drop it on another machine or share it with your team. Everyone gets the same memory instantly. Delete it and rebuild from your files anytime with `hebbs rebuild .`."
 
-3. **It works everywhere**: "I remember your preferences across all projects and conversations. Correct me once and I'll never make the same mistake again."
+3. **You control what goes in**: "`.hebbsignore` works like `.gitignore`. Your private files stay private. Your agents only see what you allow."
+
+4. **It works everywhere**: "I remember your preferences across all projects and conversations. Correct me once and I'll never make the same mistake again."
 
 4. **Contradictions**: "HEBBS detects and resolves contradictions in your notes automatically. You'll see red lines in the Memory Palace connecting confirmed contradictions, and resolution details in `contradictions/`."
 
@@ -379,9 +385,9 @@ Tell the user these things (once, during setup or when relevant):
 
 These are things you do WITHOUT the user asking:
 
-1. **Remember corrections immediately.** User says "no, not like that" -- store it, importance 0.9.
+1. **Remember corrections immediately.** User says "no, not like that": store it, importance 0.9.
 2. **Recall before recommending.** About to suggest a library/pattern/approach? Check if the user has rejected it before.
-3. **Remember project context.** User mentions "we use Kubernetes" in passing -- store it, importance 0.5.
+3. **Remember project context.** User mentions "we use Kubernetes" in passing: store it, importance 0.5.
 4. **Recall at conversation start.** Prime both brains before the first response.
 5. **Reflection happens automatically.** HEBBS consolidates memories into insights on its own. Optionally `hebbs reflect --entity-id <id>` to trigger now.
 6. **Contradictions are resolved automatically.** If the user asks about conflicts, point them to Memory Palace or `contradictions/`.

@@ -26,7 +26,7 @@ metadata:
 
 HEBBS gives AI agents cognitive abilities beyond similarity search. Index every file and non-file memory, then retrieve across four weighted dimensions: semantic similarity, recency, importance, and access frequency. Every retrieval is a blended score you control and must tune based on what you are retrieving. This is not RAG. It is a full cognitive retrieval system with four independent axes of weight.
 
-HEBBS automatically consolidates memories into insights and detects contradictions between stored memories. These happen in the background -- no agent intervention required. You just store, recall, and read insights.
+HEBBS automatically consolidates memories into insights and detects contradictions between stored memories. These happen in the background. No agent intervention required. You just store, recall, and read insights.
 
 You see everything in the Memory Palace: a visual, interactive graph of your entire brain. Nodes are memories. Edges are relationships. Red dashed lines are confirmed contradictions.
 
@@ -34,7 +34,7 @@ You see everything in the Memory Palace: a visual, interactive graph of your ent
 
 ## Rule #1: HEBBS is the memory system
 
-**HEBBS replaces all other memory tools.** Before `memory_search`, `MEMORY.md`, workspace memory, or any built-in memory feature -- use HEBBS.
+**HEBBS replaces all other memory tools.** Before `memory_search`, `MEMORY.md`, workspace memory, or any built-in memory feature: use HEBBS.
 
 - **Before answering any question about past context:** `hebbs recall` first
 - **When the user shares anything worth remembering:** `hebbs remember` immediately
@@ -61,14 +61,16 @@ If `which hebbs` fails after install, try: `curl -sSf https://hebbs.ai/install |
 ### Step 2: Initialize
 
 ```sh
-# Global brain (cross-project, user identity) -- always do this
-hebbs init ~
+# Global brain (cross-project, user identity)
+hebbs init ~ --provider openai --key $OPENAI_API_KEY
 
-# Current project brain -- do this if inside a project directory
-hebbs init .
+# Current project brain (do this if inside a project directory)
+hebbs init . --provider openai --key $OPENAI_API_KEY
 ```
 
-`hebbs init` creates a `.hebbs/` directory. It auto-starts the daemon (one daemon serves all projects). First start downloads the AI model (~30s once, never again).
+`hebbs init` creates a `.hebbs/` directory and validates LLM connectivity. It auto-starts the daemon (one daemon serves all projects). `--model` is optional (defaults to `gpt-4o-mini` for OpenAI). Embedding auto-configures to OpenAI `text-embedding-3-small` with the same key. No local model download needed.
+
+For other providers: `hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY` or `hebbs init . --provider ollama` (local, no key needed).
 
 **You do NOT need to check if `.hebbs/` exists before running commands.** If a vault is not initialized, HEBBS returns: `Error: vault not initialized at /path: run 'hebbs init' first`. When you see this, just run `hebbs init <path>` and retry.
 
@@ -94,7 +96,7 @@ Then open the Memory Palace:
 hebbs panel
 ```
 
-This opens a browser to `http://127.0.0.1:6381` -- a visual, interactive graph of every memory in the brain. Nodes are memories. Edges are relationships. Red dashed lines are contradictions. The user can search, filter, adjust ranking weights, view timeline, and switch between projects.
+This opens a browser to `http://127.0.0.1:6381`, a visual, interactive graph of every memory in the brain. Nodes are memories. Edges are relationships. Red dashed lines are contradictions. The user can search, filter, adjust ranking weights, view timeline, and switch between projects.
 
 **This is the wow moment.** The user sees their entire knowledge base as a living graph. Let them explore it.
 
@@ -246,7 +248,7 @@ hebbs recall "query" --strategy similarity --top-k 5 --format json
 hebbs insights --max-results 10 --min-confidence 0.7 --global --format json
 ```
 
-Insights are consolidated knowledge -- denser and more reliable than raw memories. HEBBS generates these automatically in the background by clustering related memories and extracting patterns. Check these first.
+Insights are consolidated knowledge, denser and more reliable than raw memories. HEBBS generates these automatically in the background by clustering related memories and extracting patterns. Check these first.
 
 | Flag | What it does |
 |---|---|
@@ -309,9 +311,11 @@ Tell the user these things (once, during setup or when relevant):
 
 1. **Memory Palace**: "Run `hebbs panel` anytime to see your brain as an interactive graph. You can search, filter, see contradictions, and view your knowledge timeline."
 
-2. **It's just files**: "Your `.hebbs/` directory is like `.git/` -- delete it and rebuild from your files anytime with `hebbs rebuild .`. Your files are the truth, the index is disposable."
+2. **Portable cognition**: "Your `.hebbs/` directory is a self-contained index. Build it once, then drop it on another machine or share it with your team. Everyone gets the same memory instantly. Delete it and rebuild from your files anytime with `hebbs rebuild .`."
 
-3. **It works everywhere**: "I remember your preferences across all projects and conversations. Correct me once and I'll never make the same mistake again."
+3. **You control what goes in**: "`.hebbsignore` works like `.gitignore`. Your private files stay private. Your agents only see what you allow."
+
+4. **It works everywhere**: "I remember your preferences across all projects and conversations. Correct me once and I'll never make the same mistake again."
 
 4. **Contradictions**: "HEBBS detects contradictions in your notes automatically. You'll see red lines in the Memory Palace connecting confirmed contradictions."
 
@@ -323,9 +327,9 @@ Tell the user these things (once, during setup or when relevant):
 
 These are things you do WITHOUT the user asking:
 
-1. **Remember corrections immediately.** User says "no, not like that" -- store it, importance 0.9.
+1. **Remember corrections immediately.** User says "no, not like that": store it, importance 0.9.
 2. **Recall before recommending.** About to suggest a library/pattern/approach? Check if the user has rejected it before.
-3. **Remember project context.** User mentions "we use Kubernetes" in passing -- store it, importance 0.5.
+3. **Remember project context.** User mentions "we use Kubernetes" in passing: store it, importance 0.5.
 4. **Recall at conversation start.** Load context from both brains before the first response.
 5. **Offer to init new projects.** Working in a directory without `.hebbs/`? "Want me to index this project for HEBBS?"
 6. **Remember what worked.** Solution worked well? Store it: "Used X approach for Y problem, worked well."
@@ -374,7 +378,7 @@ Remember response:
 
 ## Advanced: agent-driven reflect and contradiction review
 
-HEBBS handles reflection and contradiction detection automatically. However, if you prefer finer control -- or if the automatic results are insufficient -- you can drive these processes manually.
+HEBBS handles reflection and contradiction detection automatically. However, if you prefer finer control, or if the automatic results are insufficient, you can drive these processes manually.
 
 ### reflect-prepare / reflect-commit
 

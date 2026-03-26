@@ -27,25 +27,27 @@ export PATH="$HOME/.hebbs/bin:$PATH"
 
 ```bash
 cd ~/projects/my-notes    # any directory with markdown files
-hebbs init --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init --provider openai --key $OPENAI_API_KEY
 ```
 
-This creates a `.hebbs/` directory, validates LLM connectivity, and configures the embedding model. HEBBS uses the LLM for proposition extraction, entity detection, and contradiction resolution during indexing.
+One command. Model defaults to `gpt-4o-mini`. Embedding auto-configures to OpenAI `text-embedding-3-small` with the same key. No local model download needed.
 
-**Embedding model**: By default, HEBBS uses OpenAI's `text-embedding-3-small` when `--provider openai` is set. You can override this with `hebbs config set embedding.model <model>`. For local-only embeddings (no API calls for embedding), use `hebbs config set embedding.model embeddinggemma-300m`.
+This creates a `.hebbs/` directory, validates LLM connectivity, saves config to `~/.hebbs/config.toml` (global), and starts the daemon. HEBBS uses the LLM for proposition extraction, entity detection, and contradiction resolution during indexing.
 
 Other providers:
 
 ```bash
 # Anthropic
-hebbs init --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
+hebbs init --provider anthropic --key $ANTHROPIC_API_KEY
 
 # Google Gemini
-hebbs init --provider gemini --model gemini-2.0-flash --api-key-env GEMINI_API_KEY
+hebbs init --provider gemini --key $GEMINI_API_KEY
 
 # Local (Ollama, no API key needed)
-hebbs init --provider ollama --model qwen3:4b
+hebbs init --provider ollama
 ```
+
+For CI/pipelines, use `--api-key-env` to reference an env var name instead of passing the key directly.
 
 ## 3. Index Your Files
 
