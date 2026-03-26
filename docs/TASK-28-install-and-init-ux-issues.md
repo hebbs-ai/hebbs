@@ -135,29 +135,91 @@ The `[llm]` section correctly reads both `api_key` and `api_key_env`. The embedd
 
 ---
 
-## Workaround (for current testers)
+## Issue 6: Empty local `[llm]` overrides global config instead of inheriting
 
-1. Set the env var:
+**Severity:** High (breaks the "configure once" promise)
+
+When `hebbs init .` runs without `--provider`, it creates a local `.hebbs/config.toml` with an empty `[llm]` section. If the user later configures `~/.hebbs/config.toml` (global) with their LLM provider, the local empty `[llm]` **overrides** the global config instead of inheriting from it.
+
+**What happens:**
+1. User runs `hebbs init .` (no provider flag)
+2. Local `.hebbs/config.toml` gets `[llm]` with empty provider/model
+3. User edits `~/.hebbs/config.toml` with OpenAI config
+4. `hebbs index .` fails: "LLM provider not configured"
+5. The empty local `[llm]` shadows the global config
+
+**Expected:** An empty `[llm]` in local config should mean "inherit from global", not "override with nothing".
+
+**Fix:** During config loading, if `[llm].provider` is empty in local config, fall through to global. Or better: don't write `[llm]` to local config at all when it's not configured during init (already partially done with `skip_serializing_if`).
+
+---
+
+## Root Cause: The init UX is too many steps
+
+All of issues 1-6 stem from the same problem: init requires too many decisions and too many things to go right. The cleanest solution for 0.3.3:
+
+### One command, one key, done
+
 ```bash
-export OPENAI_API_KEY="sk-proj-your-key-here"
+hebbs init . --provider openai --key sk-proj-your-key-here
 ```
 
-2. Edit `~/.hebbs/config.toml`:
-```toml
-[llm]
-provider = "openai"
-model = "gpt-4o-mini"
-api_key_env = "OPENAI_API_KEY"
+This single command should:
 
-[embedding]
-provider = "openai"
-model = "text-embedding-3-small"
-api_key_env = "OPENAI_API_KEY"
-dimensions = 1536
+1. Take the key directly (not an env var name)
+2. Auto-configure both `[llm]` (gpt-4o-mini) and `[embedding]` (text-embedding-3-small) for that provider
+3. Save to global `~/.hebbs/config.toml`
+4. NOT write `[llm]` or `[embedding]` to local config (inherits from global)
+5. NOT download local embedding model (uses API)
+6. Validate LLM connectivity
+7. Start daemon
+
+### Interactive mode should be equally simple
+
+```
+$ hebbs init .
+
+  Provider [openai]: openai
+  API key: sk-proj-...
+
+  Done. Using openai/gpt-4o-mini + text-embedding-3-small.
 ```
 
-3. Stop daemon and rebuild:
+Two prompts. Not four. No "env var name" confusion. No separate embedding config.
+
+### What this eliminates
+
+- No `api_key` vs `api_key_env` confusion (just `--key`)
+- No separate embedding config for OpenAI users (auto-configured)
+- No 1.2GB model download for OpenAI users (API embeddings)
+- No global vs local config confusion (global only, local inherits)
+- No empty `[llm]` overriding global (not written to local)
+
+---
+
+## Workaround (for v0.3.2 testers)
+
+The cleanest path on the current release:
+
 ```bash
+# 1. Set env var (required because embedding only reads api_key_env, not api_key)
+echo 'export OPENAI_API_KEY="sk-proj-your-key-here"' >> ~/.bashrc
+source ~/.bashrc
+
+# 2. Delete existing vault and re-init with provider flag
+rm -rf .hebbs
+hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+
+# 3. Edit global config to add embedding provider
+nano ~/.hebbs/config.toml
+# Add this section:
+# [embedding]
+# provider = "openai"
+# model = "text-embedding-3-small"
+# api_key_env = "OPENAI_API_KEY"
+# dimensions = 1536
+
+# 4. Stop daemon (it loaded old config) and index
 hebbs stop
-hebbs rebuild .
+hebbs index .
 ```
