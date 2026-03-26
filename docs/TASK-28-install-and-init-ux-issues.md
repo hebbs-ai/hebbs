@@ -115,6 +115,26 @@ The message says "Ensuring embedding model" which sounds mandatory. If the user 
 
 ---
 
+## Issue 5: Embedding config ignores `api_key`, only reads `api_key_env`
+
+**Severity:** High (blocks anyone using `api_key` for embeddings)
+
+The `[embedding]` section in config supports both `api_key` (direct key) and `api_key_env` (env var name). But the embedding provider code in `setup_engine()` (`hebbs-vault/src/bin/hebbs.rs`) and `create_embedder_from_daemon_config()` (`daemon/mod.rs`) only read `api_key_env`. If a user sets `api_key = "sk-proj-..."` in the `[embedding]` section, it's silently ignored and they get:
+
+```
+Error setting up engine: OpenAI embedding requires API key. Set OPENAI_API_KEY env var.
+```
+
+The `[llm]` section correctly reads both `api_key` and `api_key_env`. The embedding code should do the same.
+
+**Fix:** In `setup_engine()` and `create_embedder_from_daemon_config()`, check `api_key` first, then fall back to `api_key_env` lookup. Also try inheriting from `[llm]` config if both are empty (same provider, same key).
+
+**Fix locations:**
+- `hebbs-vault/src/bin/hebbs.rs` line ~658 in `setup_engine()`
+- `hebbs-vault/src/daemon/mod.rs` in `create_embedder_from_daemon_config()`
+
+---
+
 ## Workaround (for current testers)
 
 1. Set the env var:
