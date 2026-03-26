@@ -1,18 +1,14 @@
 # Submission Strategy
 
-## Paper Title (Working)
+## Paper Title
 
-**"HEBBS: A Neuroscience-Grounded Memory Engine for Autonomous AI Agents"**
-
-Alternative titles:
-- "From Hippocampus to Vault: Biologically-Inspired Persistent Memory for LLM Agents"
-- "HEBBS: Hebbian Memory Consolidation, Contradiction Detection, and Adaptive Decay for AI Agents"
+**"HEBBS: A Self-Tuning Memory Engine for AI Agents"**
 
 ---
 
 ## Core Thesis
 
-AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of operation as conflicts, redundancy, and noise compound. HEBBS solves this by implementing the same memory architecture the human brain evolved: fast hippocampal encoding, Hebbian associative graphs, anterior cingulate conflict detection, sleep-like consolidation, and Ebbinghaus-curve adaptive decay -- all compiled to a zero-copy Rust engine.
+AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of operation as conflicts, redundancy, and noise compound. HEBBS solves this by implementing the same memory architecture the human brain evolved: fast hippocampal encoding, Hebbian associative graphs, anterior cingulate conflict detection, sleep-like consolidation, and Ebbinghaus-curve adaptive decay, all compiled to a zero-copy Rust engine. A file-first architecture separates source content (the content plane) from a portable, rebuildable cognition layer (`.hebbs/`), with `.hebbsignore` providing gitignore-style privacy control over what enters the memory engine.
 
 ---
 
@@ -54,10 +50,10 @@ AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of o
 ## Paper Structure (NeurIPS Format, 8 pages)
 
 ### 1. Introduction (1 page)
-- Problem: LLM agents with flat memory degrade over time
-- Observation: human brains solved this problem via specific architecture
-- Contribution: HEBBS implements this architecture computationally
-- Results preview: X% improvement on LongMemEval, contradiction detection accuracy, decay curve matching
+- Two problems: memory degrades over time, and retrieval never improves
+- Observation: human brains solved both via specific architecture + adaptive retrieval
+- Contribution: HEBBS implements self-tuning retrieval + six neuroscience mechanisms
+- Results preview: 59% to 88% keyword recall via agent-driven tuning, decay validation, strategy differentiation
 
 ### 2. Related Work (1 page)
 - Agent memory systems: MemGPT, A-MEM, AgeMem, Memoria, Zep, Mem0
@@ -68,6 +64,11 @@ AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of o
 - 3.1 Vault Ingestion (Hippocampal Fast Encoding)
   - Markdown chunking, ONNX embeddings, RocksDB storage
   - Real-time daemon (novelty detection analogue)
+- 3.2 File-First Architecture (Portable Cognition)
+  - Two-plane separation: content plane (source files) vs cognition plane (`.hebbs/`)
+  - Portable, rebuildable, self-contained cognition artifact
+  - `.hebbsignore` for selective indexing (privacy by design)
+  - Crash safety via rebuild guarantee
 - 3.2 Memory Palace (Hebbian Associative Graph)
   - HNSW similarity index
   - Temporal, causal, similarity edge types
@@ -91,15 +92,14 @@ AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of o
 - Predictions from the analogy (testable hypotheses)
 
 ### 5. Experiments (2 pages)
-- 5.1 LongMemEval benchmark (long-horizon agent memory)
-- 5.2 Contradiction detection precision/recall
-- 5.3 Memory quality over time (30-day degradation study)
-- 5.4 Ablation: removing consolidation, decay, contradiction detection
-- 5.5 Token efficiency: retrieval budget vs accuracy tradeoff
+- 5.1 Agent-driven retrieval tuning (59% to 88% on legal vault, real data)
+- 5.2 Strategy differentiation (same query, different strategies, different results)
+- 5.3 Adaptive decay validation (access count vs decay score correlation)
+- 5.4 Ablation: removing self-tuning, proposition extraction, decay, multi-strategy
 
 ### 6. Discussion & Conclusion (1 page)
 - Limitations
-- Future work: multi-agent shared memory, cross-vault consolidation
+- Future work: multi-agent shared memory via `.hebbs/` sharing, cross-vault consolidation
 - Broader impact
 
 ### Appendix (unlimited)
@@ -114,6 +114,7 @@ AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of o
 
 | Feature | HEBBS | AgeMem | A-MEM | Memoria | MemGPT |
 |---|---|---|---|---|---|
+| Self-tuning retrieval (agent-driven eval loop) | Yes | No | No | No | No |
 | Contradiction detection | Yes (pipeline) | No | No | No | No |
 | Adaptive decay | Yes (half-life) | No | No | No | No |
 | Consolidation (episodes->insights) | Yes | Partial | No | Partial | No |
@@ -121,13 +122,15 @@ AI agents using flat markdown or vector-only memory degrade after 1-2 weeks of o
 | Neuroscience-grounded design | Yes (explicit) | No | No | No | No |
 | Rust/zero-copy engine | Yes | No | No | No | No |
 | Real-time file watching | Yes | No | No | No | No |
+| Portable cognition (`.hebbs/`) | Yes | No | No | No | No |
+| Selective indexing (`.hebbsignore`) | Yes | No | No | No | No |
 
 ---
 
 ## Competitive Papers to Cite
 
 1. AgeMem (arXiv 2601.01885, Jan 2026)
-2. Memory in the Age of AI Agents (arXiv 2512.13564, Dec 2025) -- survey
+2. Memory in the Age of AI Agents (arXiv 2512.13564, Dec 2025), survey
 3. A-MEM (arXiv 2502.12110, Feb 2025)
 4. Memoria (arXiv 2512.12686, Dec 2025)
 5. AI Meets Brain survey (arXiv 2512.23343)

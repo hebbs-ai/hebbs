@@ -1,28 +1,48 @@
 ---
 const scenarios = [
   {
-    situation: "User asks about a failed deal",
-    thought: "I need the causal chain scoped to this entity, weighted toward importance.",
-    params: { strategy: "causal", entity_id: '"acme"', scoring: "importance: 0.5", memory_kinds: "episode, insight" },
-    highlight: "strategy",
+    situation: "Why did this deal fail?",
+    thought: "Causal chain, scoped to Acme, importance over recency.",
+    strategy: "causal",
+    weight: "importance: 0.5",
+    scope: "entity: acme",
+    kinds: "episode + insight",
+    color: "text-red",
+    bgColor: "bg-red/[0.06]",
+    borderColor: "border-red/20",
   },
   {
-    situation: "Preparing for a follow-up call",
-    thought: "I need recent interactions in chronological order to rebuild context.",
-    params: { strategy: "temporal", entity_id: '"acme"', scoring: "recency: 0.6", memory_kinds: "episode" },
-    highlight: "scoring",
+    situation: "Prep me for the follow-up call",
+    thought: "Recent interactions, chronological order, rebuild context.",
+    strategy: "temporal",
+    weight: "recency: 0.6",
+    scope: "entity: acme",
+    kinds: "episode",
+    color: "text-cyan",
+    bgColor: "bg-cyan/[0.06]",
+    borderColor: "border-cyan/20",
   },
   {
-    situation: "Handling a pricing objection",
-    thought: "I need patterns from similar objections across all accounts.",
-    params: { strategy: "analogical", entity_id: "null", scoring: "reinforcement: 0.5", memory_kinds: "insight" },
-    highlight: "memory_kinds",
+    situation: "Handle this pricing objection",
+    thought: "Patterns from similar objections across all accounts.",
+    strategy: "analogical",
+    weight: "reinforcement: 0.5",
+    scope: "all entities",
+    kinds: "insight",
+    color: "text-green",
+    bgColor: "bg-green/[0.06]",
+    borderColor: "border-green/20",
   },
   {
-    situation: "Quick fact lookup",
-    thought: "Just find the closest semantic match. Fast and simple.",
-    params: { strategy: "similarity", entity_id: "null", scoring: "relevance: 1.0", memory_kinds: "episode" },
-    highlight: "strategy",
+    situation: "What's our SLA with Acme?",
+    thought: "Closest semantic match. One call. Done.",
+    strategy: "similarity",
+    weight: "relevance: 1.0",
+    scope: "all entities",
+    kinds: "episode",
+    color: "text-accent",
+    bgColor: "bg-accent/[0.04]",
+    borderColor: "border-accent/20",
   },
 ];
 
@@ -40,80 +60,110 @@ const parameters = [
 
 <section class="py-20 md:py-32 border-t border-border/50">
   <div class="mx-auto max-w-6xl px-6">
-    <div class="text-center mb-16">
-      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">Agent-first design</p>
-      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-        Your agent decides. Powerful enough to act on any direction.
+
+    <!-- ── Beat 1: The Insight ── -->
+    <div class="text-center mb-6">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">The design decision</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-6">
+        Your agent is already smarter than your memory system.<br class="hidden md:block" />
+        Let it act like it.
       </h2>
-      <p class="text-muted text-lg max-w-3xl mx-auto">
-        Every parameter of every call is exposed to the agent. Strategy, weights, scope, filters. The agent reasons about what it needs and tells HEBBS exactly how to retrieve it. No black boxes. No fixed pipelines.
-      </p>
     </div>
 
-    <!-- Anatomy of a recall call -->
-    <div class="rounded-xl border border-accent/30 bg-accent/[0.04] overflow-hidden mb-12">
-      <div class="flex items-center gap-2 px-4 py-3 border-b border-accent/20">
-        <div class="w-3 h-3 rounded-full bg-red/40"></div>
-        <div class="w-3 h-3 rounded-full bg-accent/40"></div>
-        <div class="w-3 h-3 rounded-full bg-green/40"></div>
-        <span class="ml-2 text-xs text-muted font-mono">anatomy of a recall</span>
-      </div>
-      <div class="p-6 md:p-8">
-        <div class="mb-6 rounded-lg bg-bg/60 border border-border/40 px-5 py-4">
-          <p class="text-xs font-mono text-accent/60 uppercase tracking-wider mb-2">Agent reasoning</p>
-          <p class="text-sm text-muted italic leading-relaxed">
-            "User asked why the Acme deal fell through. I need the causal chain, scoped to this entity, weighted toward importance over recency. Episodes and insights both matter here."
-          </p>
-        </div>
-
-        <pre class="font-mono text-sm leading-loose overflow-x-auto"><code><span class="text-text">results</span> <span class="text-cyan">=</span> <span class="text-text">e</span>.<span class="text-text">recall</span>(
-    <span class="text-text">cue</span>            <span class="text-cyan">=</span> <span class="text-green">"why did the Acme deal fail"</span>       <span class="text-muted">  # what to search</span>
-    <span class="text-text">strategy</span>       <span class="text-cyan">=</span> <span class="text-green">"causal"</span>                          <span class="text-muted">  # which of 4 strategies</span>
-    <span class="text-text">entity_id</span>      <span class="text-cyan">=</span> <span class="text-green">"acme"</span>                            <span class="text-muted">  # scope to one entity</span>
-    <span class="text-text">scoring_weights</span><span class="text-cyan">=</span> <span class="text-muted">{</span><span class="text-green">"w_relevance"</span>: <span class="text-accent">0.3</span>,             <span class="text-muted">  # tune the blend</span>
-                      <span class="text-green">"w_recency"</span>: <span class="text-accent">0.1</span>,
-                      <span class="text-green">"w_importance"</span>: <span class="text-accent">0.5</span>,
-                      <span class="text-green">"w_reinforcement"</span>: <span class="text-accent">0.1</span><span class="text-muted">}</span>
-    <span class="text-text">memory_kinds</span>   <span class="text-cyan">=</span> [<span class="text-green">"episode"</span>, <span class="text-green">"insight"</span>]            <span class="text-muted">  # filter by type</span>
-    <span class="text-text">top_k</span>          <span class="text-cyan">=</span> <span class="text-accent">10</span>                                <span class="text-muted">  # how many results</span>
-)</code></pre>
+    <div class="max-w-3xl mx-auto mb-16 md:mb-20">
+      <div class="rounded-xl border border-accent/20 bg-accent/[0.03] px-6 py-5 md:px-8 md:py-6">
+        <p class="text-muted text-base md:text-lg leading-relaxed mb-4">
+          Every memory system tries to be smarter than your agent at retrieval. They hardcode one strategy, optimize for one benchmark, and ship it as a black box.
+        </p>
+        <p class="text-muted text-base md:text-lg leading-relaxed mb-4">
+          Your agent gets smarter every quarter. Your infrastructure doesn't. Every hardcoded decision becomes a constraint the moment the agent outgrows it.
+        </p>
+        <p class="text-text text-base md:text-lg leading-relaxed font-medium">
+          HEBBS doesn't compete with your agent. It arms your agent. Four recall strategies, four scoring dimensions, full parameter control on every call. The agent decides how to retrieve because it already understands the query.
+        </p>
       </div>
     </div>
 
-    <!-- Same agent, different decisions -->
-    <div class="mb-6">
-      <h3 class="text-lg font-semibold text-text mb-2 text-center">Same agent. Different situations. Different decisions.</h3>
-      <p class="text-sm text-muted text-center mb-8">The agent picks the right parameters for each moment.</p>
+    <!-- ── Beat 2: Four Queries, Four Decisions ── -->
+    <div class="text-center mb-8">
+      <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2">
+        Same agent. Same memories. Four different retrievals.
+      </h3>
+      <p class="text-sm text-muted">Each card is one query. Watch the parameters change.</p>
     </div>
 
-    <div class="grid sm:grid-cols-2 gap-5 mb-12">
+    <div class="grid sm:grid-cols-2 gap-5 mb-16 md:mb-20">
       {scenarios.map((s) => (
-        <div class="rounded-xl border border-border bg-surface/40 p-5">
-          <p class="text-xs font-mono text-accent uppercase tracking-wider mb-2">{s.situation}</p>
-          <p class="text-sm text-muted italic mb-4">"{s.thought}"</p>
-          <div class="space-y-1.5 font-mono text-xs">
-            {Object.entries(s.params).map(([key, val]) => (
-              <div class="flex gap-2">
-                <span class={key === s.highlight ? 'text-accent font-semibold' : 'text-muted'}>{key}</span>
-                <span class="text-muted/40">=</span>
-                <span class="text-text">{val}</span>
-              </div>
-            ))}
+        <div class={`rounded-xl border ${s.borderColor} ${s.bgColor} p-5 md:p-6 flex flex-col`}>
+          <!-- Situation -->
+          <p class={`text-sm font-semibold ${s.color} mb-1.5`}>{s.situation}</p>
+          <!-- Agent thought -->
+          <p class="text-sm text-muted italic mb-5 leading-relaxed">"{s.thought}"</p>
+          <!-- Parameter chips -->
+          <div class="mt-auto flex flex-wrap gap-2">
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">strategy</span>
+              <span class={`font-semibold ${s.color}`}>{s.strategy}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">weight</span>
+              <span class={`font-semibold ${s.color}`}>{s.weight}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">scope</span>
+              <span class="text-text-secondary">{s.scope}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">kinds</span>
+              <span class="text-text-secondary">{s.kinds}</span>
+            </span>
           </div>
         </div>
       ))}
     </div>
 
-    <!-- All exposed parameters -->
+    <!-- ── The Result ── -->
+    <div class="rounded-xl border border-accent/20 bg-accent/[0.03] p-6 md:p-8 mb-16 md:mb-20">
+      <div class="flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
+        <!-- Before/After -->
+        <div class="flex items-center gap-4 md:gap-6">
+          <div class="text-center">
+            <p class="text-xs font-mono text-muted uppercase tracking-wider mb-1">Before</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-red">59%</p>
+            <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
+          </div>
+          <svg class="w-6 h-6 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+          <div class="text-center">
+            <p class="text-xs font-mono text-green uppercase tracking-wider mb-1">After</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-green">88%</p>
+            <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
+          </div>
+        </div>
+        <!-- Story -->
+        <div class="flex-1 border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-8">
+          <p class="text-sm text-text leading-relaxed mb-2">
+            A client indexed 52 legal documents: contracts, board minutes, vendor assessments, compliance policies. Out of the box, default retrieval answered <strong>59% of eval queries</strong> correctly.
+          </p>
+          <p class="text-sm text-text leading-relaxed mb-2">
+            One command. The agent generated domain-specific evals, diagnosed four retrieval failure patterns, tuned strategy and weights per query type, and stored the learned configuration.
+          </p>
+          <p class="text-sm text-text font-medium leading-relaxed">
+            <strong class="text-green">88% recall accuracy. 60 seconds. Ships with enterprise HEBBS.</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Beat 3: Full Parameter Surface (reference, not pitch) ── -->
     <div class="rounded-xl border border-border bg-surface/40 overflow-hidden">
       <div class="px-6 py-4 border-b border-border/60">
-        <p class="text-xs font-mono text-accent uppercase tracking-wider">Every parameter the agent controls</p>
-        <p class="text-xs text-muted mt-1">All exposed over CLI, Python SDK, TypeScript SDK, gRPC, and REST.</p>
+        <p class="text-sm font-medium text-text">Every parameter the agent used above. All exposed.</p>
+        <p class="text-xs text-muted mt-0.5">CLI, Python SDK, TypeScript SDK, gRPC, and REST.</p>
       </div>
       <div class="grid sm:grid-cols-2 divide-y sm:divide-y-0 divide-border/40">
         <div class="divide-y divide-border/40">
           {parameters.slice(0, 4).map((p) => (
-            <div class="px-6 py-3.5 flex flex-col gap-0.5">
+            <div class="px-6 py-3 flex flex-col gap-0.5">
               <div class="flex items-baseline gap-2">
                 <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
                 <span class="text-[11px] text-muted/60">{p.values}</span>
@@ -124,7 +174,7 @@ const parameters = [
         </div>
         <div class="divide-y divide-border/40 sm:border-l sm:border-border/40">
           {parameters.slice(4).map((p) => (
-            <div class="px-6 py-3.5 flex flex-col gap-0.5">
+            <div class="px-6 py-3 flex flex-col gap-0.5">
               <div class="flex items-baseline gap-2">
                 <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
                 <span class="text-[11px] text-muted/60">{p.values}</span>
@@ -135,5 +185,6 @@ const parameters = [
         </div>
       </div>
     </div>
+
   </div>
 </section>

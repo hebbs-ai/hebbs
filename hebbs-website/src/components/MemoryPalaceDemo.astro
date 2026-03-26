@@ -1,6 +1,7 @@
 ---
-// Interactive Memory Palace demo: force-directed graph with pre-baked nodes
-// Ports visual core from hebbs-vault panel graph.js (same physics, same rendering)
+// Bioluminescent Memory Palace: real enterprise legal vault simulation
+// Based on actual indexed vault: 8 files, contracts/compliance/risk/meetings
+// The star: ransomware sublimit contradiction ($2M policy vs $500K endorsement)
 ---
 
 <section id="memory-palace" class="py-20 md:py-32 border-t border-border/50">
@@ -15,825 +16,487 @@
       </p>
     </div>
 
-    <div class="relative rounded-xl border border-border bg-surface/40 overflow-hidden">
-      <canvas id="palace-canvas" class="w-full block" style="height: 600px; cursor: grab;"></canvas>
+    <div class="relative rounded-xl overflow-hidden" style="background: #050510; border: 1px solid rgba(255,255,255,0.06);">
+      <canvas id="palace-canvas" class="w-full block" style="height: 560px; cursor: grab;"></canvas>
 
       <!-- Legend -->
-      <div id="palace-legend" class="absolute top-4 right-4 bg-bg/80 backdrop-blur-sm border border-border/60 rounded-lg px-4 py-3 text-xs pointer-events-none">
+      <div id="palace-legend" class="absolute top-4 right-4 rounded-lg px-4 py-3 text-xs pointer-events-none" style="background: rgba(5,5,16,0.85); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px);">
         <div class="flex items-center gap-2 mb-1.5">
-          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(200, 130, 20, 0.8);"></span>
-          <span class="text-muted">Episode</span>
+          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(251, 191, 36, 0.8); box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);"></span>
+          <span style="color: #94A3B8;">Episode</span>
         </div>
         <div class="flex items-center gap-2 mb-1.5">
-          <svg class="w-3 h-3" viewBox="0 0 12 12"><polygon points="6,1 10.5,3.5 10.5,8.5 6,11 1.5,8.5 1.5,3.5" fill="rgba(16, 185, 129, 0.8)" /></svg>
-          <span class="text-muted">Insight</span>
+          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(52, 211, 153, 0.8); box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);"></span>
+          <span style="color: #94A3B8;">Insight</span>
         </div>
-        <div class="border-t border-border/40 my-1.5 pt-1.5">
+        <div style="border-top: 1px solid rgba(255,255,255,0.06); margin: 6px 0; padding-top: 6px;">
           <div class="flex items-center gap-2 mb-1">
-            <span class="inline-block w-4 border-t-2" style="border-color: rgba(120, 53, 15, 0.7);"></span>
-            <span class="text-muted">Causal</span>
+            <span class="inline-block w-4" style="border-top: 2px solid rgba(251, 191, 36, 0.5);"></span>
+            <span style="color: #94A3B8;">Causal</span>
           </div>
           <div class="flex items-center gap-2 mb-1">
-            <span class="inline-block w-4 border-t-2 border-dashed" style="border-color: rgba(107, 114, 128, 0.5);"></span>
-            <span class="text-muted">Similarity</span>
+            <span class="inline-block w-4 border-dashed" style="border-top: 2px dashed rgba(148, 163, 184, 0.3);"></span>
+            <span style="color: #94A3B8;">Similarity</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="inline-block w-4 border-t-2 border-dashed" style="border-color: rgba(239, 68, 68, 0.7);"></span>
-            <span class="text-muted">Contradiction</span>
+            <span class="inline-block w-4 border-dashed" style="border-top: 2px dashed rgba(248, 113, 113, 0.6);"></span>
+            <span style="color: #94A3B8;">Contradiction</span>
           </div>
         </div>
       </div>
 
+      <!-- File labels (overlaid on canvas) -->
+      <div id="palace-files" class="absolute top-4 left-4 rounded-lg px-4 py-3 text-xs pointer-events-none" style="background: rgba(5,5,16,0.85); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px);">
+        <div style="color: #64748B; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Indexed files</div>
+        <div style="color: #FBBF24; margin-bottom: 2px;">contracts/cyber-insurance-policy.md</div>
+        <div style="color: #FBBF24; margin-bottom: 2px;">contracts/endorsement-ransomware.md</div>
+        <div style="color: #38BDF8; margin-bottom: 2px;">compliance/data-retention-v1.md</div>
+        <div style="color: #38BDF8; margin-bottom: 2px;">compliance/data-retention-v2.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">risk/risk-register-2024-q4.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">risk/risk-register-2025-q2.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">audits/vendor-risk-cloudvault.md</div>
+        <div style="color: #34D399;">meetings/insurance-review.md</div>
+      </div>
+
       <!-- Interaction hint -->
-      <div id="palace-hint" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg/70 backdrop-blur-sm border border-border/40 rounded-full px-4 py-2 text-xs text-muted pointer-events-none transition-opacity duration-700">
+      <div id="palace-hint" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-xs pointer-events-none transition-opacity duration-700" style="background: rgba(5,5,16,0.7); border: 1px solid rgba(255,255,255,0.06); color: #64748B; backdrop-filter: blur(8px);">
         Hover to inspect &middot; Scroll to zoom &middot; Drag to pan
       </div>
 
       <!-- Tooltip -->
-      <div id="palace-tooltip" class="absolute hidden bg-bg/90 backdrop-blur-sm border border-border/60 rounded-lg px-3 py-2 text-xs pointer-events-none z-10 max-w-xs"></div>
+      <div id="palace-tooltip" class="absolute hidden rounded-lg px-3 py-2 text-xs pointer-events-none z-10 max-w-sm" style="background: rgba(5,5,16,0.92); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px);"></div>
     </div>
 
     <!-- Stats bar -->
-    <div class="mt-4 flex flex-wrap justify-center gap-6 text-sm text-muted font-mono">
-      <span><span class="text-accent font-semibold">42</span> memories</span>
-      <span><span class="text-green font-semibold">8</span> insights</span>
-      <span><span class="text-accent font-semibold">3</span> clusters</span>
-      <span><span class="text-red font-semibold">2</span> contradictions</span>
+    <div class="mt-4 flex flex-wrap justify-center gap-6 text-sm font-mono" style="color: #64748B;">
+      <span><span style="color: #E2E8F0;" class="font-semibold">8</span> files</span>
+      <span><span style="color: #FBBF24;" class="font-semibold">19</span> episodes</span>
+      <span><span style="color: #34D399;" class="font-semibold">4</span> insights</span>
+      <span><span style="color: #F87171;" class="font-semibold">1</span> contradiction</span>
     </div>
   </div>
 </section>
 
 <script is:inline>
 (function() {
-  // ── Demo data ──────────────────────────────────────────────────────
-  const DEMO_NODES = [
-    // Cluster 0: Sales Interactions (15 episodes, upper-left)
-    { id: 's1',  label: 'Initial call with Acme Corp', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.9, reinforcement: 0.8 },
-    { id: 's2',  label: 'Pricing objection handling', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.7, reinforcement: 0.6 },
-    { id: 's3',  label: 'Follow-up demo scheduled', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.8, reinforcement: 0.5 },
-    { id: 's4',  label: 'Champion identified: VP Eng', kind: 'episode', cluster: 0, importance: 0.8, recency: 0.6, reinforcement: 0.9 },
-    { id: 's5',  label: 'Security review requested', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.5, reinforcement: 0.4 },
-    { id: 's6',  label: 'Competitor mentioned in call', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.4, reinforcement: 0.3 },
-    { id: 's7',  label: 'Budget approval timeline', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
-    { id: 's8',  label: 'Technical deep dive meeting', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.8, reinforcement: 0.6 },
-    { id: 's9',  label: 'Stakeholder alignment call', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.3, reinforcement: 0.4 },
-    { id: 's10', label: 'Contract terms discussion', kind: 'episode', cluster: 0, importance: 0.7, recency: 0.5, reinforcement: 0.8 },
-    { id: 's11', label: 'POC success criteria defined', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.7, reinforcement: 0.5 },
-    { id: 's12', label: 'Executive sponsor meeting', kind: 'episode', cluster: 0, importance: 0.8, recency: 0.4, reinforcement: 0.7 },
-    { id: 's13', label: 'Integration requirements doc', kind: 'episode', cluster: 0, importance: 0.5, recency: 0.6, reinforcement: 0.4 },
-    { id: 's14', label: 'Legal review initiated', kind: 'episode', cluster: 0, importance: 0.4, recency: 0.3, reinforcement: 0.3 },
-    { id: 's15', label: 'Renewal conversation Q3', kind: 'episode', cluster: 0, importance: 0.6, recency: 0.9, reinforcement: 0.6 },
+  // ── Real vault data: enterprise-legal-mini ──────────────────────
+  // 8 files, 3 thematic clusters, 23 nodes from actual indexed sections
 
-    // Cluster 1: Product Knowledge (12 episodes, lower-left)
-    { id: 'p1',  label: 'API rate limits documentation', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.4, reinforcement: 0.5 },
-    { id: 'p2',  label: 'Embedding model comparison', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.5, reinforcement: 0.6 },
-    { id: 'p3',  label: 'On-prem deployment guide', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
-    { id: 'p4',  label: 'RBAC permissions matrix', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.3, reinforcement: 0.4 },
-    { id: 'p5',  label: 'Latency benchmarks v2.1', kind: 'episode', cluster: 1, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
-    { id: 'p6',  label: 'SSO integration steps', kind: 'episode', cluster: 1, importance: 0.4, recency: 0.4, reinforcement: 0.3 },
-    { id: 'p7',  label: 'Data residency options', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.5, reinforcement: 0.5 },
-    { id: 'p8',  label: 'Changelog: breaking changes', kind: 'episode', cluster: 1, importance: 0.5, recency: 0.8, reinforcement: 0.4 },
-    { id: 'p9',  label: 'Competitive battlecard', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.6, reinforcement: 0.7 },
-    { id: 'p10', label: 'SDK quickstart tutorial', kind: 'episode', cluster: 1, importance: 0.4, recency: 0.5, reinforcement: 0.3 },
-    { id: 'p11', label: 'Pricing tier breakdown', kind: 'episode', cluster: 1, importance: 0.6, recency: 0.4, reinforcement: 0.6 },
-    { id: 'p12', label: 'SOC2 compliance docs', kind: 'episode', cluster: 1, importance: 0.7, recency: 0.3, reinforcement: 0.5 },
+  var DEMO_NODES = [
+    // ── Cluster 0: Contracts (amber) ──────────────────────────
+    // cyber-insurance-policy-2024.md
+    { id: 'cp1', label: '1. Insuring Agreements',                      file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.7,  recency: 0.4, reinforcement: 0.6 },
+    { id: 'cp2', label: 'Coverage: $2M per incident, $5M aggregate',   file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.85, recency: 0.5, reinforcement: 0.8 },
+    { id: 'cp3', label: '5. Exclusions (war, infrastructure, pre-existing)', file: 'cyber-insurance-policy.md', kind: 'episode', cluster: 0, importance: 0.6,  recency: 0.3, reinforcement: 0.5 },
+    { id: 'cp4', label: '6. Conditions (72hr breach notification)',     file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.65, recency: 0.35, reinforcement: 0.55 },
+    // endorsement-001-ransomware.md
+    { id: 'er1', label: 'Ransomware Payment Sublimit: $500K',          file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.9,  recency: 0.9, reinforcement: 0.9 },
+    { id: 'er2', label: 'CyberResolve Partners negotiation services',  file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.55, recency: 0.5, reinforcement: 0.4 },
+    { id: 'er3', label: 'OFAC sanctions screening required',           file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.6,  recency: 0.45, reinforcement: 0.5 },
 
-    // Cluster 2: Deal Insights (8 insights + 7 episodes, right side)
-    { id: 'i1', label: 'Multi-threading accelerates close rate', kind: 'insight', cluster: 2, importance: 0.9, recency: 0.8, reinforcement: 0.9 },
-    { id: 'i2', label: 'Security review is the #1 blocker', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
-    { id: 'i3', label: 'POC converts at 73% when champion engaged', kind: 'insight', cluster: 2, importance: 0.9, recency: 0.6, reinforcement: 0.9 },
-    { id: 'i4', label: 'Pricing objections drop after demo', kind: 'insight', cluster: 2, importance: 0.7, recency: 0.5, reinforcement: 0.7 },
-    { id: 'i5', label: 'Q4 deals need 6-week lead time', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.9, reinforcement: 0.8 },
-    { id: 'i6', label: 'Competitor wins on price, not features', kind: 'insight', cluster: 2, importance: 0.7, recency: 0.4, reinforcement: 0.6 },
-    { id: 'i7', label: 'Executive alignment predicts renewal', kind: 'insight', cluster: 2, importance: 0.8, recency: 0.7, reinforcement: 0.8 },
-    { id: 'i8', label: 'Integration complexity underestimated', kind: 'insight', cluster: 2, importance: 0.6, recency: 0.5, reinforcement: 0.5 },
-    { id: 'd1', label: 'Acme Q3 pipeline review', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.8, reinforcement: 0.6 },
-    { id: 'd2', label: 'Win/loss analysis: Globex', kind: 'episode', cluster: 2, importance: 0.7, recency: 0.5, reinforcement: 0.7 },
-    { id: 'd3', label: 'Deal velocity metrics', kind: 'episode', cluster: 2, importance: 0.5, recency: 0.6, reinforcement: 0.5 },
-    { id: 'd4', label: 'Forecast accuracy report', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.7, reinforcement: 0.4 },
-    { id: 'd5', label: 'Churn risk signals identified', kind: 'episode', cluster: 2, importance: 0.7, recency: 0.4, reinforcement: 0.6 },
-    { id: 'd6', label: 'Expansion revenue from upsell', kind: 'episode', cluster: 2, importance: 0.5, recency: 0.6, reinforcement: 0.5 },
-    { id: 'd7', label: 'Customer health scoring model', kind: 'episode', cluster: 2, importance: 0.6, recency: 0.5, reinforcement: 0.6 },
+    // ── Cluster 1: Compliance (cyan) ──────────────────────────
+    // policy-data-retention-v1.md
+    { id: 'dv1', label: 'Customer Data: 3 years post-termination',     file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.25, reinforcement: 0.4 },
+    { id: 'dv2', label: 'Log Data: 12 months retention',               file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.55, recency: 0.2,  reinforcement: 0.35 },
+    { id: 'dv3', label: 'EU Resident Data: 24 months',                 file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.2,  reinforcement: 0.45 },
+    // policy-data-retention-v2.md
+    { id: 'dw1', label: 'Customer Data: 2 years (reduced from 3)',     file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.65, recency: 0.7,  reinforcement: 0.6 },
+    { id: 'dw2', label: 'Log Data: 18 months (SOC 2 auditor rec.)',   file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.65, reinforcement: 0.55 },
+    { id: 'dw3', label: 'Deletion requests: 30-day response (NEW)',    file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.7,  recency: 0.8,  reinforcement: 0.6 },
+
+    // ── Cluster 2: Risk & Governance (green) ──────────────────
+    // risk-register-2024-q4.md
+    { id: 'rq1', label: 'RISK-001: Cloudvault dependency (HIGH)',      file: 'risk-register-2024-q4.md',    kind: 'episode', cluster: 2, importance: 0.7,  recency: 0.3,  reinforcement: 0.6 },
+    { id: 'rq2', label: 'RISK-002: EU data residency gaps (HIGH)',     file: 'risk-register-2024-q4.md',    kind: 'episode', cluster: 2, importance: 0.7,  recency: 0.3,  reinforcement: 0.55 },
+    // risk-register-2025-q2.md
+    { id: 'rn1', label: 'RISK-001: Cloudvault now MEDIUM (EU deploy)', file: 'risk-register-2025-q2.md',    kind: 'episode', cluster: 2, importance: 0.65, recency: 0.85, reinforcement: 0.65 },
+    { id: 'rn2', label: 'RISK-007: Insurance coverage gap (NEW)',      file: 'risk-register-2025-q2.md',    kind: 'episode', cluster: 2, importance: 0.85, recency: 0.95, reinforcement: 0.8 },
+    // audits/vendor-risk-assessment-cloudvault.md
+    { id: 'vc1', label: 'Cloudvault: 85% infrastructure concentration',file: 'vendor-risk-cloudvault.md',   kind: 'episode', cluster: 2, importance: 0.75, recency: 0.4,  reinforcement: 0.7 },
+    // meetings/insurance-review.md
+    { id: 'mt1', label: 'Sublimit discovered: board told $2M, actual $500K', file: 'insurance-review.md',   kind: 'episode', cluster: 2, importance: 0.9,  recency: 0.95, reinforcement: 0.85 },
+
+    // ── Insights (emerged from cross-file patterns) ───────────
+    { id: 'i1',  label: 'Ransomware coverage is $500K, not $2M as reported to board', file: 'insight',      kind: 'insight', cluster: 2, importance: 0.95, recency: 0.9,  reinforcement: 0.95 },
+    { id: 'i2',  label: 'Data retention periods tightened across v2 update',           file: 'insight',      kind: 'insight', cluster: 1, importance: 0.8,  recency: 0.75, reinforcement: 0.7  },
+    { id: 'i3',  label: 'Cloudvault risk improving but 85% concentration remains',     file: 'insight',      kind: 'insight', cluster: 2, importance: 0.8,  recency: 0.8,  reinforcement: 0.75 },
+    { id: 'i4',  label: 'EU compliance strengthened: shorter retention + deletion SLA', file: 'insight',      kind: 'insight', cluster: 1, importance: 0.75, recency: 0.7,  reinforcement: 0.65 },
   ];
 
-  // ~55 edges: causal (solid amber), similarity (dashed gray), contradicts (dashed red)
-  const DEMO_EDGES = [
-    // Causal chains within sales
-    { source: 's1',  target: 's3',  type: 'causal', weight: 0.8 },
-    { source: 's3',  target: 's8',  type: 'causal', weight: 0.7 },
-    { source: 's8',  target: 's11', type: 'causal', weight: 0.6 },
-    { source: 's4',  target: 's12', type: 'causal', weight: 0.9 },
-    { source: 's5',  target: 's14', type: 'causal', weight: 0.5 },
-    { source: 's7',  target: 's10', type: 'causal', weight: 0.7 },
-    { source: 's10', target: 's14', type: 'causal', weight: 0.4 },
-    { source: 's1',  target: 's2',  type: 'causal', weight: 0.6 },
-    { source: 's12', target: 's15', type: 'causal', weight: 0.7 },
-    { source: 's9',  target: 's12', type: 'causal', weight: 0.5 },
-    // Causal within product
-    { source: 'p5',  target: 'p8',  type: 'causal', weight: 0.6 },
-    { source: 'p3',  target: 'p7',  type: 'causal', weight: 0.5 },
-    { source: 'p2',  target: 'p5',  type: 'causal', weight: 0.7 },
-    { source: 'p9',  target: 'p11', type: 'causal', weight: 0.4 },
-    // Causal into insights
-    { source: 's4',  target: 'i1',  type: 'causal', weight: 0.8 },
-    { source: 's5',  target: 'i2',  type: 'causal', weight: 0.9 },
-    { source: 's11', target: 'i3',  type: 'causal', weight: 0.8 },
-    { source: 's2',  target: 'i4',  type: 'causal', weight: 0.7 },
-    { source: 's7',  target: 'i5',  type: 'causal', weight: 0.6 },
-    { source: 's6',  target: 'i6',  type: 'causal', weight: 0.7 },
-    { source: 's12', target: 'i7',  type: 'causal', weight: 0.8 },
-    { source: 's13', target: 'i8',  type: 'causal', weight: 0.6 },
-    { source: 'd2',  target: 'i6',  type: 'causal', weight: 0.5 },
-    { source: 'd5',  target: 'i7',  type: 'causal', weight: 0.6 },
-    // Deal cluster causal
-    { source: 'd1',  target: 'd3',  type: 'causal', weight: 0.5 },
-    { source: 'd3',  target: 'd4',  type: 'causal', weight: 0.6 },
-    { source: 'd5',  target: 'd7',  type: 'causal', weight: 0.7 },
-    { source: 'd6',  target: 'd1',  type: 'causal', weight: 0.4 },
+  var DEMO_EDGES = [
+    // ── Causal chains ─────────────────────────────────────────
+    // Insurance story: policy → endorsement → discovery
+    { source: 'cp1', target: 'cp2', type: 'causal', weight: 0.8  },
+    { source: 'cp2', target: 'er1', type: 'causal', weight: 0.9  },
+    { source: 'er1', target: 'er2', type: 'causal', weight: 0.6  },
+    { source: 'er1', target: 'er3', type: 'causal', weight: 0.5  },
+    { source: 'er1', target: 'mt1', type: 'causal', weight: 0.9  },
+    { source: 'mt1', target: 'rn2', type: 'causal', weight: 0.85 },
+    { source: 'rn2', target: 'i1',  type: 'causal', weight: 0.95 },
 
-    // Similarity edges (cross-cluster connections)
-    { source: 's2',  target: 'p11', type: 'similarity', weight: 0.6 },
-    { source: 's5',  target: 'p12', type: 'similarity', weight: 0.7 },
-    { source: 's6',  target: 'p9',  type: 'similarity', weight: 0.8 },
-    { source: 's8',  target: 'p1',  type: 'similarity', weight: 0.5 },
-    { source: 's13', target: 'p3',  type: 'similarity', weight: 0.6 },
-    { source: 's13', target: 'p6',  type: 'similarity', weight: 0.4 },
-    { source: 'p5',  target: 'd3',  type: 'similarity', weight: 0.5 },
-    { source: 'p9',  target: 'i6',  type: 'similarity', weight: 0.7 },
-    { source: 'p11', target: 'i4',  type: 'similarity', weight: 0.6 },
-    { source: 'p12', target: 'i2',  type: 'similarity', weight: 0.5 },
-    { source: 's15', target: 'd1',  type: 'similarity', weight: 0.5 },
-    { source: 's4',  target: 'i3',  type: 'similarity', weight: 0.6 },
-    { source: 'p7',  target: 'p4',  type: 'similarity', weight: 0.4 },
-    { source: 'p1',  target: 'p10', type: 'similarity', weight: 0.5 },
-    { source: 'd4',  target: 'd6',  type: 'similarity', weight: 0.4 },
-    { source: 'i1',  target: 'i3',  type: 'similarity', weight: 0.7 },
-    { source: 'i5',  target: 'i7',  type: 'similarity', weight: 0.5 },
-    { source: 'i2',  target: 'i8',  type: 'similarity', weight: 0.6 },
-    { source: 's14', target: 'p12', type: 'similarity', weight: 0.5 },
+    // Compliance evolution: v1 → v2
+    { source: 'dv1', target: 'dw1', type: 'causal', weight: 0.8  },
+    { source: 'dv2', target: 'dw2', type: 'causal', weight: 0.75 },
+    { source: 'dv3', target: 'dw3', type: 'causal', weight: 0.7  },
+    { source: 'dw1', target: 'i2',  type: 'causal', weight: 0.7  },
+    { source: 'dw3', target: 'i4',  type: 'causal', weight: 0.65 },
 
-    // Contradictions
-    { source: 's6',  target: 'i4',  type: 'contradicts', weight: 0.8 },
-    { source: 'p5',  target: 'p8',  type: 'contradicts', weight: 0.7 },
+    // Risk tracking: Q4 → Q2
+    { source: 'rq1', target: 'rn1', type: 'causal', weight: 0.8  },
+    { source: 'vc1', target: 'rq1', type: 'causal', weight: 0.75 },
+    { source: 'vc1', target: 'i3',  type: 'causal', weight: 0.7  },
+    { source: 'rn1', target: 'i3',  type: 'causal', weight: 0.65 },
+
+    // ── Similarity bridges (cross-cluster) ────────────────────
+    { source: 'rq2', target: 'dv3', type: 'similarity', weight: 0.55 },  // EU data residency risk ↔ EU retention
+    { source: 'cp4', target: 'er3', type: 'similarity', weight: 0.45 },  // Policy conditions ↔ OFAC compliance
+    { source: 'dw2', target: 'rn1', type: 'similarity', weight: 0.4  },  // SOC 2 log change ↔ risk improvement
+    { source: 'i2',  target: 'i4',  type: 'similarity', weight: 0.5  },  // Two compliance insights connected
+
+    // ── Contradiction ─────────────────────────────────────────
+    { source: 'cp2', target: 'er1', type: 'contradicts', weight: 0.95 },  // $2M coverage vs $500K sublimit
   ];
 
-  const CLUSTER_LABELS = {
-    0: 'Sales Interactions',
-    1: 'Product Knowledge',
-    2: 'Deal Insights',
+  var CLUSTER_COLORS = {
+    0: { label: 'Contracts',  base: [251, 191, 36] },
+    1: { label: 'Compliance', base: [56, 189, 248] },
+    2: { label: 'Risk & Gov', base: [52, 211, 153] },
   };
 
-  const CLUSTER_COLORS = [
-    'rgba(180, 83, 9, 0.05)',
-    'rgba(14, 116, 144, 0.05)',
-    'rgba(4, 120, 87, 0.05)',
-  ];
+  // ── Canvas setup ────────────────────────────────────────────────
 
-  const CLUSTER_STROKE_COLORS = [
-    'rgba(180, 83, 9, 0.25)',
-    'rgba(14, 116, 144, 0.25)',
-    'rgba(4, 120, 87, 0.25)',
-  ];
+  var canvas = document.getElementById('palace-canvas');
+  var ctx = canvas.getContext('2d');
+  var tooltip = document.getElementById('palace-tooltip');
+  var hint = document.getElementById('palace-hint');
 
-  // ── Graph renderer ─────────────────────────────────────────────────
-
-  const canvas = document.getElementById('palace-canvas');
-  const ctx = canvas.getContext('2d');
-  const tooltip = document.getElementById('palace-tooltip');
-  const hint = document.getElementById('palace-hint');
-
-  // State
-  let nodes = [];
-  let edges = [];
-  let nodeMap = new Map();
-  let clusterHulls = [];
-  let offsetX = 0, offsetY = 0, scale = 1;
-  let hoveredNode = null;
-  let isPanning = false;
-  let lastMouse = { x: 0, y: 0 };
-  let alpha = 1.0;
-  const alphaDecay = 0.005;
-  const alphaMin = 0.001;
-  let running = true;
-  let animatedIn = false;
-  let entryStart = 0;
-  let isVisible = false;
-  let hintDismissed = false;
-  let rafId = null;
-
-  // Touch state
-  let lastTouchDist = 0;
-  let lastTouchCenter = null;
-  let touchPanning = false;
+  var nodes = [], edges = [], nodeMap = new Map();
+  var offsetX = 0, offsetY = 0, scale = 1;
+  var hoveredNode = null, isPanning = false, lastMouse = { x: 0, y: 0 };
+  var alpha = 1.0, alphaDecay = 0.003, alphaMin = 0.001;
+  var running = true, animatedIn = false, entryStart = 0;
+  var isVisible = false, hintDismissed = false, rafId = null, breathPhase = 0;
+  var lastTouchDist = 0, touchPanning = false;
 
   function initData() {
-    nodeMap.clear();
-    const phi = (1 + Math.sqrt(5)) / 2;
+    nodeMap.clear(); nodes = [];
 
-    // Place nodes with cluster-based offsets for initial positions
-    const clusterOffsets = [
-      { x: -200, y: -120 }, // sales: upper-left
-      { x: -180, y: 140 },  // product: lower-left
-      { x: 200, y: 0 },     // deals: right
+    var clusterOffsets = [
+      { x: -200, y: -60 },   // Contracts: upper-left
+      { x: 200, y: -40 },    // Compliance: upper-right
+      { x: 0, y: 150 },      // Risk: bottom-center
     ];
 
     DEMO_NODES.forEach(function(def, i) {
-      var co = clusterOffsets[def.cluster] || { x: 0, y: 0 };
-      var theta = 2 * Math.PI * i / phi;
-      var r = Math.sqrt(i + 1) * 22;
+      var co = clusterOffsets[def.cluster];
+      var intraIdx = 0;
+      for (var j = 0; j < i; j++) { if (DEMO_NODES[j].cluster === def.cluster) intraIdx++; }
+
+      var phi = (1 + Math.sqrt(5)) / 2;
+      var angle = 2 * Math.PI * intraIdx / phi + def.cluster * 2.2;
+      var r = 25 + Math.sqrt(intraIdx + 1) * 30;
+
       var node = {
-        id: def.id,
-        label: def.label,
-        kind: def.kind,
-        cluster: def.cluster,
-        importance: def.importance,
-        recency: def.recency,
-        reinforcement: def.reinforcement,
-        x: co.x + Math.cos(theta) * r,
-        y: co.y + Math.sin(theta) * r,
-        vx: 0, vy: 0,
-        fx: null, fy: null,
-        fadeIn: 0,
+        id: def.id, label: def.label, file: def.file,
+        kind: def.kind, cluster: def.cluster,
+        importance: def.importance, recency: def.recency, reinforcement: def.reinforcement,
+        x: co.x + Math.cos(angle) * r, y: co.y + Math.sin(angle) * r,
+        vx: 0, vy: 0, fadeIn: 0,
+        pulsePhase: Math.random() * Math.PI * 2,
+        cloudParticles: [],
       };
-      nodes.push(node);
-      nodeMap.set(node.id, node);
+
+      var pc = node.kind === 'insight' ? 16 : 10;
+      for (var pi = 0; pi < pc; pi++) {
+        var pa = Math.random() * Math.PI * 2;
+        var pr = Math.random() * (4 + node.importance * 10);
+        node.cloudParticles.push({
+          ox: Math.cos(pa) * pr, oy: Math.sin(pa) * pr,
+          size: 0.3 + Math.random() * 1.3,
+          alpha: 0.12 + Math.random() * 0.4,
+          drift: Math.random() * Math.PI * 2,
+          speed: 0.15 + Math.random() * 0.55,
+        });
+      }
+      nodes.push(node); nodeMap.set(node.id, node);
     });
 
     edges = DEMO_EDGES.map(function(e) {
-      return {
-        source: e.source,
-        target: e.target,
-        type: e.type,
-        weight: e.weight,
-        sourceNode: nodeMap.get(e.source),
-        targetNode: nodeMap.get(e.target),
-      };
+      return { source: e.source, target: e.target, type: e.type, weight: e.weight,
+               sourceNode: nodeMap.get(e.source), targetNode: nodeMap.get(e.target) };
     }).filter(function(e) { return e.sourceNode && e.targetNode; });
 
-    buildClusters();
-    resize();
-    centerView();
+    resize(); centerView();
   }
 
-  function buildClusters() {
-    clusterHulls = [];
-    var groups = new Map();
-    for (var n of nodes) {
-      if (n.cluster == null || n.cluster < 0) continue;
-      if (!groups.has(n.cluster)) groups.set(n.cluster, []);
-      groups.get(n.cluster).push(n);
-    }
-    for (var entry of groups) {
-      var clusterId = entry[0];
-      var clusterNodes = entry[1];
-      if (clusterNodes.length < 3) continue;
-      clusterHulls.push({
-        clusterId: clusterId,
-        nodes: clusterNodes,
-        color: CLUSTER_COLORS[clusterId % CLUSTER_COLORS.length],
-        label: CLUSTER_LABELS[clusterId] || null,
-      });
-    }
-  }
-
-  // ── Physics (ported from graph.js _simulate) ─────────────────────
+  // ── Physics ─────────────────────────────────────────────────────
 
   function simulate() {
-    var repulsion = 1000;
-    var springLen = 140;
-    var springK = 0.03;
-    var gravity = 0.01;
-    var damping = 0.85;
-
-    // Repulsion O(n^2), fine for 42 nodes
+    var repulsion = 1600, springLen = 95, springK = 0.022, gravity = 0.005, damping = 0.87;
     for (var i = 0; i < nodes.length; i++) {
       for (var j = i + 1; j < nodes.length; j++) {
         var a = nodes[i], b = nodes[j];
-        var dx = b.x - a.x;
-        var dy = b.y - a.y;
+        var dx = b.x - a.x, dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy) || 1;
         var force = repulsion / (dist * dist);
-        var fx = (dx / dist) * force * alpha;
-        var fy = (dy / dist) * force * alpha;
-        a.vx -= fx; a.vy -= fy;
-        b.vx += fx; b.vy += fy;
+        var fx = (dx / dist) * force * alpha, fy = (dy / dist) * force * alpha;
+        a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
       }
     }
-
-    // Spring attraction along edges
     for (var e of edges) {
       var a = e.sourceNode, b = e.targetNode;
-      var dx = b.x - a.x;
-      var dy = b.y - a.y;
+      var dx = b.x - a.x, dy = b.y - a.y;
       var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      var displacement = dist - springLen;
-      var force = springK * displacement * alpha;
-      var fx = (dx / dist) * force;
-      var fy = (dy / dist) * force;
-      a.vx += fx; a.vy += fy;
-      b.vx -= fx; b.vy -= fy;
+      var force = springK * (dist - springLen) * alpha;
+      var fx = (dx / dist) * force, fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
     }
-
-    // Gravity toward center
     for (var n of nodes) {
-      n.vx -= n.x * gravity * alpha;
-      n.vy -= n.y * gravity * alpha;
-    }
-
-    // Apply velocity with damping
-    for (var n of nodes) {
-      if (n.fx !== null) {
-        n.x = n.fx; n.y = n.fy;
-        n.vx = 0; n.vy = 0;
-        continue;
-      }
-      n.vx *= damping; n.vy *= damping;
-      n.x += n.vx; n.y += n.vy;
+      n.vx -= n.x * gravity * alpha; n.vy -= n.y * gravity * alpha;
+      n.vx *= damping; n.vy *= damping; n.x += n.vx; n.y += n.vy;
     }
   }
 
-  // ── Convex hull (Graham scan, verbatim from graph.js) ────────────
-
-  function convexHull(hullNodes) {
-    if (hullNodes.length < 3) return hullNodes.map(function(n) { return { x: n.x, y: n.y }; });
-    var points = hullNodes.map(function(n) { return { x: n.x, y: n.y }; });
-
-    var pivot = 0;
-    for (var i = 1; i < points.length; i++) {
-      if (points[i].y < points[pivot].y ||
-          (points[i].y === points[pivot].y && points[i].x < points[pivot].x)) {
-        pivot = i;
-      }
-    }
-    var tmp = points[0]; points[0] = points[pivot]; points[pivot] = tmp;
-
-    var p0 = points[0];
-    points.slice(1).sort(function(a, b) {
-      var cross = (a.x - p0.x) * (b.y - p0.y) - (b.x - p0.x) * (a.y - p0.y);
-      if (Math.abs(cross) < 1e-10) {
-        var da = (a.x - p0.x) * (a.x - p0.x) + (a.y - p0.y) * (a.y - p0.y);
-        var db = (b.x - p0.x) * (b.x - p0.x) + (b.y - p0.y) * (b.y - p0.y);
-        return da - db;
-      }
-      return -cross;
-    });
-
-    var stack = [points[0], points[1]];
-    for (var i = 2; i < points.length; i++) {
-      while (stack.length > 1) {
-        var sa = stack[stack.length - 2];
-        var sb = stack[stack.length - 1];
-        var c = points[i];
-        var cross = (sb.x - sa.x) * (c.y - sa.y) - (sb.y - sa.y) * (c.x - sa.x);
-        if (cross <= 0) stack.pop();
-        else break;
-      }
-      stack.push(points[i]);
-    }
-    return stack;
-  }
-
-  // ── Hexagon (verbatim from graph.js) ─────────────────────────────
-
-  function drawHexagon(cx2, x, y, r) {
-    cx2.beginPath();
-    for (var i = 0; i < 6; i++) {
-      var angle = (Math.PI / 3) * i - Math.PI / 6;
-      var px = x + r * Math.cos(angle);
-      var py = y + r * Math.sin(angle);
-      if (i === 0) cx2.moveTo(px, py);
-      else cx2.lineTo(px, py);
-    }
-    cx2.closePath();
-  }
-
-  // ── Coordinate transforms (from graph.js) ────────────────────────
+  // ── Coord transforms ───────────────────────────────────────────
 
   function screenToWorld(sx, sy) {
-    var dpr = window.devicePixelRatio || 1;
-    var cx2 = canvas.width / (2 * dpr);
-    var cy2 = canvas.height / (2 * dpr);
-    return {
-      x: (sx - cx2) / scale - offsetX,
-      y: (sy - cy2) / scale - offsetY,
-    };
+    var d = window.devicePixelRatio || 1;
+    return { x: (sx - canvas.width/(2*d)) / scale - offsetX, y: (sy - canvas.height/(2*d)) / scale - offsetY };
   }
-
   function worldToScreen(wx, wy) {
-    var dpr = window.devicePixelRatio || 1;
-    var cx2 = canvas.width / (2 * dpr);
-    var cy2 = canvas.height / (2 * dpr);
-    return {
-      x: (wx + offsetX) * scale + cx2,
-      y: (wy + offsetY) * scale + cy2,
-    };
+    var d = window.devicePixelRatio || 1;
+    return { x: (wx + offsetX) * scale + canvas.width/(2*d), y: (wy + offsetY) * scale + canvas.height/(2*d) };
   }
-
   function findNodeAt(sx, sy) {
-    var world = screenToWorld(sx, sy);
-    var closest = null;
-    var minDist = Infinity;
+    var w = screenToWorld(sx, sy), closest = null, minD = Infinity;
     for (var n of nodes) {
       if (n.fadeIn < 0.3) continue;
-      var radius = 2.5 + n.importance * 3.5 + 6;
-      var dx = world.x - n.x;
-      var dy = world.y - n.y;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < radius && dist < minDist) {
-        closest = n;
-        minDist = dist;
-      }
+      var r = 5 + n.importance * 7 + 5;
+      var dx = w.x - n.x, dy = w.y - n.y, d = Math.sqrt(dx*dx+dy*dy);
+      if (d < r && d < minD) { closest = n; minD = d; }
     }
     return closest;
   }
-
   function centerView() {
-    if (nodes.length === 0) return;
-    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (var n of nodes) {
-      if (n.x < minX) minX = n.x;
-      if (n.y < minY) minY = n.y;
-      if (n.x > maxX) maxX = n.x;
-      if (n.y > maxY) maxY = n.y;
-    }
-    offsetX = -(minX + maxX) / 2;
-    offsetY = -(minY + maxY) / 2;
-
-    var dpr = window.devicePixelRatio || 1;
-    var canvasW = canvas.width / dpr;
-    var canvasH = canvas.height / dpr;
-    var graphW = maxX - minX + 100;
-    var graphH = maxY - minY + 100;
-    scale = Math.min(canvasW / graphW, canvasH / graphH, 2);
+    if (!nodes.length) return;
+    var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for (var n of nodes) { minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x); maxY=Math.max(maxY,n.y); }
+    offsetX = -(minX+maxX)/2; offsetY = -(minY+maxY)/2;
+    var d=window.devicePixelRatio||1;
+    scale = Math.min((canvas.width/d)/(maxX-minX+200), (canvas.height/d)/(maxY-minY+200), 1.5);
   }
-
   function resize() {
-    var dpr = window.devicePixelRatio || 1;
-    var rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    var d=window.devicePixelRatio||1, r=canvas.getBoundingClientRect();
+    canvas.width=r.width*d; canvas.height=r.height*d; ctx.scale(d,d);
   }
 
-  // ── Entry animation ──────────────────────────────────────────────
+  // ── Entry animation ─────────────────────────────────────────────
 
   function updateFadeIn(now) {
     if (animatedIn) return;
-    if (entryStart === 0) entryStart = now;
-    var elapsed = now - entryStart;
-    var allDone = true;
+    if (!entryStart) entryStart = now;
+    var el = now - entryStart, done = true;
     for (var n of nodes) {
-      // Stagger by cluster: 0ms, 600ms, 1200ms
-      var delay = n.cluster * 600;
-      var t = Math.max(0, Math.min(1, (elapsed - delay) / 800));
-      n.fadeIn = t;
-      if (t < 1) allDone = false;
+      var delay = n.cluster * 400;
+      var t = Math.max(0, Math.min(1, (el - delay) / 900));
+      n.fadeIn = 1 - Math.pow(1 - t, 3);
+      if (t < 1) done = false;
     }
-    if (allDone) animatedIn = true;
+    if (done) animatedIn = true;
   }
 
-  // ── Rendering (ported from graph.js _render) ─────────────────────
+  // ── Rendering ───────────────────────────────────────────────────
 
   function render() {
-    var w = canvas.width;
-    var h = canvas.height;
-    var dpr = window.devicePixelRatio || 1;
-    var now = performance.now();
-
+    var w=canvas.width, h=canvas.height, d=window.devicePixelRatio||1, now=performance.now();
     if (!animatedIn) updateFadeIn(now);
+    breathPhase = now * 0.001;
 
-    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, w, h);
     ctx.save();
+    var cx=w/(2*d), cy=h/(2*d);
+    ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(offsetX, offsetY);
 
-    var cx2 = w / (2 * dpr);
-    var cy2 = h / (2 * dpr);
-    ctx.translate(cx2, cy2);
-    ctx.scale(scale, scale);
-    ctx.translate(offsetX, offsetY);
+    var breath = 0.93 + 0.07 * Math.sin(breathPhase * 0.5);
 
-    // Cluster hulls
-    for (var cluster of clusterHulls) {
-      var hull = convexHull(cluster.nodes);
-      if (hull.length < 3) continue;
+    // ── Cluster glow ──
+    for (var ci = 0; ci < 3; ci++) {
+      var cn = nodes.filter(function(n){ return n.cluster===ci; });
+      if (cn.length < 2) continue;
+      var ccx=0, ccy=0;
+      for (var nd of cn) { ccx+=nd.x; ccy+=nd.y; } ccx/=cn.length; ccy/=cn.length;
+      var cc = CLUSTER_COLORS[ci], fade = cn[0].fadeIn;
+      var glR = (ci===2 ? 140 : 130) * breath;
 
-      var hcx = 0, hcy = 0;
-      for (var p of hull) { hcx += p.x; hcy += p.y; }
-      hcx /= hull.length; hcy /= hull.length;
-      var pad = 25;
+      var g = ctx.createRadialGradient(ccx,ccy,0, ccx,ccy,glR);
+      g.addColorStop(0, 'rgba('+cc.base.join(',')+','+(0.06*fade)+')');
+      g.addColorStop(0.5, 'rgba('+cc.base.join(',')+','+(0.02*fade)+')');
+      g.addColorStop(1, 'rgba('+cc.base.join(',')+',0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ccx,ccy,glR,0,Math.PI*2); ctx.fill();
 
-      // Fade hull with cluster animation
-      var clusterFade = cluster.nodes[0] ? cluster.nodes[0].fadeIn : 1;
-
-      ctx.beginPath();
-      for (var i = 0; i < hull.length; i++) {
-        var p = hull[i];
-        var dx = p.x - hcx, dy = p.y - hcy;
-        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        var px = p.x + (dx / dist) * pad;
-        var py = p.y + (dy / dist) * pad;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.globalAlpha = clusterFade;
-      ctx.fillStyle = cluster.color;
-      ctx.fill();
-      ctx.strokeStyle = CLUSTER_STROKE_COLORS[cluster.clusterId % CLUSTER_STROKE_COLORS.length];
-      ctx.setLineDash([6, 4]);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Cluster label
-      if (cluster.label) {
-        var topY = Infinity, topX = hcx;
-        for (var p of hull) {
-          var dx = p.x - hcx, dy = p.y - hcy;
-          var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          var py2 = p.y + (dy / dist) * pad;
-          if (py2 < topY) { topY = py2; topX = p.x + (dx / dist) * pad; }
-        }
-        ctx.save();
-        ctx.font = (11 / scale) + 'px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = cluster.color.replace('0.06', '0.5');
-        ctx.fillText(cluster.label, hcx, topY - 8 / scale);
-        ctx.restore();
-      }
-      ctx.globalAlpha = 1;
+      // Label
+      ctx.save(); ctx.font='10px system-ui,sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='rgba('+cc.base.join(',')+','+(0.3*fade)+')';
+      var topY=Infinity; for (var nd of cn) if(nd.y<topY) topY=nd.y;
+      ctx.fillText(cc.label, ccx, topY-26); ctx.restore();
     }
 
-    // Edges
+    // ── Edges ──
     for (var e of edges) {
-      var a = e.sourceNode, b = e.targetNode;
-      var edgeAlpha = Math.min(a.fadeIn, b.fadeIn);
-      if (edgeAlpha < 0.05) continue;
+      var a=e.sourceNode, b=e.targetNode;
+      var ea = Math.min(a.fadeIn, b.fadeIn); if (ea<0.05) continue;
+      var dx=b.x-a.x, dy=b.y-a.y, dist=Math.sqrt(dx*dx+dy*dy);
+      var mx=(a.x+b.x)/2+dy*0.07*Math.sin(breathPhase*0.3+dist*0.01);
+      var my=(a.y+b.y)/2-dx*0.07*Math.sin(breathPhase*0.3+dist*0.01);
 
-      ctx.globalAlpha = edgeAlpha;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my,b.x,b.y);
 
-      if (e.type === 'contradicts') {
-        ctx.setLineDash([6, 3]);
-        ctx.strokeStyle = 'rgba(239, 68, 68, ' + (0.4 + e.weight * 0.4) + ')';
-        ctx.lineWidth = 1.5;
-      } else if (e.type === 'similarity') {
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(107, 114, 128, ' + (0.15 + e.weight * 0.2) + ')';
-        ctx.lineWidth = 0.5;
+      if (e.type==='contradicts') {
+        // Pulsing red glow for the contradiction
+        var pulse = 0.6 + 0.4 * Math.sin(breathPhase * 1.5);
+        ctx.setLineDash([6,4]);
+        ctx.strokeStyle='rgba(248,113,113,'+(0.4+e.weight*0.4)*ea*pulse+')';
+        ctx.lineWidth=2;
+        ctx.shadowColor='rgba(248,113,113,'+(0.5*pulse)+')';
+        ctx.shadowBlur=12;
+      } else if (e.type==='similarity') {
+        ctx.setLineDash([3,5]);
+        ctx.strokeStyle='rgba(148,163,184,'+(0.08+e.weight*0.12)*ea+')';
+        ctx.lineWidth=0.5; ctx.shadowBlur=0;
       } else {
         ctx.setLineDash([]);
-        ctx.strokeStyle = 'rgba(120, 53, 15, ' + (0.3 + e.weight * 0.4) + ')';
-        ctx.lineWidth = 1;
+        var ecc=CLUSTER_COLORS[a.cluster]||CLUSTER_COLORS[0];
+        ctx.strokeStyle='rgba('+ecc.base.join(',')+','+(0.12+e.weight*0.2)*ea+')';
+        ctx.lineWidth=0.7;
+        ctx.shadowColor='rgba('+ecc.base.join(',')+',0.1)'; ctx.shadowBlur=3;
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0;
     }
-    ctx.globalAlpha = 1;
 
-    // Nodes
+    // ── Nodes ──
     for (var n of nodes) {
-      if (n.fadeIn < 0.02) continue;
+      if (n.fadeIn<0.02) continue;
+      var cc=CLUSTER_COLORS[n.cluster]||CLUSTER_COLORS[0];
+      var bR=cc.base[0],bG=cc.base[1],bB=cc.base[2];
+      var isIns=n.kind==='insight', isH=(hoveredNode===n);
+      if (isIns) { bR=52; bG=211; bB=153; }
 
-      var radius = 2.5 + n.importance * 3.5;
-      var isHov = (hoveredNode === n);
-
-      var r = Math.round(120 + n.recency * 125);
-      var g = Math.round(53 + n.recency * 105);
-      var bv = Math.round(15 + n.recency * -4);
-      var baseAlpha = 0.7 + n.reinforcement * 0.3;
-
+      var nb = 0.92+0.08*Math.sin(breathPhase*0.7+n.pulsePhase);
+      var cr = (3+n.importance*5)*nb;
       ctx.globalAlpha = n.fadeIn;
 
-      if (n.kind === 'insight') {
-        drawHexagon(ctx, n.x, n.y, radius + 1);
-        ctx.fillStyle = 'rgba(16, 185, 129, ' + baseAlpha + ')';
-        ctx.fill();
-        ctx.strokeStyle = '#F59E0B';
-        ctx.lineWidth = isHov ? 2 : 1;
-        if (isHov) {
-          ctx.shadowColor = '#F59E0B';
-          ctx.shadowBlur = 8;
-        }
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-      } else {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
-        if (isHov) {
-          ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + Math.min(baseAlpha + 0.2, 1) + ')';
-          ctx.shadowColor = 'rgba(' + r + ', ' + g + ', ' + bv + ', 0.4)';
-          ctx.shadowBlur = 6;
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = 'rgba(245, 158, 11, 0.7)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = 'rgba(' + r + ', ' + g + ', ' + bv + ', ' + baseAlpha + ')';
-          ctx.fill();
-        }
+      // Particle cloud
+      var sp = isH ? 1.3 : 1.0;
+      for (var p of n.cloudParticles) {
+        var px=n.x+(p.ox*sp+Math.sin(breathPhase*p.speed+p.drift)*1.5)*breath;
+        var py=n.y+(p.oy*sp+Math.cos(breathPhase*p.speed+p.drift)*1.5)*breath;
+        var pa=p.alpha*n.fadeIn*(isH?1.1:0.65)*nb;
+        ctx.beginPath(); ctx.arc(px,py,p.size*breath,0,Math.PI*2);
+        ctx.fillStyle='rgba('+bR+','+bG+','+bB+','+Math.min(pa,0.6)+')'; ctx.fill();
       }
 
-      // Label for hovered node
-      if (isHov && n.label) {
-        ctx.font = '11px -apple-system, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#F1F5F9';
-        ctx.fillText(n.label, n.x, n.y - radius - 6);
+      // Core glow
+      var glR=cr*(isH?3.5:2.5);
+      var cg=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,glR);
+      cg.addColorStop(0,'rgba('+bR+','+bG+','+bB+','+(isH?0.4:0.22)*n.fadeIn+')');
+      cg.addColorStop(0.5,'rgba('+bR+','+bG+','+bB+','+(isH?0.1:0.05)*n.fadeIn+')');
+      cg.addColorStop(1,'rgba('+bR+','+bG+','+bB+',0)');
+      ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(n.x,n.y,glR,0,Math.PI*2); ctx.fill();
+
+      // Core
+      ctx.beginPath(); ctx.arc(n.x,n.y,cr,0,Math.PI*2);
+      ctx.fillStyle='rgba('+bR+','+bG+','+bB+','+(0.7+n.reinforcement*0.3)*n.fadeIn+')';
+      ctx.shadowColor='rgba('+bR+','+bG+','+bB+',0.45)';
+      ctx.shadowBlur=isH?14:5; ctx.fill(); ctx.shadowBlur=0;
+
+      // Hover label
+      if (isH && n.label) {
+        ctx.font='11px system-ui,sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle='#E2E8F0'; ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
+        ctx.fillText(n.label, n.x, n.y-cr-10); ctx.shadowBlur=0;
       }
     }
-    ctx.globalAlpha = 1;
-    ctx.restore();
-
-    // Tooltip
+    ctx.globalAlpha=1; ctx.restore();
     renderTooltip();
   }
 
   function renderTooltip() {
-    if (!hoveredNode) {
-      tooltip.classList.add('hidden');
-      return;
-    }
-    var n = hoveredNode;
-    var kindBadge = n.kind === 'insight'
-      ? '<span style="display:inline-block;background:rgba(16,185,129,0.2);color:#34D399;border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">INSIGHT</span>'
-      : '<span style="display:inline-block;background:rgba(245,158,11,0.2);color:#F59E0B;border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">EPISODE</span>';
-    tooltip.innerHTML = kindBadge + '<span style="color:#E8EAED;">' + n.label + '</span>';
+    if (!hoveredNode) { tooltip.classList.add('hidden'); return; }
+    var n=hoveredNode;
+    var kc = n.kind==='insight'?'#34D399':'#FBBF24';
+    var kb = n.kind==='insight'?'rgba(52,211,153,0.15)':'rgba(251,191,36,0.15)';
+    var kl = n.kind==='insight'?'INSIGHT':'EPISODE';
+    var fileTag = n.file!=='insight' ? '<div style="color:#64748B;font-size:10px;margin-top:4px;font-family:monospace;">'+n.file+'</div>' : '';
+    tooltip.innerHTML = '<span style="display:inline-block;background:'+kb+';color:'+kc+';border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">'+kl+'</span><span style="color:#E2E8F0;">'+n.label+'</span>'+fileTag;
     tooltip.classList.remove('hidden');
-
-    var screenPos = worldToScreen(n.x, n.y);
-    var rect = canvas.getBoundingClientRect();
-    var tx = screenPos.x + 15;
-    var ty = screenPos.y - 10;
-
-    // Keep tooltip within the container
-    var containerRect = canvas.parentElement.getBoundingClientRect();
-    var tooltipW = tooltip.offsetWidth;
-    if (tx + tooltipW > containerRect.width - 8) {
-      tx = screenPos.x - tooltipW - 10;
-    }
-    if (ty < 8) ty = 8;
-
-    tooltip.style.left = tx + 'px';
-    tooltip.style.top = ty + 'px';
+    var sp=worldToScreen(n.x,n.y), tx=sp.x+15, ty=sp.y-10;
+    var cr=canvas.parentElement.getBoundingClientRect();
+    if(tx+tooltip.offsetWidth>cr.width-8) tx=sp.x-tooltip.offsetWidth-10;
+    if(ty<8) ty=8;
+    tooltip.style.left=tx+'px'; tooltip.style.top=ty+'px';
   }
 
-  // ── RAF loop with IntersectionObserver ────────────────────────────
+  // ── Loop ────────────────────────────────────────────────────────
 
   function tick() {
-    if (!isVisible) { rafId = null; return; }
-    if (running && alpha > alphaMin) {
-      simulate();
-      alpha = Math.max(alpha - alphaDecay, 0);
-    }
-    render();
-    rafId = requestAnimationFrame(tick);
+    if (!isVisible) { rafId=null; return; }
+    if (running && alpha>alphaMin) { simulate(); alpha=Math.max(alpha-alphaDecay,0); }
+    render(); rafId=requestAnimationFrame(tick);
   }
+  function startLoop() { if(rafId) return; rafId=requestAnimationFrame(tick); }
+  var obs=new IntersectionObserver(function(es) {
+    for(var e of es) { isVisible=e.isIntersecting; if(isVisible) startLoop(); }
+  },{threshold:0.1});
 
-  function startLoop() {
-    if (rafId) return;
-    rafId = requestAnimationFrame(tick);
-  }
+  // ── Events ──────────────────────────────────────────────────────
 
-  var observer = new IntersectionObserver(function(entries) {
-    for (var entry of entries) {
-      isVisible = entry.isIntersecting;
-      if (isVisible) startLoop();
-    }
-  }, { threshold: 0.1 });
-
-  // ── Event handlers (from graph.js, stripped of pin/persist) ───────
-
-  canvas.addEventListener('mousemove', function(e) {
-    var rect = canvas.getBoundingClientRect();
-    var mx = e.clientX - rect.left;
-    var my = e.clientY - rect.top;
-
-    if (isPanning) {
-      var dx = (mx - lastMouse.x) / scale;
-      var dy = (my - lastMouse.y) / scale;
-      offsetX += dx;
-      offsetY += dy;
-      lastMouse = { x: mx, y: my };
-      return;
-    }
-
-    var node = findNodeAt(mx, my);
-    if (node !== hoveredNode) {
-      hoveredNode = node;
-      canvas.style.cursor = node ? 'pointer' : 'grab';
-    }
+  canvas.addEventListener('mousemove',function(e){
+    var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    if(isPanning){ offsetX+=(mx-lastMouse.x)/scale; offsetY+=(my-lastMouse.y)/scale; lastMouse={x:mx,y:my}; return; }
+    var nd=findNodeAt(mx,my); if(nd!==hoveredNode){ hoveredNode=nd; canvas.style.cursor=nd?'pointer':'grab'; }
   });
-
-  canvas.addEventListener('mousedown', function(e) {
-    var rect = canvas.getBoundingClientRect();
-    var mx = e.clientX - rect.left;
-    var my = e.clientY - rect.top;
-
-    isPanning = true;
-    lastMouse = { x: mx, y: my };
-    canvas.style.cursor = 'grabbing';
-    dismissHint();
+  canvas.addEventListener('mousedown',function(e){
+    var r=canvas.getBoundingClientRect(); isPanning=true; lastMouse={x:e.clientX-r.left,y:e.clientY-r.top};
+    canvas.style.cursor='grabbing'; dismissHint();
   });
+  canvas.addEventListener('mouseup',function(){ isPanning=false; canvas.style.cursor=hoveredNode?'pointer':'grab'; });
+  canvas.addEventListener('mouseleave',function(){ hoveredNode=null; isPanning=false; tooltip.classList.add('hidden'); });
+  canvas.addEventListener('wheel',function(e){
+    e.preventDefault(); var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    var zf=e.deltaY>0?0.9:1.1, ns=Math.max(0.3,Math.min(6,scale*zf));
+    var w=screenToWorld(mx,my); scale=ns; var nw=screenToWorld(mx,my);
+    offsetX+=nw.x-w.x; offsetY+=nw.y-w.y; dismissHint();
+  },{passive:false});
 
-  canvas.addEventListener('mouseup', function() {
-    isPanning = false;
-    canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
-  });
-
-  canvas.addEventListener('mouseleave', function() {
-    hoveredNode = null;
-    isPanning = false;
-    tooltip.classList.add('hidden');
-  });
-
-  canvas.addEventListener('wheel', function(e) {
+  canvas.addEventListener('touchstart',function(e){
+    e.preventDefault(); dismissHint();
+    if(e.touches.length===1){ isPanning=true; lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY}; }
+    else if(e.touches.length===2){ isPanning=false; var t0=e.touches[0],t1=e.touches[1];
+      lastTouchDist=Math.sqrt((t1.clientX-t0.clientX)**2+(t1.clientY-t0.clientY)**2); }
+  },{passive:false});
+  canvas.addEventListener('touchmove',function(e){
     e.preventDefault();
-    var rect = canvas.getBoundingClientRect();
-    var mx = e.clientX - rect.left;
-    var my = e.clientY - rect.top;
-
-    var zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    var newScale = Math.max(0.1, Math.min(10, scale * zoomFactor));
-
-    var world = screenToWorld(mx, my);
-    scale = newScale;
-    var newWorld = screenToWorld(mx, my);
-    offsetX += newWorld.x - world.x;
-    offsetY += newWorld.y - world.y;
-    dismissHint();
-  }, { passive: false });
-
-  // Touch support: single-finger pan, two-finger pinch-zoom
-  canvas.addEventListener('touchstart', function(e) {
-    e.preventDefault();
-    dismissHint();
-    if (e.touches.length === 1) {
-      touchPanning = true;
-      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2) {
-      touchPanning = false;
-      var t0 = e.touches[0], t1 = e.touches[1];
-      lastTouchDist = Math.sqrt((t1.clientX - t0.clientX) ** 2 + (t1.clientY - t0.clientY) ** 2);
-      lastTouchCenter = { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+    if(e.touches.length===1&&isPanning){
+      offsetX+=(e.touches[0].clientX-lastMouse.x)/scale; offsetY+=(e.touches[0].clientY-lastMouse.y)/scale;
+      lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    } else if(e.touches.length===2){
+      var t0=e.touches[0],t1=e.touches[1];
+      var dist=Math.sqrt((t1.clientX-t0.clientX)**2+(t1.clientY-t0.clientY)**2);
+      if(lastTouchDist>0){
+        var r=canvas.getBoundingClientRect(), tcx=(t0.clientX+t1.clientX)/2-r.left, tcy=(t0.clientY+t1.clientY)/2-r.top;
+        var w=screenToWorld(tcx,tcy); scale=Math.max(0.3,Math.min(6,scale*(dist/lastTouchDist)));
+        var nw=screenToWorld(tcx,tcy); offsetX+=nw.x-w.x; offsetY+=nw.y-w.y;
+      } lastTouchDist=dist;
     }
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', function(e) {
-    e.preventDefault();
-    if (e.touches.length === 1 && touchPanning) {
-      var dx = (e.touches[0].clientX - lastMouse.x) / scale;
-      var dy = (e.touches[0].clientY - lastMouse.y) / scale;
-      offsetX += dx;
-      offsetY += dy;
-      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2) {
-      var t0 = e.touches[0], t1 = e.touches[1];
-      var dist = Math.sqrt((t1.clientX - t0.clientX) ** 2 + (t1.clientY - t0.clientY) ** 2);
-      if (lastTouchDist > 0) {
-        var zoomFactor = dist / lastTouchDist;
-        var newScale = Math.max(0.1, Math.min(10, scale * zoomFactor));
-        var rect = canvas.getBoundingClientRect();
-        var cx2 = (t0.clientX + t1.clientX) / 2 - rect.left;
-        var cy2 = (t0.clientY + t1.clientY) / 2 - rect.top;
-        var world = screenToWorld(cx2, cy2);
-        scale = newScale;
-        var newWorld = screenToWorld(cx2, cy2);
-        offsetX += newWorld.x - world.x;
-        offsetY += newWorld.y - world.y;
-      }
-      lastTouchDist = dist;
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', function(e) {
-    if (e.touches.length === 0) {
-      touchPanning = false;
-      lastTouchDist = 0;
-    } else if (e.touches.length === 1) {
-      touchPanning = true;
-      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      lastTouchDist = 0;
-    }
+  },{passive:false});
+  canvas.addEventListener('touchend',function(e){
+    if(!e.touches.length){ isPanning=false; lastTouchDist=0; }
+    else if(e.touches.length===1){ isPanning=true; lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastTouchDist=0; }
   });
 
-  function dismissHint() {
-    if (hintDismissed) return;
-    hintDismissed = true;
-    hint.style.opacity = '0';
-    setTimeout(function() { hint.style.display = 'none'; }, 700);
-  }
+  function dismissHint(){ if(hintDismissed) return; hintDismissed=true; hint.style.opacity='0'; setTimeout(function(){hint.style.display='none';},700); }
+  window.addEventListener('resize',function(){ resize(); centerView(); });
 
-  // Resize handler
-  window.addEventListener('resize', function() {
-    resize();
-    centerView();
-  });
-
-  // ── Initialize ───────────────────────────────────────────────────
-  initData();
-  observer.observe(canvas.parentElement);
+  initData(); obs.observe(canvas.parentElement);
 })();
 </script>

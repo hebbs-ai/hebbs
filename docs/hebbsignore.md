@@ -6,7 +6,7 @@ Control which files HEBBS indexes in your vault.
 
 ## Overview
 
-When HEBBS indexes a vault, it walks all `.md` files and creates memories from heading sections. Some files -- templates, drafts, archived notes, generated content -- produce noise that clutters recall results. `.hebbsignore` lets you exclude them.
+When HEBBS indexes a vault, it walks all `.md` files and creates memories from heading sections. Some files (templates, drafts, archived notes, generated content) produce noise that clutters recall results. `.hebbsignore` lets you exclude them.
 
 Create a `.hebbsignore` file at the root of your vault (next to `.hebbs/`):
 
@@ -55,9 +55,9 @@ HEBBS merges ignore patterns from three sources, in order:
 
 All three are merged at runtime. Duplicates are removed. The combined set is used by:
 
-- **`hebbs index`** -- skips matched files during initial indexing
-- **`hebbs serve`** (daemon) -- skips matched files during file watching
-- **Config reload** -- daemon re-reads `.hebbsignore` when config changes are detected, no restart needed
+- **`hebbs index`**: skips matched files during initial indexing
+- **`hebbs serve`** (daemon): skips matched files during file watching
+- **Config reload**: daemon re-reads `.hebbsignore` when config changes are detected, no restart needed
 
 ## When to Use `.hebbsignore` vs `config.toml`
 

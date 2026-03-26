@@ -1,6 +1,6 @@
 # Paper Outline
 
-**Title**: HEBBS: A Neuroscience-Grounded Memory Engine for Autonomous AI Agents
+**Title**: HEBBS: A Self-Tuning Memory Engine for AI Agents
 
 **Format**: NeurIPS 2026 (8 pages main + unlimited appendix)
 
@@ -10,23 +10,24 @@
 
 ## Abstract (~250 words)
 
-- Problem: AI agents with flat or vector-only memory degrade over weeks as conflicts, redundancy, and noise compound.
-- Insight: The human brain solved this exact problem through a specific architecture: fast hippocampal encoding, Hebbian associative binding, anterior cingulate conflict monitoring, sleep-driven consolidation, and adaptive forgetting.
-- System: HEBBS implements this pipeline as a zero-copy Rust engine with RocksDB storage, HNSW vector search, ONNX embeddings, and a real-time file-watching daemon.
-- Results: [TBD -- benchmarks needed]
+- Two problems: memory degrades as contradictions compound, and retrieval degrades because no single configuration is optimal across query types.
+- No existing system addresses the second problem: agents retrieve the same way regardless of query intent.
+- System: HEBBS exposes four recall strategies with four tunable scoring dimensions. Agents generate evals, diagnose failures, tune parameters, and store strategies as memories. Six neuroscience-grounded mechanisms maintain the store.
+- Results: 59% to 88% keyword recall via agent-driven tuning on a 52-document legal vault.
 
 ---
 
-## 1. Introduction
+## 1. Two Problems with Agent Memory
 
-- Open with the problem: LLM agents work well for days, degrade over weeks
-- Why: memory systems lack consolidation, conflict resolution, and principled forgetting
-- The brain analogy: same engineering constraints, same solution
+- Open with the degradation problem: contradictions, stale facts, noise
+- Introduce the second problem: retrieval rigidity (one config for all queries)
+- The brain analogy: solved both via maintenance mechanisms + adaptive retrieval
 - Contributions:
-  1. A neuroscience-grounded memory architecture mapping brain regions to computational components
-  2. First agent memory system with integrated contradiction detection and resolution
-  3. Adaptive decay model based on Ebbinghaus forgetting curves
-  4. Empirical evaluation on long-horizon benchmarks
+  1. Self-tuning retrieval: agents evaluate, tune, and store retrieval strategies as memories
+  2. Contradiction detection: first agent memory system with explicit conflict detection pipeline
+  3. Hebbian associative embeddings: dual embeddings with per-edge-type offset vectors
+  4. File-first portable cognition: `.hebbs/` + `.hebbsignore`
+  5. Complete engineered system: six neuroscience mechanisms in one Rust binary
 
 ---
 
@@ -41,13 +42,28 @@
 
 ## 3. HEBBS Architecture
 
-- 3.1 System Overview (architecture diagram, data flow)
-- 3.2 Vault Ingestion = Hippocampal Fast Encoding
-  - Markdown chunking by heading hierarchy
+- 3.1 Self-Tuning Retrieval (THE LEAD)
+  - Retrieval as a parameter space: 4 strategies x 4 scoring dimensions x per-strategy params
+  - The eval-tune-store loop: generate evals, diagnose, tune, store strategies as memories
+  - Domain-specific, agent-driven, self-reinforcing
+- 3.2 Contradiction Detection = ACC Conflict Monitoring
+  - LLM structured classifier (contradiction/revision/dismiss)
+  - Two-phase commit (detect, then commit with agent review)
+- 3.3 Hebbian Associative Embeddings
+  - Dual embeddings (content + associative)
+  - Per-edge-type offset vectors
+  - Analogical reasoning via vector arithmetic
+- 3.4 Vault Ingestion = Hippocampal Fast Encoding
+  - Markdown chunking + proposition extraction
   - ONNX embedding generation (local, no API dependency)
   - RocksDB column-family storage
   - Daemon file watcher (novelty detection)
-- 3.3 Memory Palace = Hebbian Associative Graph
+- 3.5 File-First Architecture = Portable Cognition
+  - Two-plane separation: content plane (source files) vs cognition plane (`.hebbs/`)
+  - Portability: self-contained cognition artifact, copy/share across machines and agents
+  - Rebuild guarantee: delete `.hebbs/`, reconstruct from source files
+  - `.hebbsignore`: gitignore-style selective indexing, privacy at the boundary
+- 3.6 Four Recall Strategies
   - HNSW approximate nearest neighbor index
   - Edge types: SIMILAR, TEMPORAL, CAUSAL, CONTRADICTS, REVISED_FROM
   - Graph-based retrieval with edge traversal
@@ -77,25 +93,20 @@
 
 ## 5. Experiments
 
-- 5.1 Setup
-  - Benchmarks: LongMemEval, [other TBD]
-  - Baselines: A-MEM, AgeMem, MemGPT, raw vector store
-  - LLM backends: Claude, GPT-4, open-source
-- 5.2 Long-Horizon Memory Accuracy
-  - Task: agent operates over 30+ days of simulated data
-  - Metric: retrieval accuracy, answer correctness over time
-- 5.3 Contradiction Detection
-  - Dataset: synthetic + real-world contradictory memory pairs
-  - Metrics: precision, recall, F1
-- 5.4 Consolidation Quality
-  - Are generated insights factually correct?
-  - Do they improve downstream retrieval?
-- 5.5 Decay Curve Validation
-  - Does HEBBS' decay match Ebbinghaus empirical data?
-  - Ablation: with vs without decay
-- 5.6 Ablation Study
-  - Remove each pipeline stage independently
-  - Measure degradation
+- 5.1 Agent-Driven Retrieval Tuning (REAL DATA: 59% to 88%)
+  - 52-doc legal vault, 949 memories, 20 eval queries
+  - Baseline: similarity k=5, 59% keyword recall
+  - Tuned: per-query strategy/weights/k, 88% keyword recall
+  - 4 failure patterns identified, 5 strategies stored
+- 5.2 Strategy Differentiation
+  - Same query across strategies produces qualitatively different results
+  - Similarity vs analogical vs temporal on cross-vendor query
+- 5.3 Adaptive Decay Validation (REAL DATA)
+  - Access count vs decay score correlation
+  - 0 accesses: 0.500, 5 accesses: 0.694
+- 5.4 Ablation Study
+  - Self-tuning removal: 88% to 59% (29pp drop, already measured)
+  - Proposition extraction, decay, multi-strategy: TBD
 
 ---
 
@@ -103,14 +114,15 @@
 
 - Limitations: LLM dependency for resolution/reflection, computational cost of full pipeline
 - When HEBBS is overkill: short-lived agents, single-session use
-- Future: multi-agent shared memory palaces, cross-vault consolidation, collective intelligence
+- Future: multi-agent shared memory via `.hebbs/` sharing, cross-vault consolidation, collective intelligence
 
 ---
 
 ## 7. Conclusion
 
-- First system to implement the full biological memory consolidation pipeline for AI agents
-- Neuroscience grounding provides both design rationale and testable predictions
+- Agent memory has two problems: degradation and retrieval rigidity
+- HEBBS addresses both: six neuroscience mechanisms + self-tuning retrieval
+- 59% to 88% keyword recall via agent-driven tuning
 - Open source, local-first, zero-dependency inference
 
 ---
@@ -127,13 +139,13 @@
 
 ## Figures Needed
 
-1. Architecture diagram (full pipeline: ingestion -> palace -> contradiction -> consolidation -> decay)
-2. Brain region mapping (the split-view from the website, adapted for print)
-3. Memory palace graph visualization (nodes + typed edges)
-4. Decay curve: HEBBS vs Ebbinghaus empirical data
-5. Benchmark comparison charts (bar charts vs baselines)
-6. Ablation results (line chart showing degradation per removed component)
-7. Contradiction detection examples (before/after)
+1. Architecture diagram (full pipeline: ingestion -> self-tune -> contradiction -> consolidation -> decay)
+2. Self-tuning eval loop diagram (eval -> diagnose -> tune -> store -> recall cycle)
+3. Brain region mapping (the split-view from the website, adapted for print)
+4. Tuning results bar chart (59% baseline vs 88% tuned, per-query breakdown)
+5. Strategy differentiation (same query, different strategies, different results)
+6. Decay score vs access count (table already in paper, could be a plot)
+7. Ablation results (bar chart showing contribution of each component)
 
 ---
 

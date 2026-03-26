@@ -88,6 +88,40 @@ The daemon uses a length-prefixed JSON protocol over the Unix socket:
 - Request envelope: `{ command, vault_path, vault_paths }`
 - Response envelope: `{ status, data, error }`
 
+## Daemon Logs
+
+The daemon writes logs to `~/.hebbs/daemon.log`. This file is useful for:
+
+- Confirming the daemon detected a file change
+- Checking extraction and embedding progress
+- Diagnosing why a file was not re-indexed
+- Seeing idle eviction and vault lifecycle events
+
+View recent log entries:
+
+```bash
+tail -50 ~/.hebbs/daemon.log
+```
+
+Example log output after editing a file:
+
+```
+[watch] catch-up for enterprise-legal: 1 files changed
+[watch] catch-up phase1: 1 processed, 0 new, 1 modified
+[watch:enterprise-legal] phase2: starting embed + index
+phase2: extracting [1/1] compliance/policy-data-retention-v2.md
+extracted 20 propositions from compliance/policy-data-retention-v2.md
+[watch:enterprise-legal] phase2: 1 embedded, 20 remembered, 0 revised, 0 forgotten
+```
+
+The log also records:
+- Vault opens and idle evictions
+- Decay and reflect worker activity
+- Panel server startup
+- Errors during extraction or embedding (e.g., LLM API failures)
+
+The log file grows over time. It is safe to delete or truncate it; the daemon will recreate it on the next write.
+
 ## Checking Status
 
 ```bash

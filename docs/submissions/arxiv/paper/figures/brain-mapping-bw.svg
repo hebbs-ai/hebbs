@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="'CMU Serif', 'Times New Roman', serif">
+  <style>
+    .title { font-size: 14px; font-weight: 700; fill: #000; letter-spacing: 0.06em; text-transform: uppercase; }
+    .region-name { font-size: 12px; font-weight: 700; fill: #000; }
+    .region-desc { font-size: 10px; fill: #333; }
+    .hebbs-name { font-size: 12px; font-weight: 700; fill: #000; }
+    .hebbs-desc { font-size: 10px; fill: #333; }
+    .connector { stroke: #000; stroke-width: 1; stroke-dasharray: 4 3; fill: none; }
+    .arrow { fill: #000; }
+    .card { fill: none; stroke: #000; stroke-width: 0.75; rx: 3; }
+    .section-label { font-size: 9px; fill: #666; font-style: italic; }
+  </style>
+
+  <!-- Column headers -->
+  <text x="110" y="24" class="title" text-anchor="middle">Brain Region</text>
+  <text x="360" y="24" class="title" text-anchor="middle">HEBBS Component</text>
+  <text x="610" y="24" class="title" text-anchor="middle">Mechanism</text>
+
+  <line x1="0" y1="34" x2="720" y2="34" stroke="#000" stroke-width="0.5"/>
+
+  <!-- Row 1 -->
+  <g transform="translate(0, 45)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Hippocampus</text>
+    <text x="15" y="35" class="region-desc">Fast episodic encoding</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Vault Ingestion</text>
+    <text x="265" y="35" class="hebbs-desc">RocksDB + ONNX Runtime</text>
+
+    <text x="500" y="20" class="hebbs-desc">Markdown chunked by heading,</text>
+    <text x="500" y="35" class="hebbs-desc">embedded locally in &lt;5ms</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Row 2 -->
+  <g transform="translate(0, 108)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Hebbian Synapses</text>
+    <text x="15" y="35" class="region-desc">Associative strengthening</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Associative Embeddings</text>
+    <text x="265" y="35" class="hebbs-desc">Per-edge-type offset vectors</text>
+
+    <text x="500" y="20" class="hebbs-desc">Dual embeddings evolve via</text>
+    <text x="500" y="35" class="hebbs-desc">co-activation (Eq. 1)</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Row 3 -->
+  <g transform="translate(0, 171)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Anterior Cingulate Cortex</text>
+    <text x="15" y="35" class="region-desc">Conflict monitoring</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Contradiction Detection</text>
+    <text x="265" y="35" class="hebbs-desc">LLM structured classifier</text>
+
+    <text x="500" y="20" class="hebbs-desc">Classifies into contradiction /</text>
+    <text x="500" y="35" class="hebbs-desc">revision / dismiss (Phase 1)</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Row 4 -->
+  <g transform="translate(0, 234)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Prefrontal Cortex</text>
+    <text x="15" y="35" class="region-desc">Conflict arbitration</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Agent Resolution</text>
+    <text x="265" y="35" class="hebbs-desc">Two-phase commit (Phase 2)</text>
+
+    <text x="500" y="20" class="hebbs-desc">Agent reviews, creates typed</text>
+    <text x="500" y="35" class="hebbs-desc">edges atomically</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Row 5 -->
+  <g transform="translate(0, 297)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Neocortex</text>
+    <text x="15" y="35" class="region-desc">Semantic storage</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Insight Consolidation</text>
+    <text x="265" y="35" class="hebbs-desc">K-means clustering + LLM</text>
+
+    <text x="500" y="20" class="hebbs-desc">Episodes cluster into scored</text>
+    <text x="500" y="35" class="hebbs-desc">semantic knowledge</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Row 6 -->
+  <g transform="translate(0, 360)">
+    <rect x="5" y="0" width="210" height="50" class="card"/>
+    <text x="15" y="20" class="region-name">Sleep Replay</text>
+    <text x="15" y="35" class="region-desc">Forgetting curves</text>
+
+    <rect x="255" y="0" width="210" height="50" class="card"/>
+    <text x="265" y="20" class="hebbs-name">Adaptive Decay</text>
+    <text x="265" y="35" class="hebbs-desc">Ebbinghaus half-life (Eq. 6)</text>
+
+    <text x="500" y="20" class="hebbs-desc">Unreinforced memories fade;</text>
+    <text x="500" y="35" class="hebbs-desc">recalled memories strengthen</text>
+
+    <path d="M 215 25 L 255 25" class="connector"/>
+    <polygon points="252,22 258,25 252,28" class="arrow"/>
+  </g>
+
+  <!-- Caption -->
+  <text x="360" y="432" text-anchor="middle" font-size="10" fill="#333" font-style="italic">
+    Figure 1: Mapping between brain regions and HEBBS computational components.
+  </text>
+</svg>

@@ -9,16 +9,16 @@ Tests how well agents retain and reason over information from very long conversa
 
 ### Tasks
 
-1. **Question Answering** -- 5 reasoning types:
+1. **Question Answering** (5 reasoning types):
    - Single-hop: answers from a single turn
    - Multi-hop: combine info across multiple turns/sessions
    - Temporal: reason about when events happened or their order
    - Commonsense/World Knowledge: external knowledge + conversational context
    - Adversarial: correct answer is "I don't know" (tests against fabrication)
 
-2. **Event Summarization** -- summarize history into a structured event graph (causal and temporal understanding)
+2. **Event Summarization**: summarize history into a structured event graph (causal and temporal understanding)
 
-3. **Multimodal Dialogue Generation** -- generate responses consistent with past conversations including shared images
+3. **Multimodal Dialogue Generation**: generate responses consistent with past conversations including shared images
 
 ### Dataset
 
@@ -46,11 +46,11 @@ Tests whether chat assistants can remember, retrieve, and reason over long inter
 
 ### 5 Core Abilities Tested
 
-1. **Information Extraction** -- recall specific details from extensive interactive histories
-2. **Multi-Session Reasoning** -- synthesize across sessions (aggregation, comparison)
-3. **Temporal Reasoning** -- awareness of time aspects, explicit time mentions and timestamp metadata
-4. **Knowledge Updates** -- recognize changed user info, dynamically update and use latest version
-5. **Abstention** -- correctly say "I don't know" for never-discussed info
+1. **Information Extraction**: recall specific details from extensive interactive histories
+2. **Multi-Session Reasoning**: synthesize across sessions (aggregation, comparison)
+3. **Temporal Reasoning**: awareness of time aspects, explicit time mentions and timestamp metadata
+4. **Knowledge Updates**: recognize changed user info, dynamically update and use latest version
+5. **Abstention**: correctly say "I don't know" for never-discussed info
 
 ### Question Types
 
