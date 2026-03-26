@@ -88,10 +88,18 @@ Then reload your shell (`source ~/.zshrc`) or open a new terminal.
 
 ## 4. Configure LLM Provider
 
-### Option A: Configure during init
+**You only do this once.** The LLM config is saved to `~/.hebbs/config.toml` (global) by default. Every project vault you create after this inherits it automatically.
+
+### Option A: Configure during init (recommended for first time)
 
 ```sh
 hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+```
+
+This saves the LLM config globally. Next time you run `hebbs init` in another project, you just need:
+
+```sh
+hebbs init /path/to/another/project    # inherits LLM config from ~/.hebbs/config.toml
 ```
 
 `--api-key-env OPENAI_API_KEY` tells HEBBS to read the key from the `$OPENAI_API_KEY` environment variable you set in step 3.
