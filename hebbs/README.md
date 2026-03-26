@@ -126,24 +126,55 @@ Insight (with lineage):
 
 ---
 
+## Your Agent Tunes Itself
+
+HEBBS exposes tunable parameters that no other memory system does: four strategies, four scoring weights, adjustable k, cue expansion. Your agent uses these to **learn how to retrieve better** and stores that knowledge back into HEBBS.
+
+```
+Session 1: Agent runs eval queries against the vault
+           Baseline: 54% keyword recall (default settings)
+
+           Agent analyzes failures:
+           - k too low → increase to 10
+           - cue too generic → expand with entity names
+           - wrong strategy → switch to temporal for timeline queries
+
+           After tuning: 84% keyword recall
+
+           Agent stores what worked:
+           hebbs remember "RETRIEVAL-INSTRUCTION: For compliance queries,
+           include entity names and expand acronyms. Use k=10."
+           --importance 0.9 --entity-id retrieval-instructions
+
+Session 2: Agent loads stored strategies at conversation start
+           Applies learned tuning automatically
+           Retrieval is better from the first query
+```
+
+This is the loop that no competitor can run. Vector databases give you one knob (top-k). HEBBS gives you four strategies, four scoring weights, entity scoping, and cue construction. Your agent optimizes all of them, measures the improvement, and remembers what worked.
+
+Tested results: 54% to 84% with local embeddings, 75% to 90% with OpenAI embeddings.
+
+---
+
 ## Quick Start
 
 ### Quick Start (Local)
 
 ```bash
-# Initialize with OpenAI (recommended -- uses OpenAI embeddings by default)
-hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+# Initialize with OpenAI (recommended)
+hebbs init . --provider openai --key $OPENAI_API_KEY
 
-# Or with other providers (uses local embeddings)
-hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
-hebbs init . --provider ollama --model qwen3:4b
+# Or with other providers
+hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY
+hebbs init . --provider ollama
 
 hebbs index .                         # index your markdown files
 hebbs recall "your question here"     # recall with any strategy
 hebbs panel                           # open the Memory Palace
 ```
 
-**Embedding model**: When `--provider openai` is set, HEBBS uses OpenAI's `text-embedding-3-small` for embeddings. Other providers default to a local ONNX model (embeddinggemma-300m, ~600MB, downloaded once). Override with `hebbs config set embedding.model <model>`.
+One command configures both LLM and embeddings. `--model` is optional (defaults per provider). When using OpenAI, embedding auto-configures to `text-embedding-3-small` with the same key. No local model download needed. Other providers default to a local ONNX model (embeddinggemma-300m, ~600MB, downloaded once).
 
 ### Controlling What Gets Indexed
 

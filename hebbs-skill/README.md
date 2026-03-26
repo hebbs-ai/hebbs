@@ -1,6 +1,6 @@
 # HEBBS Skill
 
-Teaches AI agents how to use [HEBBS](https://hebbs.dev) — a local-first cognitive memory engine that stores, indexes, and retrieves knowledge.
+Teaches AI agents how to use [HEBBS](https://hebbs.dev), a local-first cognitive memory engine that stores, indexes, and retrieves knowledge.
 
 ## Install the skill
 
@@ -22,6 +22,14 @@ git clone https://github.com/hebbs-ai/hebbs-skill.git ~/.claude/skills/hebbs
 
 1. Download this repo as a ZIP
 2. Go to Settings > Capabilities > Skills > Upload the ZIP
+
+## How It Works
+
+HEBBS creates a `.hebbs/` directory next to your files: a self-contained cognition layer. Build the index once, then share it across agents, machines, or your team. Everyone gets the same memory instantly.
+
+`.hebbsignore` works like `.gitignore`: your private files stay private, your agents only see what you allow.
+
+Your files are the source of truth. `.hebbs/` is derived and rebuildable. Delete it anytime and run `hebbs init . && hebbs index .` to get it back.
 
 ## Install HEBBS
 
