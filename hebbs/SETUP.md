@@ -6,7 +6,7 @@ Everything to get HEBBS running. Init, configure, index, test recall, store memo
 
 ## 1. Install
 
-**macOS (Apple Silicon):**
+**macOS (Apple Silicon + Intel):**
 
 ```sh
 brew install hebbs-ai/tap/hebbs
@@ -17,6 +17,8 @@ brew install hebbs-ai/tap/hebbs
 ```sh
 curl -sSf https://hebbs.ai/install | sh
 ```
+
+Note: Intel Mac builds do not include local embeddings (ONNX Runtime). Use `--provider openai --key` to configure API embeddings during init.
 
 After the curl install, add hebbs to your PATH. The installer prints the exact line, but it's:
 
