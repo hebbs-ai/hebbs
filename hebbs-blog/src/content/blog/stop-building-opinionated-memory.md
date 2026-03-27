@@ -96,11 +96,11 @@ One engine. Same memories. The agent controls how it retrieves on every single c
 
 We tested this on a real vault: 52 legal documents, 949 indexed memories across contracts, board minutes, vendor assessments, compliance policies, risk registers, and incident reports.
 
-**Baseline**: All 20 evaluation queries run with default settings (similarity, k=5). Keyword recall: **59%**.
+**Baseline**: All 20 evaluation queries run with default settings (similarity, k=5). Strict keyword matching against top-5 results, no fuzzy matching, no partial credit. Keyword recall: **75%**.
 
-**After agent-driven tuning**: The agent analyzed which queries failed and why, then adjusted strategy, weights, and k per query. Keyword recall: **88%**.
+**After agent-driven tuning**: The agent analyzed which queries failed and why, then adjusted strategy, weights, and k per query. Keyword recall: **94%**.
 
-The 29 percentage point jump came from four fixes the agent discovered on its own:
+The 19 percentage point jump came from four fixes the agent discovered on its own:
 
 1. **Insufficient k** (13 of 16 failures): Default k=5 missed supporting propositions. Fix: k=10.
 2. **Missing entity names in cues** (5 of 16): Generic queries missed entity-associated results. Fix: include entity names.

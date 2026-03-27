@@ -129,26 +129,26 @@ const parameters = [
         <div class="flex items-center gap-4 md:gap-6">
           <div class="text-center">
             <p class="text-xs font-mono text-muted uppercase tracking-wider mb-1">Before</p>
-            <p class="text-3xl md:text-4xl font-bold font-mono text-red">59%</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-red">75%</p>
             <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
           </div>
           <svg class="w-6 h-6 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
           <div class="text-center">
             <p class="text-xs font-mono text-green uppercase tracking-wider mb-1">After</p>
-            <p class="text-3xl md:text-4xl font-bold font-mono text-green">88%</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-green">94%</p>
             <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
           </div>
         </div>
         <!-- Story -->
         <div class="flex-1 border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-8">
           <p class="text-sm text-text leading-relaxed mb-2">
-            A client indexed 52 legal documents: contracts, board minutes, vendor assessments, compliance policies. Out of the box, default retrieval answered <strong>59% of eval queries</strong> correctly.
+            Strict keyword matching against top-5 results. No fuzzy matching, no semantic similarity, no partial credit. A keyword is either present in the returned content or it's missed.
           </p>
           <p class="text-sm text-text leading-relaxed mb-2">
-            One command. The agent generated domain-specific evals, diagnosed four retrieval failure patterns, tuned strategy and weights per query type, and stored the learned configuration.
+            52 legal documents indexed. One command. The agent generated domain-specific evals, diagnosed retrieval failures, tuned strategy and weights per query type, and stored the learned configuration.
           </p>
           <p class="text-sm text-text font-medium leading-relaxed">
-            <strong class="text-green">88% recall accuracy. 60 seconds. Ships with enterprise HEBBS.</strong>
+            <strong class="text-green">75% to 94% recall accuracy. 60 seconds. Ships with enterprise HEBBS.</strong>
           </p>
         </div>
       </div>
