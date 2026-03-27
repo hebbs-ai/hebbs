@@ -43,7 +43,9 @@ Initialize a new vault (`.hebbs/` directory). LLM configuration is required for 
 
 ```bash
 hebbs init [PATH]
-hebbs init --provider anthropic --model claude-sonnet-4-20250514 --api-key-env ANTHROPIC_API_KEY
+hebbs init --provider openai --key $OPENAI_API_KEY
+hebbs init --provider anthropic --key $ANTHROPIC_API_KEY
+hebbs init --provider ollama
 hebbs init --force          # Reinitialize even if .hebbs/ exists
 ```
 
@@ -52,10 +54,12 @@ hebbs init --force          # Reinitialize even if .hebbs/ exists
 | `PATH` (positional) | Vault directory (default: current directory) |
 | `--force` | Reinitialize even if `.hebbs/` already exists |
 | `--provider` | LLM provider: `anthropic`, `openai`, `gemini`, `ollama` |
-| `--model` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o-mini`) |
-| `--api-key-env` | Environment variable holding the API key (e.g. `ANTHROPIC_API_KEY`) |
-| `--api-key` | API key (prefer `--api-key-env` for security) |
+| `--model` | Model identifier. Optional; defaults per provider (`gpt-4o-mini`, `claude-haiku-4-5-20251001`, `gemini-2.0-flash`, `gemma3:1b`) |
+| `--key` / `--api-key` | API key passed directly. Saved to `~/.hebbs/config.toml`. |
+| `--api-key-env` | Environment variable name holding the API key (e.g. `ANTHROPIC_API_KEY`). Better for CI/pipelines. |
 | `--base-url` | Base URL override for self-hosted providers |
+
+When `--provider openai` is used, embedding auto-configures to `text-embedding-3-small` with the same key. LLM and embedding config are saved globally; local config inherits.
 
 ### index
 

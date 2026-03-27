@@ -11,9 +11,9 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 hex.workspace = true
-ort.workspace = true
-tokenizers.workspace = true
-ndarray.workspace = true
+ort = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+ndarray = { workspace = true, optional = true }
 sha2.workspace = true
 ureq.workspace = true
 parking_lot.workspace = true
@@ -26,10 +26,11 @@ proptest.workspace = true
 rand.workspace = true
 
 [features]
-default = []
-coreml = ["ort/coreml"]
-cuda = ["ort/cuda"]
-directml = ["ort/directml"]
+default = ["local-embed"]
+local-embed = ["ort", "tokenizers", "ndarray"]
+coreml = ["local-embed", "ort/coreml"]
+cuda = ["local-embed", "ort/cuda"]
+directml = ["local-embed", "ort/directml"]
 external-embeddings = []
 
 [[bench]]

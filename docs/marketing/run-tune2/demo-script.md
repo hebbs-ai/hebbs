@@ -52,11 +52,10 @@ $ brew install hebbs-ai/tap/hebbs
 ```
 
 ```
-$ hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+$ hebbs init . --provider openai --key $OPENAI_API_KEY
 LLM provider validated successfully
 Initialized vault at .
-Ensuring embedding model (embeddinggemma-300m)...
-Embedding model ready.
+Using API embeddings (openai/text-embedding-3-small). No local model needed.
 Starting daemon...
 
   Your vault is live. 52 file(s) found.

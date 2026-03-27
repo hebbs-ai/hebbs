@@ -66,7 +66,7 @@ detect_platform() {
         linux-x86_64)   ARTIFACT="hebbs-linux-x86_64"   ;;
         linux-aarch64)  ARTIFACT="hebbs-linux-aarch64"   ;;
         macos-aarch64)  ARTIFACT="hebbs-macos-arm64"     ;;
-        macos-x86_64)   die "macOS x86_64 (Intel) is not supported. HEBBS requires Apple Silicon (M1+)." ;;
+        macos-x86_64)   ARTIFACT="hebbs-macos-x86_64" ;;
         *)              die "Unsupported platform: ${OS_NAME}-${ARCH_NAME}" ;;
     esac
 

@@ -11,9 +11,9 @@ The agent uses the `hebbs` CLI directly -- no plugin, SDK, or custom integration
 
 ## Installation
 
-1. Install the HEBBS CLI: `cargo install hebbs-cli`
-2. Initialize a vault: `hebbs init --provider <provider> --model <model>` (LLM is required for reflection and contradiction detection)
-3. Start the HEBBS server: `hebbs-server` (default port 50051 for gRPC, 6381 for REST)
+1. Install HEBBS: `brew install hebbs-ai/tap/hebbs` (or `curl -sSf https://hebbs.ai/install | sh`)
+2. Initialize a vault: `hebbs init . --provider openai --key $OPENAI_API_KEY` (`--model` is optional, defaults per provider)
+3. Index your files: `hebbs index .`
 4. Copy `hebbs/skills/hebbs/SKILL.md` into your agent's skill directory
 
 For OpenClaw:
@@ -69,16 +69,24 @@ hebbs --api-key $HEBBS_API_KEY recall "query"
 HEBBS requires an LLM provider for autonomous reflection and contradiction detection. Configure during initialization:
 
 ```bash
-hebbs init --provider anthropic --model claude-sonnet-4-20250514
+hebbs init --provider openai --key $OPENAI_API_KEY
 ```
 
-Or set in `.hebbs/config.toml`:
+`--model` is optional (defaults per provider). LLM and embedding config are saved to `~/.hebbs/config.toml` and inherited by all vaults.
+
+Or set in `~/.hebbs/config.toml` directly:
 
 ```toml
 [llm]
-provider = "anthropic"
-model = "claude-sonnet-4-20250514"
-api_key_env = "ANTHROPIC_API_KEY"
+provider = "openai"
+model = "gpt-4o-mini"
+api_key = "sk-proj-your-key-here"
+
+[embedding]
+provider = "openai"
+model = "text-embedding-3-small"
+api_key = "sk-proj-your-key-here"
+dimensions = 1536
 ```
 
 ## Tips
@@ -87,4 +95,3 @@ api_key_env = "ANTHROPIC_API_KEY"
 - Set importance based on content type: 0.9 for corrections, 0.8 for preferences, 0.5 for observations, 0.3 for transient context
 - Use entity IDs to scope memories per user, project, or domain
 - Check insights before raw recall -- insights are higher-quality, distilled knowledge
-- HEBBS requires `--provider` and `--model` flags during `hebbs init` to configure the LLM backend

@@ -8,6 +8,10 @@ class Hebbs < Formula
     if Hardware::CPU.arm?
       url "https://github.com/hebbs-ai/hebbs/releases/download/v0.3.0/hebbs-macos-arm64.tar.gz"
       sha256 "d6f79cba1ca8d81eb1f2903649ca384a08e5b8bbf8b5f4cf9ecd9d477eed024f"
+    elsif Hardware::CPU.intel?
+      # Intel binary available from v0.3.3+
+      url "https://github.com/hebbs-ai/hebbs/releases/download/v0.3.3/hebbs-macos-x86_64.tar.gz"
+      sha256 "PLACEHOLDER_UNTIL_RELEASE"
     end
   end
 

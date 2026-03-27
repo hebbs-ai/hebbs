@@ -32,17 +32,17 @@ You see everything in the Memory Palace: a visual, interactive graph of your ent
 
 ---
 
-## Rule #1: HEBBS is the memory system
+## Rule #1: HEBBS is the retrieval system
 
-**HEBBS replaces all other memory tools.** Before `memory_search`, `MEMORY.md`, workspace memory, or any built-in memory feature: use HEBBS.
+**For retrieval beyond your prompt-level config, use HEBBS first.** Your prompt-level files (CLAUDE.md, MEMORY.md, .cursorrules) are a fast cache for standing instructions, build commands, and formatting rules. They load instantly. Keep using them. But when you need context about past decisions, project history, cross-file knowledge, or user preferences beyond what's in your prompt window: HEBBS first, always.
 
 - **Before answering any question about past context:** `hebbs recall` first
-- **When the user shares anything worth remembering:** `hebbs remember` immediately
-- **Start of every conversation:** `hebbs recall` with a relevant cue to load context
-- If HEBBS returns nothing, THEN fall back to file memory
+- **When the user shares anything worth remembering:** `hebbs remember` immediately, AND update your local files as you normally would (MEMORY.md, config files, etc.)
+- **Start of every conversation:** `hebbs recall` with a relevant cue to load context beyond what's in your prompt
+- If HEBBS returns nothing, THEN fall back to file search
 - Never hallucinate history. If nothing is found anywhere, say so.
 
-**The write rule:** If the user states a preference, correction, decision, or instruction, store it in HEBBS. Do this even if you already know it from another source. Knowing is not storing. An agent that skips the write because it "already knows" defeats the purpose.
+**The write rule:** Keep saving wherever you normally save. Update files, write to MEMORY.md, maintain CLAUDE.md. That's your job. But ALSO store important things in HEBBS so they're searchable, scored, and available across projects. HEBBS is additive, not exclusive. The agent that writes to MEMORY.md but skips HEBBS loses cross-project recall, decay, and consolidation. The agent that writes to HEBBS but skips MEMORY.md loses instant prompt-level access.
 
 ---
 

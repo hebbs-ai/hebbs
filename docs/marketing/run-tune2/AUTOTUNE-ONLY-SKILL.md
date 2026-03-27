@@ -271,25 +271,30 @@ Keep only the compressed rules. 10-20 rules replace 50+ individual strategies.
 
 ---
 
-## 8. Build Broader Insights
+## 8. Export and Load Rules
 
-After compression, the agent has 10-20 rules. These rules ARE the retrieval playbook for this domain.
+After compression, the agent has 10-20 rules. These rules ARE the retrieval playbook for this domain. The final step is exporting them to a file for fast loading.
+
+### Export to markdown
+
+Compile the compressed rules into `.hebbs/retrieval-rules.md` in the vault (or `~/.hebbs/retrieval-rules.md` for global rules):
+
+```sh
+# Load all master rules
+hebbs prime retrieval-instructions --max-memories 30 --format json
+```
+
+Write them as a structured markdown file. See `hebbs-skill/tune/SKILL.md` Phase 7 for the full template. The file should cover: cue construction, k sizing, strategy selection, weight profiles, and domain-specific rules.
 
 ### Load rules at conversation start
 
-At the beginning of every conversation, before any retrieval, one call loads the entire playbook:
+The agent checks for rules in this order (fastest first):
 
-```sh
-hebbs prime retrieval-instructions --max-memories 20 --format json
-```
+1. **File exists?** Read `.hebbs/retrieval-rules.md` directly. No daemon call, no latency.
+2. **No file?** `hebbs prime retrieval-instructions --max-memories 20 --format json`
+3. **Neither?** Use defaults (similarity, k=10, entity names in cues).
 
-Or with importance-weighted recall to surface the 0.95-importance compressed rules first:
-
-```sh
-hebbs recall "retrieval instructions" --entity-id retrieval-instructions --weights 0.3:0.1:0.5:0.1 -k 20 --format json
-```
-
-The agent reads the returned rules and applies them to every subsequent recall call in the conversation. This is a one-time fetch per session, not per query.
+The file is the compiled output of all tuning work. It's faster than a prime call, human-editable, and version-controllable.
 
 ### Rules evolve
 
@@ -297,14 +302,15 @@ The playbook is not static. As the vault changes, as new document types are adde
 
 1. Run evals again (include new query types)
 2. Discover new patterns
-3. Update or add rules
+3. Update or add rules in HEBBS
 4. Re-compress if the rule count exceeds 20
+5. Re-export to `.hebbs/retrieval-rules.md`
 
 ### Different domains, different playbooks
 
 A legal vault produces rules about contract terms, risk IDs, and vendor names. A codebase vault produces rules about function names, file paths, and architecture patterns. A sales vault produces rules about deal stages, company names, and revenue figures.
 
-The compressed rules are domain-specific retrieval intelligence, stored in the memory system they optimize.
+Each vault's `.hebbs/retrieval-rules.md` is its own domain-specific retrieval playbook.
 
 ---
 

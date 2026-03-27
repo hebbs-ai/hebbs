@@ -42,21 +42,23 @@ Or for Anthropic: `export ANTHROPIC_API_KEY="sk-ant-your-key-here"`
 
 ```sh
 cd /path/to/your/files
-hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init . --provider openai --key $OPENAI_API_KEY
 ```
 
-This creates a `.hebbs/` directory, validates LLM connectivity, and starts the daemon. The LLM config is saved globally to `~/.hebbs/config.toml`, so future projects just need `hebbs init .` with no flags.
+One command. `--model` is optional (defaults to `gpt-4o-mini` for OpenAI). Embedding auto-configures to OpenAI `text-embedding-3-small` with the same key. No local model download needed.
+
+This creates a `.hebbs/` directory, validates LLM connectivity, and starts the daemon. LLM and embedding config are saved globally to `~/.hebbs/config.toml`, so future projects just need `hebbs init .` with no flags.
 
 Other providers:
 
 ```sh
-hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
-hebbs init . --provider ollama --model qwen3:4b    # local, free, no API key
+hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY
+hebbs init . --provider ollama    # local, free, no API key
 ```
 
-### 4. (Optional) Use OpenAI embeddings instead of local
+### 4. (Optional) Override embedding config
 
-By default, HEBBS uses a local embedding model (free, no API key, 768 dims). For better recall quality, switch to OpenAI embeddings. Edit `.hebbs/config.toml` BEFORE indexing:
+When using OpenAI, embedding is auto-configured. For other providers, embedding defaults to local ONNX (768 dims, ~600MB download). To override, edit `~/.hebbs/config.toml` BEFORE indexing:
 
 ```toml
 [embedding]
@@ -147,8 +149,15 @@ At the start of every conversation, your agent should:
 ```sh
 hebbs prime user_prefs --max-memories 20 --format json        # load user preferences
 hebbs prime project_context --max-memories 15 --format json   # load project context
-hebbs prime retrieval-instructions --max-memories 20 --format json  # load tuned retrieval rules (after Phase 3)
 ```
+
+Then load retrieval rules (how to use HEBBS effectively for this vault):
+
+1. If `.hebbs/retrieval-rules.md` exists: read it directly (fastest, no daemon call)
+2. If not: `hebbs prime retrieval-instructions --max-memories 20 --format json`
+3. If neither exists: use defaults (similarity, k=10)
+
+The rules file is generated after tuning (Phase 4). Until then, defaults work fine.
 
 ### Check daemon logs
 
@@ -258,13 +267,12 @@ hebbs remember "RETRIEVAL-INSTRUCTION: Always include entity names in cues. Spec
 
 ### 13. Load rules at conversation start
 
-Next conversation, your agent primes itself with the learned rules before any recall:
+Next conversation, your agent loads the learned rules before any recall:
 
-```sh
-hebbs prime retrieval-instructions --max-memories 20 --format json
-```
+1. If `.hebbs/retrieval-rules.md` exists: read it directly (fastest)
+2. If not: `hebbs prime retrieval-instructions --max-memories 20 --format json`
 
-One call loads the entire playbook. The agent reads the rules and applies them to every recall call in the session.
+After Phase 4 (compress), export rules to `.hebbs/retrieval-rules.md` for instant loading without a daemon call. See `hebbs-skill/tune/SKILL.md` Phase 7 for the export format.
 
 ---
 

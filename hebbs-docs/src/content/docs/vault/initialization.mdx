@@ -9,16 +9,22 @@ Initialize a vault in any directory. LLM configuration is required for new vault
 
 ```bash
 cd ~/projects/my-notes
-hebbs init --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init --provider openai --key $OPENAI_API_KEY
 ```
 
-Or specify a path:
+One command. `--model` is optional (defaults to `gpt-4o-mini` for OpenAI). Embedding auto-configures to `text-embedding-3-small` with the same key. No local model download needed.
+
+Or specify a path with a different provider:
 
 ```bash
-hebbs init ~/projects/my-notes --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
+hebbs init ~/projects/my-notes --provider anthropic --key $ANTHROPIC_API_KEY
 ```
 
+LLM and embedding config are saved to `~/.hebbs/config.toml` (global). The local `.hebbs/config.toml` inherits from global, so subsequent vaults just need `hebbs init <path>`.
+
 The `init` command validates LLM connectivity before completing. If the provider is unreachable or the API key is invalid, initialization fails with a descriptive error.
+
+For CI/pipelines, use `--api-key-env` to reference an env var name instead of passing the key directly.
 
 ### Embedding Model
 

@@ -13,15 +13,13 @@ hebbs --version   # should show 0.3.2
 cd /path/to/your/markdown/files
 
 # OpenAI (recommended)
-export OPENAI_API_KEY="your-key-here"
-hebbs init . --provider openai --model gpt-4o-mini --api-key-env OPENAI_API_KEY
+hebbs init . --provider openai --key $OPENAI_API_KEY
 
 # Or Anthropic
-export ANTHROPIC_API_KEY="your-key-here"
-hebbs init . --provider anthropic --model claude-haiku-4-5-20251001 --api-key-env ANTHROPIC_API_KEY
+hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY
 
 # Or local (no API key, uses Ollama)
-hebbs init . --provider ollama --model qwen3:4b
+hebbs init . --provider ollama
 ```
 
 ## Index your files

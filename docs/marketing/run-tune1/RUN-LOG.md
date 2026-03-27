@@ -1,5 +1,7 @@
 # Run Log: Agent-Driven Hebbs Eval & Tuning
 
+> **Note:** This run used `--api-key-env` for API key configuration, which was the only option at the time. The init flow has since changed: use `--key` to pass the API key directly. See `docs/marketing/run-new-client1/GET_STARTED.md` for current instructions.
+
 **Date:** 2026-03-24
 **Hebbs version:** 0.3.0
 **LLM backend:** OpenAI gpt-4o-mini

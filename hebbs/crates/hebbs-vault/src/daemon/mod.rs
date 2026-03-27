@@ -177,13 +177,20 @@ fn create_embedder_from_daemon_config(
         }
         _ => {
             // Local ONNX
-            let embed_config =
-                hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
-            std::fs::create_dir_all(&embed_config.model_dir)
-                .map_err(|e| format!("failed to create model directory: {e}"))?;
-            let embedder = hebbs_embed::OnnxEmbedder::new(embed_config)
-                .map_err(|e| format!("failed to load ONNX embedder: {e}"))?;
-            Ok(Arc::new(embedder))
+            #[cfg(feature = "local-embed")]
+            {
+                let embed_config =
+                    hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding_model);
+                std::fs::create_dir_all(&embed_config.model_dir)
+                    .map_err(|e| format!("failed to create model directory: {e}"))?;
+                let embedder = hebbs_embed::OnnxEmbedder::new(embed_config)
+                    .map_err(|e| format!("failed to load ONNX embedder: {e}"))?;
+                Ok(Arc::new(embedder))
+            }
+            #[cfg(not(feature = "local-embed"))]
+            {
+                Err("Local embeddings are not available in this build. Configure API embeddings (provider = \"openai\") in ~/.hebbs/config.toml.".to_string())
+            }
         }
     }
 }

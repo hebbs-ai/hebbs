@@ -1,7 +1,21 @@
 # TASK-26: Agentic Eval Loop
 
-**Status:** Design
+**Status:** Done (implemented via hebbs-skill/tune/SKILL.md and supporting docs)
 **Priority:** High (GTM critical, core competitive edge)
+**Completed:** 2026-03-27
+
+### What shipped
+- `hebbs-skill/tune/SKILL.md`: 8-phase tune skill (profile, generate, baseline, tune, store, compress, export, re-tune)
+- `docs/marketing/run-tune2/AUTOTUNE-ONLY-SKILL.md`: Marketing version of the eval loop
+- `docs/marketing/run-new-client1/HOW_TO_TUNE.md`: Client-facing tuning guide with ICP profiling
+- `docs/marketing/run-tune2/HOW-TO-EVAL.md`: Eval methodology
+- `docs/marketing/run-tune3/RUN-LOG.md`: Proven results (75% baseline, 90% tuned with OpenAI embeddings)
+- Main SKILL.md loads retrieval rules at conversation start (file-first, prime fallback)
+- TASK-29 covers the scheduled retune cycle from query logs
+
+### What's deferred
+- Phase 2 JSON eval format spec: not formalized as standalone doc; tune/SKILL.md uses markdown examples instead
+- Phase 3 community benchmark: future work, contingent on adoption
 
 ## Summary
 

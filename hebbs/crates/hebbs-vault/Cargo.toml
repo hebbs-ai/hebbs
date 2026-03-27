@@ -12,13 +12,14 @@ name = "hebbs"
 path = "src/bin/hebbs.rs"
 
 [dependencies]
-hebbs-core = { path = "../hebbs-core" }
-hebbs-embed = { path = "../hebbs-embed" }
+hebbs-core = { path = "../hebbs-core", default-features = false }
+hebbs-embed = { path = "../hebbs-embed", default-features = false }
+
 hebbs-index = { path = "../hebbs-index" }
 hebbs-llm = { path = "../hebbs-llm" }
 hebbs-storage = { path = "../hebbs-storage" }
 hebbs-cli = { path = "../hebbs-cli" }
-hebbs-reflect = { path = "../hebbs-reflect" }
+hebbs-reflect = { path = "../hebbs-reflect", default-features = false }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -42,6 +43,10 @@ dirs = { workspace = true }
 libc = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true }
+
+[features]
+default = ["local-embed"]
+local-embed = ["hebbs-embed/local-embed", "hebbs-core/local-embed", "hebbs-reflect/local-embed"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

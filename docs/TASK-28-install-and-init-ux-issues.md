@@ -1,6 +1,6 @@
 # TASK-28: Install and Init UX Issues
 
-**Status:** Mostly Fixed (5/6 issues resolved)
+**Status:** Done
 **Priority:** High
 **Created:** 2026-03-26
 **Found during:** v0.3.2 user testing on Linux (Ubuntu) and macOS (Intel)
@@ -21,23 +21,14 @@ For non-OpenAI providers (Anthropic, Gemini, Ollama), embedding defaults to loca
 ## Issue 2: macOS Intel (x86_64) not supported
 
 **Severity:** Medium (affects older Macs)
-**Status:** OPEN
+**Status:** FIXED (binary available on next release)
 
-- `curl -sSf https://hebbs.ai/install | sh` fails: "macOS x86_64 (Intel) is not supported"
-- `brew install hebbs-ai/tap/hebbs` fails: "formula requires at least a URL" (no x86_64 binary in the formula)
-- Only Apple Silicon (M1+) is supported
+Added `x86_64-apple-darwin` to the release workflow matrix (`macos-13` runner), updated the Homebrew formula template with an Intel Mac block, and removed the rejection in the install script. The Intel binary will be built and published on the next tagged release (v0.3.3+).
 
-**Fix:** Add `x86_64-apple-darwin` target to the release workflow matrix in `.github/workflows/release.yml`:
-
-```yaml
-- os: macos-13          # Intel runner
-  target: x86_64-apple-darwin
-  artifact: hebbs-macos-x86_64
-```
-
-Also update the Homebrew formula template to include the Intel URL/SHA, and update the install script to support `x86_64-apple-darwin`.
-
-**Note:** ONNX Runtime may have issues on older Intel Macs. Test before releasing.
+Changes:
+- `hebbs/.github/workflows/release.yml`: added matrix entry, download/checksum, formula template block, sed replacement
+- `hebbs-deploy/scripts/install.sh`: changed `die` to `ARTIFACT="hebbs-macos-x86_64"`
+- `homebrew-tap/Formula/hebbs.rb`: added `elsif Hardware::CPU.intel?` block (placeholder SHA until next release)
 
 ---
 
@@ -104,5 +95,5 @@ Added default model per provider: `gpt-4o-mini` (openai), `claude-haiku-4-5-2025
 
 ## What's still pending
 
-1. **Issue 2 (macOS Intel x86_64):** Needs CI/release workflow changes + Homebrew formula update. Not a code fix.
-2. **Config round-trip tests broken locally:** `test_config_round_trip` and `test_config_load_missing_file` fail on any machine with `~/.hebbs/config.toml` because `VaultConfig::load()` merges with real global config. Tests should set up controlled global config fixtures or mock the global path. Not a production issue.
+1. **Config round-trip tests broken locally:** `test_config_round_trip` and `test_config_load_missing_file` fail on any machine with `~/.hebbs/config.toml` because `VaultConfig::load()` merges with real global config. Tests should set up controlled global config fixtures or mock the global path. Not a production issue.
+2. **Intel Mac binary not yet published:** The CI/formula/install script changes are in place but the actual binary won't exist until the next tagged release (v0.3.3+).

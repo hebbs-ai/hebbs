@@ -678,10 +678,19 @@ async fn setup_engine(
             }
             _ => {
                 // Local ONNX (default)
-                let embed_config =
-                    hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
-                std::fs::create_dir_all(&embed_config.model_dir)?;
-                Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?)
+                #[cfg(feature = "local-embed")]
+                {
+                    let embed_config =
+                        hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
+                    std::fs::create_dir_all(&embed_config.model_dir)?;
+                    Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?)
+                }
+                #[cfg(not(feature = "local-embed"))]
+                {
+                    return Err(hebbs_vault::error::VaultError::Config {
+                        reason: "Local embeddings are not available in this build. Use --provider openai with --key to use API embeddings.".to_string(),
+                    }.into());
+                }
             }
         }
     };
@@ -939,17 +948,24 @@ async fn run_local(cli: Cli) -> i32 {
                             config.embedding.model
                         );
                     } else {
-                        let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
-                            &config.embedding.model,
-                        );
-                        std::fs::create_dir_all(&embed_config.model_dir).ok();
-                        println!("Ensuring embedding model ({})...", config.embedding.model);
-                        match hebbs_embed::ensure_model_files(&embed_config) {
-                            Ok(_) => println!("Embedding model ready."),
-                            Err(e) => {
-                                eprintln!("Warning: model download failed: {}", e);
-                                eprintln!("The daemon will retry on first start.");
+                        #[cfg(feature = "local-embed")]
+                        {
+                            let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
+                                &config.embedding.model,
+                            );
+                            std::fs::create_dir_all(&embed_config.model_dir).ok();
+                            println!("Ensuring embedding model ({})...", config.embedding.model);
+                            match hebbs_embed::ensure_model_files(&embed_config) {
+                                Ok(_) => println!("Embedding model ready."),
+                                Err(e) => {
+                                    eprintln!("Warning: model download failed: {}", e);
+                                    eprintln!("The daemon will retry on first start.");
+                                }
                             }
+                        }
+                        #[cfg(not(feature = "local-embed"))]
+                        {
+                            eprintln!("Local embeddings not available in this build. Use API embeddings (--provider openai --key ...).");
                         }
                     }
 

@@ -7,7 +7,7 @@ license = "BSL-1.1"
 description = "Reflection pipeline for HEBBS — clustering, LLM-driven insight generation, and validation"
 
 [dependencies]
-hebbs-embed = { path = "../hebbs-embed" }
+hebbs-embed = { path = "../hebbs-embed", default-features = false }
 hebbs-llm = { path = "../hebbs-llm" }
 thiserror.workspace = true
 serde.workspace = true
@@ -15,6 +15,10 @@ serde_json.workspace = true
 rand.workspace = true
 ureq.workspace = true
 hex.workspace = true
+
+[features]
+default = ["local-embed"]
+local-embed = ["hebbs-embed/local-embed"]
 
 [dev-dependencies]
 proptest.workspace = true

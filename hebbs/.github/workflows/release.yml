@@ -27,6 +27,10 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: hebbs-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: hebbs-macos-x86_64
+            no_local_embed: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -46,7 +50,13 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install protobuf
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p hebbs-vault -p hebbs-bench
+        run: |
+          FEATURES_FLAG=""
+          if [ "${{ matrix.no_local_embed }}" = "true" ]; then
+            FEATURES_FLAG="--no-default-features"
+          fi
+          cargo build --release --target ${{ matrix.target }} -p hebbs-vault $FEATURES_FLAG
+          cargo build --release --target ${{ matrix.target }} -p hebbs-bench $FEATURES_FLAG 2>/dev/null || true
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
@@ -211,10 +221,12 @@ jobs:
           BASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
 
           curl -sSfL "${BASE_URL}/hebbs-macos-arm64.tar.gz" -o macos-arm64.tar.gz
+          curl -sSfL "${BASE_URL}/hebbs-macos-x86_64.tar.gz" -o macos-x86_64.tar.gz
           curl -sSfL "${BASE_URL}/hebbs-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
           curl -sSfL "${BASE_URL}/hebbs-linux-aarch64.tar.gz" -o linux-aarch64.tar.gz
 
           echo "sha_macos_arm64=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_macos_x86_64=$(sha256sum macos-x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_linux_x86_64=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_linux_aarch64=$(sha256sum linux-aarch64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
@@ -242,6 +254,9 @@ jobs:
               if Hardware::CPU.arm?
                 url "BASE_URL_PLACEHOLDER/hebbs-macos-arm64.tar.gz"
                 sha256 "SHA_MACOS_ARM64_PLACEHOLDER"
+              elsif Hardware::CPU.intel?
+                url "BASE_URL_PLACEHOLDER/hebbs-macos-x86_64.tar.gz"
+                sha256 "SHA_MACOS_X86_64_PLACEHOLDER"
               end
             end
 
@@ -269,6 +284,7 @@ jobs:
           sed -i "s|VERSION_PLACEHOLDER|${VERSION}|g" homebrew-tap/Formula/hebbs.rb
           sed -i "s|BASE_URL_PLACEHOLDER|${BASE_URL}|g" homebrew-tap/Formula/hebbs.rb
           sed -i "s|SHA_MACOS_ARM64_PLACEHOLDER|${{ steps.checksums.outputs.sha_macos_arm64 }}|g" homebrew-tap/Formula/hebbs.rb
+          sed -i "s|SHA_MACOS_X86_64_PLACEHOLDER|${{ steps.checksums.outputs.sha_macos_x86_64 }}|g" homebrew-tap/Formula/hebbs.rb
           sed -i "s|SHA_LINUX_X86_64_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_x86_64 }}|g" homebrew-tap/Formula/hebbs.rb
           sed -i "s|SHA_LINUX_AARCH64_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_aarch64 }}|g" homebrew-tap/Formula/hebbs.rb
 

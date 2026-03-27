@@ -8,10 +8,10 @@ description = "Core cognitive memory engine for HEBBS"
 
 [dependencies]
 hebbs-storage = { path = "../hebbs-storage" }
-hebbs-embed = { path = "../hebbs-embed" }
+hebbs-embed = { path = "../hebbs-embed", default-features = false }
 hebbs-index = { path = "../hebbs-index" }
 hebbs-llm = { path = "../hebbs-llm" }
-hebbs-reflect = { path = "../hebbs-reflect" }
+hebbs-reflect = { path = "../hebbs-reflect", default-features = false }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -24,7 +24,8 @@ sha2.workspace = true
 tracing.workspace = true
 
 [features]
-default = []
+default = ["local-embed"]
+local-embed = ["hebbs-embed/local-embed", "hebbs-reflect/local-embed"]
 bench-instrument = []
 
 [dev-dependencies]

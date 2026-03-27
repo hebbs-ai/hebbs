@@ -1,6 +1,6 @@
 # HEBBS Skill
 
-Teaches AI agents how to use [HEBBS](https://hebbs.dev), a local-first cognitive memory engine that stores, indexes, and retrieves knowledge.
+Teaches AI agents how to use [HEBBS](https://hebbs.ai), a local-first cognitive memory engine that stores, indexes, and retrieves knowledge across four dimensions.
 
 ## Install the skill
 
@@ -33,8 +33,6 @@ Your files are the source of truth. `.hebbs/` is derived and rebuildable. Delete
 
 ## Install HEBBS
 
-The skill requires `hebbs-server` and `hebbs-cli` binaries.
-
 **macOS (Homebrew):**
 
 ```bash
@@ -47,28 +45,28 @@ brew install hebbs-ai/tap/hebbs
 curl -sSf https://hebbs.ai/install | sh
 ```
 
-## Start the server
+## Quick start
 
 ```bash
-brew services start hebbs
+hebbs init . --provider openai --key $OPENAI_API_KEY
+hebbs index .
+hebbs recall "your query here"
 ```
 
-Or manually:
-
-```bash
-HEBBS_AUTH_ENABLED=false hebbs-server start --data-dir ~/.hebbs/data
-```
-
-The server listens on gRPC port 6380 and HTTP port 6381.
+`--model` is optional (defaults per provider). Embedding auto-configures when using OpenAI. The daemon starts automatically and watches for file changes.
 
 ## Verify
 
 ```bash
-hebbs-cli status --format json
+hebbs status
 ```
+
+## Tuning
+
+The `tune/` directory contains a skill for agent-driven retrieval tuning: generate evals, run baselines, optimize parameters, and export compiled rules.
 
 ## Links
 
-- [HEBBS](https://hebbs.dev)
+- [HEBBS](https://hebbs.ai)
 - [HEBBS GitHub](https://github.com/hebbs-ai/hebbs)
 - [Homebrew Tap](https://github.com/hebbs-ai/homebrew-tap)
