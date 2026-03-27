@@ -1,0 +1,798 @@
+---
+// Interactive onboarding guide - standalone page, no sidebar
+// docs.hebbs.ai/guide/
+---
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Get Started with HEBBS</title>
+  <meta name="description" content="Install, index, recall, tune. A step-by-step interactive guide to HEBBS." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+    body {
+      background: #0a0a0b;
+      color: #d4d4d8;
+      font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: rgba(245, 158, 11, 0.3); }
+
+    /* ── Stage layout ── */
+    .stage {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px;
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+    }
+    .stage-inner {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    /* ── Typography ── */
+    .stage-num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #f59e0b;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+    h2 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 700;
+      color: #ededef;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .subtitle {
+      font-size: 17px;
+      color: #8a8a8e;
+      line-height: 1.6;
+      max-width: 600px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Terminal ── */
+    .terminal {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #1e1e20;
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.r { background: rgba(239,68,68,0.5); }
+    .terminal-dot.y { background: rgba(245,158,11,0.5); }
+    .terminal-dot.g { background: rgba(34,197,94,0.4); }
+    .terminal-title { margin-left: 8px; font-size: 11px; color: #3f3f46; }
+    .terminal-body { padding: 20px 24px; overflow-x: auto; }
+    .terminal-body pre { white-space: pre; }
+
+    /* Terminal colors */
+    .t-prompt { color: #f59e0b; }
+    .t-cmd { color: #ededef; }
+    .t-flag { color: #67e8f9; }
+    .t-str { color: #34d399; }
+    .t-out { color: #8a8a8e; }
+    .t-num { color: #f59e0b; }
+    .t-dim { color: #3f3f46; }
+    .t-pass { color: #34d399; }
+    .t-fail { color: #f87171; }
+    .t-warn { color: #fbbf24; }
+
+    /* ── Provider tabs ── */
+    .provider-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .provider-tab {
+      padding: 6px 16px;
+      border-radius: 8px;
+      border: 1px solid #1e1e20;
+      background: transparent;
+      color: #8a8a8e;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .provider-tab:hover { border-color: #3f3f46; color: #d4d4d8; }
+    .provider-tab.active { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.06); }
+    .provider-cmd { display: none; }
+    .provider-cmd.active { display: block; }
+
+    /* ── Recall demo cards ── */
+    .recall-cards { display: flex; flex-direction: column; gap: 12px; }
+    .recall-card {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      padding: 20px 24px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .recall-card:hover { border-color: #3f3f46; }
+    .recall-card.active { border-color: #f59e0b; background: rgba(245,158,11,0.03); }
+    .recall-card .query-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .recall-card .query-text {
+      font-size: 15px;
+      color: #ededef;
+      margin-bottom: 4px;
+    }
+    .recall-card .query-flags {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #3f3f46;
+    }
+    .recall-card .query-flags .flag { color: #67e8f9; }
+    .recall-result {
+      margin-top: 16px;
+      display: none;
+    }
+    .recall-card.active .recall-result { display: block; }
+
+    /* ── Scorecard ── */
+    .scorecard {
+      display: grid;
+      gap: 4px;
+    }
+    .score-row {
+      display: grid;
+      grid-template-columns: 32px 1fr 60px 60px;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      align-items: center;
+    }
+    .score-row.header {
+      color: #3f3f46;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .score-row.pass { background: rgba(34,197,94,0.05); }
+    .score-row.fail { background: rgba(248,113,113,0.05); }
+    .score-row .qnum { color: #3f3f46; }
+    .score-row .qtext { color: #8a8a8e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .score-row .before { text-align: right; }
+    .score-row .after { text-align: right; }
+
+    /* ── Result banner ── */
+    .result-banner {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 24px 32px;
+      background: rgba(245,158,11,0.04);
+      border: 1px solid rgba(245,158,11,0.15);
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    .result-num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .result-label {
+      font-size: 12px;
+      color: #8a8a8e;
+      font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .result-arrow { color: #f59e0b; font-size: 24px; }
+    .result-desc { flex: 1; font-size: 14px; color: #8a8a8e; line-height: 1.6; }
+
+    /* ── Rules file preview ── */
+    .rules-file {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .rules-file-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #1e1e20;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #3f3f46;
+    }
+    .rules-file-body {
+      padding: 20px 24px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      line-height: 1.8;
+      color: #8a8a8e;
+    }
+    .rules-file-body .heading { color: #f59e0b; font-weight: 600; }
+    .rules-file-body .rule { color: #d4d4d8; }
+
+    /* ── CTA ── */
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .cta-primary { background: #f59e0b; color: #0a0a0b; }
+    .cta-primary:hover { background: #fbbf24; }
+    .cta-secondary { border: 1px solid #1e1e20; color: #8a8a8e; }
+    .cta-secondary:hover { border-color: #3f3f46; color: #d4d4d8; }
+
+    /* ── Navigation dots ── */
+    .nav-dots {
+      position: fixed;
+      right: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #1e1e20;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      padding: 0;
+    }
+    .nav-dot.active { background: #f59e0b; transform: scale(1.3); }
+    .nav-dot:hover { background: #3f3f46; }
+
+    /* ── Back to docs ── */
+    .back-link {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      z-index: 100;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #3f3f46;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: #8a8a8e; }
+
+    /* ── Copy button ── */
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #1e1e20;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: #8a8a8e;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { color: #ededef; border-color: #8a8a8e; }
+
+    /* ── Fade-in animation ── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .stage { padding: 60px 16px; }
+      .terminal-body { padding: 16px; font-size: 11px; }
+      .result-banner { flex-direction: column; gap: 16px; text-align: center; }
+      .nav-dots { display: none; }
+      .score-row { grid-template-columns: 28px 1fr 48px 48px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <a href="/" class="back-link">&larr; docs</a>
+
+  <nav class="nav-dots" id="nav-dots">
+    <button class="nav-dot active" data-stage="0" title="Install"></button>
+    <button class="nav-dot" data-stage="1" title="Set Up"></button>
+    <button class="nav-dot" data-stage="2" title="Recall"></button>
+    <button class="nav-dot" data-stage="3" title="Panel"></button>
+    <button class="nav-dot" data-stage="4" title="Tune"></button>
+    <button class="nav-dot" data-stage="5" title="Learn"></button>
+    <button class="nav-dot" data-stage="6" title="Start"></button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 1: Install                                                -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-0">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 1</div>
+      <h2>Install HEBBS</h2>
+      <p class="subtitle">One binary. No dependencies. No services to run.</p>
+
+      <div class="terminal" style="position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">terminal</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">brew install hebbs-ai/tap/hebbs</span>
+
+<span class="t-out">==&gt; Downloading hebbs-0.3.1.tar.gz</span>
+<span class="t-out">==&gt; Installing hebbs</span>
+<span class="t-pass">&#10003; hebbs installed successfully</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs --version</span>
+<span class="t-out">hebbs 0.3.1</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('brew install hebbs-ai/tap/hebbs')">copy</button>
+      </div>
+
+      <p style="margin-top: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3f3f46;">
+        or: <span style="color: #8a8a8e; cursor: pointer;" onclick="navigator.clipboard.writeText('curl -sSf https://hebbs.ai/install | sh')">curl -sSf https://hebbs.ai/install | sh</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 2: Set Up (init + index)                                  -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-1">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 2</div>
+      <h2>Point it at your project</h2>
+      <p class="subtitle">Pick your LLM provider. HEBBS handles embedding, extraction, and indexing.</p>
+
+      <div class="provider-tabs" id="provider-tabs">
+        <button class="provider-tab active" data-provider="openai">OpenAI</button>
+        <button class="provider-tab" data-provider="anthropic">Anthropic</button>
+        <button class="provider-tab" data-provider="gemini">Gemini</button>
+        <button class="provider-tab" data-provider="ollama">Ollama (local)</button>
+      </div>
+
+      <div class="terminal" style="position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">~/projects/legal-docs</span>
+        </div>
+        <div class="terminal-body">
+          <div class="provider-cmd active" data-provider="openai">
+            <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs init</span> <span class="t-flag">--provider</span> <span class="t-str">openai</span> <span class="t-flag">--key</span> <span class="t-str">$OPENAI_API_KEY</span>
+
+<span class="t-out">  Created .hebbs/config.toml</span>
+<span class="t-out">  Provider: openai (gpt-4o-mini)</span>
+<span class="t-out">  Embedding: text-embedding-3-small</span>
+<span class="t-out">  Daemon started (pid 48201)</span>
+<span class="t-pass">  Ready.</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-out">  Scanning 52 files...</span>
+<span class="t-out">  Extracting propositions (10 parallel)...</span>
+<span class="t-out">  Embedded 949 memories (3.1s)</span>
+<span class="t-pass">  &#10003; 52 files, 465 sections, 484 propositions</span></pre>
+          </div>
+          <div class="provider-cmd" data-provider="anthropic">
+            <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs init</span> <span class="t-flag">--provider</span> <span class="t-str">anthropic</span> <span class="t-flag">--key</span> <span class="t-str">$ANTHROPIC_API_KEY</span>
+
+<span class="t-out">  Created .hebbs/config.toml</span>
+<span class="t-out">  Provider: anthropic (claude-haiku-4-5)</span>
+<span class="t-out">  Embedding: text-embedding-3-small (OpenAI key required)</span>
+<span class="t-out">  Daemon started (pid 48201)</span>
+<span class="t-pass">  Ready.</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-out">  Scanning 52 files...</span>
+<span class="t-out">  Extracting propositions (10 parallel)...</span>
+<span class="t-out">  Embedded 949 memories (3.4s)</span>
+<span class="t-pass">  &#10003; 52 files, 465 sections, 484 propositions</span></pre>
+          </div>
+          <div class="provider-cmd" data-provider="gemini">
+            <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs init</span> <span class="t-flag">--provider</span> <span class="t-str">gemini</span> <span class="t-flag">--key</span> <span class="t-str">$GEMINI_API_KEY</span>
+
+<span class="t-out">  Created .hebbs/config.toml</span>
+<span class="t-out">  Provider: gemini (gemini-2.0-flash)</span>
+<span class="t-out">  Embedding: text-embedding-004</span>
+<span class="t-out">  Daemon started (pid 48201)</span>
+<span class="t-pass">  Ready.</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-out">  Scanning 52 files...</span>
+<span class="t-out">  Extracting propositions (10 parallel)...</span>
+<span class="t-out">  Embedded 949 memories (2.8s)</span>
+<span class="t-pass">  &#10003; 52 files, 465 sections, 484 propositions</span></pre>
+          </div>
+          <div class="provider-cmd" data-provider="ollama">
+            <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs init</span> <span class="t-flag">--provider</span> <span class="t-str">ollama</span>
+
+<span class="t-out">  Created .hebbs/config.toml</span>
+<span class="t-out">  Provider: ollama (qwen3:4b)</span>
+<span class="t-out">  Embedding: local ONNX (EmbeddingGemma-300M)</span>
+<span class="t-out">  Daemon started (pid 48201)</span>
+<span class="t-pass">  Ready. No API key needed.</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-out">  Scanning 52 files...</span>
+<span class="t-out">  Extracting propositions (local)...</span>
+<span class="t-out">  Embedded 949 memories (8.2s)</span>
+<span class="t-pass">  &#10003; 52 files, 465 sections, 484 propositions</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 3: First Recall                                           -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-2">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 3</div>
+      <h2>Ask it anything</h2>
+      <p class="subtitle">Same memories. Different strategies. Click a query to see the results.</p>
+
+      <div class="recall-cards" id="recall-cards">
+        <div class="recall-card active" data-query="0">
+          <div class="query-label" style="color: #f59e0b;">Similarity</div>
+          <div class="query-text">"What's our ransomware coverage limit?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> similarity <span class="flag">-k</span> 5</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">#  Score   Source                              Content</span>
+<span class="t-num">1</span>  <span class="t-pass">0.89</span>   <span class="t-str">cyber-insurance-policy.md</span>       Coverage: $2M per incident
+<span class="t-num">2</span>  <span class="t-pass">0.86</span>   <span class="t-str">endorsement-ransomware.md</span>      Ransomware Payment Sublimit: $500K
+<span class="t-num">3</span>  <span class="t-warn">0.71</span>   <span class="t-str">risk-register-2025-q2.md</span>       RISK-007: Insurance coverage gap
+<span class="t-dim">   3 results in 4ms</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recall-card" data-query="1">
+          <div class="query-label" style="color: #67e8f9;">Temporal</div>
+          <div class="query-text">"How has the Cloudvault risk rating changed?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> temporal <span class="flag">--entity-id</span> cloudvault</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">#  Date         Source                           Content</span>
+<span class="t-num">1</span>  <span class="t-dim">2024-10</span>  <span class="t-str">vendor-risk-cloudvault.md</span>      85% concentration, MEDIUM risk
+<span class="t-num">2</span>  <span class="t-dim">2024-Q4</span>  <span class="t-str">risk-register-2024-q4.md</span>      RISK-001: Cloudvault (HIGH)
+<span class="t-num">3</span>  <span class="t-dim">2025-Q2</span>  <span class="t-str">risk-register-2025-q2.md</span>      RISK-001: now MEDIUM (EU deploy)
+<span class="t-dim">   3 results in 2ms (timeline order)</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recall-card" data-query="2">
+          <div class="query-label" style="color: #34d399;">Causal</div>
+          <div class="query-text">"Why was the insurance coverage gap flagged?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> causal <span class="flag">--max-depth</span> 4</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">Causal chain (4 hops):</span>
+
+<span class="t-str">cyber-insurance-policy.md</span>  Coverage: $2M per incident
+  <span class="t-dim">&#8595; caused_by</span>
+<span class="t-str">endorsement-ransomware.md</span>  Sublimit overrides to $500K
+  <span class="t-dim">&#8595; caused_by</span>
+<span class="t-str">insurance-review.md</span>        Board told $2M, actual $500K
+  <span class="t-dim">&#8595; caused_by</span>
+<span class="t-str">risk-register-2025-q2.md</span>   RISK-007: Coverage gap (NEW)
+<span class="t-dim">   4 hops in 6ms</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 4: Memory Palace                                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-3">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 4</div>
+      <h2>See your brain</h2>
+      <p class="subtitle">Run <code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9; font-size: 14px;">hebbs panel</code> to open the Memory Palace. Every memory is a node. Every relationship is an edge. Contradictions glow red.</p>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">terminal</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs panel</span>
+
+<span class="t-out">  Memory Palace running at</span> <span class="t-str">http://127.0.0.1:6381</span>
+<span class="t-out">  52 files &middot; 949 memories &middot; 3 clusters &middot; 1 contradiction</span>
+<span class="t-out">  Live updating via WebSocket</span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; padding: 40px; background: #141415; border: 1px solid #1e1e20; border-radius: 12px; text-align: center;">
+        <p style="color: #3f3f46; font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-bottom: 8px;">MEMORY PALACE PREVIEW</p>
+        <p style="color: #8a8a8e; font-size: 14px;">The bioluminescent graph from <a href="https://hebbs.ai" style="color: #f59e0b; text-decoration: none;">hebbs.ai</a> is a simplified version of what you'll see. Your actual Memory Palace shows every section, proposition, and edge from your indexed files.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 5: Tune                                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-4" style="min-height: auto; padding-top: 100px; padding-bottom: 40px;">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 5</div>
+      <h2>Tune retrieval in 60 seconds</h2>
+      <p class="subtitle">The agent profiles your domain, generates evals, runs a baseline, diagnoses failures, and stores what works. One command.</p>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">agent tuning session</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-out">Domain: Legal/Compliance</span>
+<span class="t-out">Vault: 52 files, 949 memories</span>
+<span class="t-out">Generated 20 evals across 5 query types</span>
+<span class="t-out">Running baseline (similarity, k=5)...</span>
+
+<span class="t-out">Baseline: </span><span class="t-warn">75%</span><span class="t-out"> keyword recall (strict match, top-5)</span>
+<span class="t-out">Perfect queries: 8/20</span>
+<span class="t-out">Diagnosing 12 failures...</span>
+
+<span class="t-out">Failure patterns found:</span>
+<span class="t-out">  k too low:          8 queries (fix: k=10)</span>
+<span class="t-out">  Missing entity:     5 queries (fix: expand cue)</span>
+<span class="t-out">  Wrong strategy:     2 queries (fix: analogical)</span>
+<span class="t-out">  Missing recency:    3 queries (fix: temporal weights)</span>
+
+<span class="t-out">Re-running with tuned parameters...</span>
+<span class="t-out">Tuned: </span><span class="t-pass">94%</span><span class="t-out"> keyword recall </span><span class="t-pass">(+19pp)</span>
+<span class="t-out">Perfect queries: 17/20</span>
+<span class="t-pass">&#10003; Stored 12 retrieval strategies</span></pre>
+        </div>
+      </div>
+
+      <!-- Scorecard -->
+      <div style="background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px;">
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Sample evals (5 of 20)</p>
+        <div class="scorecard">
+          <div class="score-row header">
+            <span></span><span>Query</span><span class="before">Before</span><span class="after">After</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q1</span>
+            <span class="qtext">What's our aggregate coverage limit?</span>
+            <span class="before t-pass">5/5</span>
+            <span class="after t-pass">5/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q7</span>
+            <span class="qtext">Cross-vendor compliance gaps</span>
+            <span class="before t-fail">0/5</span>
+            <span class="after t-pass">4/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q12</span>
+            <span class="qtext">Latest risk register changes</span>
+            <span class="before t-fail">1/4</span>
+            <span class="after t-pass">4/4</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q15</span>
+            <span class="qtext">Contradicting coverage limits</span>
+            <span class="before t-fail">0/5</span>
+            <span class="after t-warn">3/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q18</span>
+            <span class="qtext">Data retention period changes v1 to v2</span>
+            <span class="before t-fail">2/5</span>
+            <span class="after t-pass">5/5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-banner">
+        <div>
+          <div class="result-num" style="color: #f87171;">75%</div>
+          <div class="result-label">before</div>
+        </div>
+        <div class="result-arrow">&rarr;</div>
+        <div>
+          <div class="result-num" style="color: #34d399;">94%</div>
+          <div class="result-label">after</div>
+        </div>
+        <div class="result-desc">
+          Strict keyword matching against top-5 results. No fuzzy matching, no partial credit. Agent-tuned in 60 seconds.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 6: It Learns                                              -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-5">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 6</div>
+      <h2>It gets better over time</h2>
+      <p class="subtitle">The agent compiles everything it learned into a rules file. Every future conversation starts with domain-tuned retrieval.</p>
+
+      <div class="rules-file">
+        <div class="rules-file-header">
+          <span style="color: #f59e0b;">&#128196;</span>
+          .hebbs/retrieval-rules.md
+        </div>
+        <div class="rules-file-body">
+          <pre><span class="heading"># Retrieval Rules</span>
+<span class="t-dim"># Learned through eval-tune cycles on this vault.</span>
+
+<span class="heading">## Cue Construction</span>
+<span class="rule">- Always expand acronyms: "SOC2" &rarr; "SOC 2 Type II"</span>
+<span class="rule">- Always include entity names: "Cloudvault", "Meridian"</span>
+<span class="rule">- For broad queries, list 2-3 specific subtopics</span>
+
+<span class="heading">## k Sizing</span>
+<span class="rule">- Default: k=10</span>
+<span class="rule">- Simple factual with unique entity: k=5</span>
+<span class="rule">- Broad sweep or cross-entity: k=15</span>
+
+<span class="heading">## Strategy Selection</span>
+<span class="rule">- Factual lookup: similarity (default)</span>
+<span class="rule">- Timeline/change: temporal + entity-id</span>
+<span class="rule">- Cross-entity comparison: analogical, alpha=0.5</span>
+<span class="rule">- Cause-effect: causal + seed ID + max-depth 3</span>
+
+<span class="heading">## Weight Profiles</span>
+<span class="rule">- Default: 0.5:0.2:0.2:0.1</span>
+<span class="rule">- Recency-first: 0.2:0.6:0.1:0.1</span>
+<span class="rule">- Importance-first: 0.3:0.1:0.5:0.1</span></pre>
+        </div>
+      </div>
+
+      <p style="margin-top: 20px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        This file loads into agent context before every conversation. Strategies that get recalled frequently strengthen. Strategies that stop being useful fade. The memory system learns how to be used.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 7: CTA                                                    -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-6">
+    <div class="stage-inner fade-up" style="text-align: center;">
+      <h2>Your agent deserves better than<br/>memory wrappers.</h2>
+
+      <div class="terminal" style="max-width: 540px; margin: 32px auto; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+        </div>
+        <div class="terminal-body" style="text-align: left;">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">brew install hebbs-ai/tap/hebbs</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs init --provider openai --key $OPENAI_API_KEY</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs panel</span>
+<span class="t-pass">  &#10003; Your brain is ready.</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('brew install hebbs-ai/tap/hebbs && hebbs init --provider openai --key $OPENAI_API_KEY && hebbs index && hebbs panel')">copy all</button>
+      </div>
+
+      <div style="display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap;">
+        <a href="/getting-started/quickstart/" class="cta-btn cta-primary">Read the full docs</a>
+        <a href="https://github.com/hebbs-ai/hebbs" target="_blank" rel="noopener" class="cta-btn cta-secondary">GitHub</a>
+        <a href="https://blog.hebbs.ai" target="_blank" rel="noopener" class="cta-btn cta-secondary">Blog</a>
+      </div>
+
+      <p style="margin-top: 40px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3f3f46;">
+        4 recall strategies &middot; Native consolidation &middot; Auto decay &middot; 1 binary
+      </p>
+    </div>
+  </section>
+
+  <script>
+    // ── Fade-in on scroll ──
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    // ── Nav dots ──
+    const stages = document.querySelectorAll('.stage');
+    const dots = document.querySelectorAll('.nav-dot');
+    const stageObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const idx = [...stages].indexOf(e.target);
+          dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+        }
+      });
+    }, { threshold: 0.4 });
+    stages.forEach(s => stageObs.observe(s));
+    dots.forEach(d => d.addEventListener('click', () => {
+      stages[parseInt(d.dataset.stage)].scrollIntoView({ behavior: 'smooth' });
+    }));
+
+    // ── Provider tabs ──
+    document.querySelectorAll('.provider-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const p = tab.dataset.provider;
+        document.querySelectorAll('.provider-tab').forEach(t => t.classList.toggle('active', t.dataset.provider === p));
+        document.querySelectorAll('.provider-cmd').forEach(c => c.classList.toggle('active', c.dataset.provider === p));
+      });
+    });
+
+    // ── Recall cards ──
+    document.querySelectorAll('.recall-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.recall-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
