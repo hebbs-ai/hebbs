@@ -1,5 +1,8 @@
 # TASK-25: Panel Live Status and First-Run Experience
 
+**Status:** Done
+**Completed:** 2026-03-27
+
 The Memory Palace panel should never show an empty or confusing state. Today, opening the panel during or before indexing shows an empty graph with 0 memories. The user has no idea what's happening, whether the daemon is working, or what to do next.
 
 ---

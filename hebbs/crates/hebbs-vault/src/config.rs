@@ -903,14 +903,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = VaultConfig::default();
         config.save(dir.path()).unwrap();
-        let loaded = VaultConfig::load(dir.path()).unwrap();
+        let loaded = VaultConfig::load_local_only(dir.path()).unwrap();
         assert_eq!(config, loaded);
     }
 
     #[test]
     fn test_config_load_missing_file() {
         let dir = tempfile::tempdir().unwrap();
-        let config = VaultConfig::load(dir.path()).unwrap();
+        let config = VaultConfig::load_local_only(dir.path()).unwrap();
         assert_eq!(config, VaultConfig::default());
     }
 

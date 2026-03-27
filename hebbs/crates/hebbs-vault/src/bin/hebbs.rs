@@ -680,8 +680,9 @@ async fn setup_engine(
                 // Local ONNX (default)
                 #[cfg(feature = "local-embed")]
                 {
-                    let embed_config =
-                        hebbs_embed::EmbedderConfig::from_model_name_cached(&config.embedding.model);
+                    let embed_config = hebbs_embed::EmbedderConfig::from_model_name_cached(
+                        &config.embedding.model,
+                    );
                     std::fs::create_dir_all(&embed_config.model_dir)?;
                     Arc::new(hebbs_embed::OnnxEmbedder::new(embed_config)?)
                 }
@@ -834,14 +835,12 @@ async fn run_local(cli: Cli) -> i32 {
                         .and_then(|env_name| std::env::var(env_name).ok())
                 });
                 let prov = provider.clone().unwrap_or_default();
-                let mdl = model.clone().unwrap_or_else(|| {
-                    match prov.as_str() {
-                        "openai" => "gpt-4o-mini".to_string(),
-                        "anthropic" => "claude-haiku-4-5-20251001".to_string(),
-                        "gemini" => "gemini-2.0-flash".to_string(),
-                        "ollama" => "gemma3:1b".to_string(),
-                        _ => String::new(),
-                    }
+                let mdl = model.clone().unwrap_or_else(|| match prov.as_str() {
+                    "openai" => "gpt-4o-mini".to_string(),
+                    "anthropic" => "claude-haiku-4-5-20251001".to_string(),
+                    "gemini" => "gemini-2.0-flash".to_string(),
+                    "ollama" => "gemma3:1b".to_string(),
+                    _ => String::new(),
                 });
                 let cfg = hebbs_vault::config::LlmConfig {
                     provider: prov,
