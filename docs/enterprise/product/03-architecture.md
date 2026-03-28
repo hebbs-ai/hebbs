@@ -88,22 +88,29 @@ HEBBS_EMBED_DIMENSIONS=1536
 
 Sits alongside the engine. Provides the admin/management experience that the raw engine doesn't have.
 
+**Stack:** TypeScript, Hono (HTTP framework), Drizzle ORM, better-sqlite3, Node.js 22 LTS.
+
+**Communication with engine:** Length-prefixed JSON over Unix domain socket (`/data/daemon/daemon.sock`). The platform shares a Docker volume with the engine, giving access to the daemon socket and workspace vault directories.
+
 **What it does:**
-- **Onboarding wizard**: first-time setup (workspace name, OpenAI key, admin account)
-- **Dashboard**: workspace list, memory counts, indexing status, health
-- **Workspace management**: create, delete, view details
-- **API key management**: create, revoke, rotate per workspace
-- **Config UI**: update LLM provider, embedding settings, decay parameters
-- **Memory Palace**: link/proxy to the engine's built-in Memory Palace per workspace
+- **REST API** (`/v1/*`): proxies memory operations to the engine daemon, adds auth
+- **Onboarding wizard**: first-time setup (admin account, workspace name, verify connection)
+- **Dashboard UI**: Next.js static export served by Hono (workspace list, search, files, entities, keys, settings, team)
+- **Workspace management**: create, delete, view details; each workspace gets its own vault
+- **API key management**: create, revoke per workspace; SHA-256 hashed in SQLite
+- **Session auth**: email/password login for dashboard, 7-day session tokens
+- **Team management**: admin creates developer accounts, assigns workspace access
+- **Config management**: read/write engine config.toml
+- **Memory Palace proxy**: proxies engine's panel UI and `/api/panel/*` routes
 - **Heartbeat**: sends health + usage metrics to our central dashboard (opt-out available)
 
 **What it does NOT do:**
 - Billing (enterprise pricing is negotiated, not metered)
 - Multi-region routing (single machine)
 - Multi-tenant isolation (one customer per deployment)
-- User sign-up (admin account created during deployment)
+- User sign-up (admin account created during onboarding)
 
-**Port:** 8080 (the customer-facing entry point). Proxies API calls to hebbs-server on 6381.
+**Port:** 8080 (the customer-facing entry point). Proxies data-plane calls to the engine daemon via Unix socket, and Memory Palace UI to the engine's HTTP panel on port 6381.
 
 ### hb (new, remote client)
 
@@ -197,10 +204,11 @@ Everything in `data/` persists across container restarts and upgrades.
 - Heartbeat to central dashboard is outbound HTTPS only — no inbound from us
 
 ### Authentication
-- API keys hashed (SHA-256) in platform's local DB
-- Admin account created during deployment (username + password)
-- Dashboard access via session (JWT)
-- API access via API key in Authorization header
+- API keys hashed (SHA-256) in platform's SQLite DB
+- Admin account created during onboarding (email + password, salted SHA-256)
+- Dashboard access via session token (7-day expiry, stored in SQLite)
+- API access via API key in `Authorization: Bearer` header
+- Both auth modes share the same header format; platform tries session first, then API key
 
 ### Data isolation
 - Single-tenant: one customer per HEBBS instance

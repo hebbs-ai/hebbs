@@ -22,7 +22,7 @@ docker compose up -d      # fresh start
 
 ---
 
-## Phase 1: Engine in Docker Compose
+## Phase 1: Engine in Docker Compose -- DONE
 
 **Goal:** `hebbs-server` runs via docker-compose on the Ubuntu machine. REST API + Memory Palace accessible on port 8080 (mapped from engine's 6381).
 
@@ -101,7 +101,7 @@ curl -X POST http://<machine-ip>:8080/v1/recall \
 
 ---
 
-## Phase 2: File indexing in Docker
+## Phase 2: File indexing in Docker -- DONE
 
 **Goal:** Push markdown files into the container volume. Daemon auto-indexes them. Recall returns content from indexed files.
 
@@ -159,9 +159,11 @@ curl http://<machine-ip>:8080/v1/entities
 
 ---
 
-## Phase 3: Platform — API proxy + auth
+## Phase 3: Platform -- API proxy + auth -- DONE
 
 **Goal:** `hebbs-platform` sits in front of the engine. Validates API keys, proxies data-plane requests to engine. Port 8080 exposed to host.
+
+**Actual stack:** TypeScript, Hono, Drizzle + better-sqlite3, Node.js 22 LTS. Communicates with engine via length-prefixed JSON over Unix domain socket (not HTTP proxy).
 
 **Build:**
 
@@ -261,7 +263,7 @@ curl -X POST http://<machine-ip>:8080/v1/prime \
 
 ---
 
-## Phase 4: Platform — workspace management
+## Phase 4: Platform -- workspace management -- DONE
 
 **Goal:** Multiple workspaces. Each workspace has its own vault, own API keys. Workspace-scoped API keys only access their workspace.
 
@@ -342,9 +344,13 @@ curl http://<machine-ip>:8080/v1/workspaces \
 
 ---
 
-## Phase 5: Platform — dashboard UI
+## Phase 5: Platform -- dashboard UI -- IN PROGRESS (APIs done, frontend next)
 
 **Goal:** Web dashboard at `http://<machine-ip>:8080`. Onboarding wizard, workspace list, workspace detail, Memory Palace link, API key management, config.
+
+**APIs completed:** auth (login/logout/me), accounts (CRUD), onboarding (status/complete), config (get/put), workspace files, workspace stats. See [12-dashboard-wireframes.md](../enterprise/product/12-dashboard-wireframes.md) for all 13 screens.
+
+**Frontend:** Next.js static export + Tailwind CSS (dark theme, amber accents). Served by Hono platform.
 
 **Build:**
 
