@@ -1,6 +1,7 @@
 """HEBBS Python SDK -- async gRPC client for the HEBBS cognitive memory engine."""
 
 from hebbs.client import HebbsClient
+from hebbs.rest_client import HebbsRestClient
 from hebbs.types import (
     ClusterMemorySummary,
     ClusterPrompt,
@@ -41,6 +42,7 @@ from hebbs.exceptions import (
 
 __all__ = [
     "HebbsClient",
+    "HebbsRestClient",
     "Memory",
     "MemoryKind",
     "Edge",
