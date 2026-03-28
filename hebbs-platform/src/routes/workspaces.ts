@@ -273,5 +273,155 @@ export function workspaceRoutes() {
     return c.json({ stats });
   });
 
+  // ── Workspace-scoped data endpoints (for dashboard session auth) ──
+
+  // Helper to resolve workspace and check access
+  async function resolveWorkspace(c: { req: { param: (k: string) => string }; json: (d: unknown, s?: number) => Response; get: (k: never) => unknown }) {
+    const slug = c.req.param("slug");
+    const auth = c.get("auth" as never) as AuthInfo;
+
+    const [ws] = db
+      .select()
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.slug, slug))
+      .limit(1)
+      .all();
+
+    if (!ws) return null;
+    if (auth.role === "workspace" && auth.workspaceId !== ws.id) return null;
+    return ws;
+  }
+
+  // Remember into workspace
+  app.post("/v1/workspaces/:slug/memories", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const body = await c.req.json();
+    const resp = await daemon.send(
+      {
+        type: "remember",
+        content: body.content,
+        importance: body.importance,
+        entity_id: body.entity_id,
+        context: body.context ? JSON.stringify(body.context) : undefined,
+      },
+      ws.vaultPath
+    );
+
+    if (resp.status === "error") return c.json({ error: resp.error }, 500);
+    return c.json(resp.data, 201);
+  });
+
+  // Recall from workspace
+  app.post("/v1/workspaces/:slug/recall", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const body = await c.req.json();
+    const resp = await daemon.send(
+      {
+        type: "recall",
+        cue: body.cue,
+        top_k: body.top_k ?? 10,
+        entity_id: body.entity_id,
+        strategy: body.strategy,
+      },
+      ws.vaultPath
+    );
+
+    if (resp.status === "error") return c.json({ error: resp.error }, 500);
+    return c.json(resp.data);
+  });
+
+  // Prime from workspace
+  app.post("/v1/workspaces/:slug/prime", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const body = await c.req.json();
+    const resp = await daemon.send(
+      {
+        type: "prime",
+        entity_id: body.entity_id,
+        max_memories: body.max_memories,
+        similarity_cue: body.similarity_cue,
+      },
+      ws.vaultPath
+    );
+
+    if (resp.status === "error") return c.json({ error: resp.error }, 500);
+    return c.json(resp.data);
+  });
+
+  // Forget from workspace
+  app.post("/v1/workspaces/:slug/forget", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const body = await c.req.json();
+    const resp = await daemon.send(
+      {
+        type: "forget",
+        ids: body.ids,
+        entity_id: body.entity_id,
+      },
+      ws.vaultPath
+    );
+
+    if (resp.status === "error") return c.json({ error: resp.error }, 500);
+    return c.json(resp.data);
+  });
+
+  // Entities in workspace
+  app.get("/v1/workspaces/:slug/entities", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    // Use list command to get memories, then extract unique entity_ids
+    const resp = await daemon.send(
+      { type: "list", sections: false },
+      ws.vaultPath,
+      10000
+    );
+
+    if (resp.status === "error") return c.json({ entities: [] });
+
+    const data = resp.data as { memories?: Array<{ entity_id?: string; content?: string }> };
+    const entityMap = new Map<string, { count: number }>();
+    for (const m of data.memories || []) {
+      if (m.entity_id) {
+        const entry = entityMap.get(m.entity_id) || { count: 0 };
+        entry.count++;
+        entityMap.set(m.entity_id, entry);
+      }
+    }
+
+    const entities = Array.from(entityMap.entries()).map(([id, info]) => ({
+      entity_id: id,
+      memory_count: info.count,
+    }));
+
+    return c.json({ entities });
+  });
+
+  // Insights in workspace
+  app.get("/v1/workspaces/:slug/insights", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const entityId = c.req.query("entity_id");
+    const resp = await daemon.send(
+      {
+        type: "insights",
+        entity_id: entityId,
+      },
+      ws.vaultPath
+    );
+
+    if (resp.status === "error") return c.json({ error: resp.error }, 500);
+    return c.json(resp.data);
+  });
+
   return app;
 }
