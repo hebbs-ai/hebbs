@@ -92,6 +92,8 @@ For local (no API key): `hebbs init . --provider ollama`
 
 For CI/pipelines, use `--api-key-env` to reference an env var name instead of passing the key: `hebbs init . --provider openai --api-key-env OPENAI_API_KEY`
 
+If indexing fails with rate limit errors (429), lower concurrency: `hebbs init . --provider openai --key $KEY --max-concurrent 2` or add `[api]\nmax_concurrent_requests = 2` to `~/.hebbs/config.toml`.
+
 **You do NOT need to check if `.hebbs/` exists before running commands.** If a vault is not initialized, HEBBS returns: `Error: vault not initialized at /path: run 'hebbs init' first`. When you see this, just run `hebbs init <path>` and retry.
 
 ### Step 3: Index files

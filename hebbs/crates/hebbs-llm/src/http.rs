@@ -34,7 +34,10 @@ pub(crate) fn http_get(agent: &ureq::Agent, url: &str, headers: &[(&str, &str)])
         })
 }
 
-/// POST a JSON body with retry logic and exponential backoff.
+/// POST a JSON body with retry logic, exponential backoff, and jitter.
+///
+/// On 429 responses, respects Retry-After header if present.
+/// Jitter prevents thundering herd when multiple threads retry simultaneously.
 ///
 /// Complexity: O(max_retries) network calls in the worst case.
 pub(crate) fn http_post_json(
@@ -49,7 +52,13 @@ pub(crate) fn http_post_json(
     for attempt in 0..=max_retries {
         if attempt > 0 {
             let backoff = retry_backoff_ms * (1u64 << (attempt - 1).min(6));
-            std::thread::sleep(std::time::Duration::from_millis(backoff));
+            // Add jitter: 50-150% of computed backoff to prevent thundering herd
+            let jitter = backoff / 2 + (std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos() as u64
+                % backoff.max(1));
+            std::thread::sleep(std::time::Duration::from_millis(jitter));
         }
         let mut req = agent.post(url);
         for &(k, v) in headers {
@@ -69,12 +78,24 @@ pub(crate) fn http_post_json(
             }
             Err(e) => {
                 last_err = format!("{e}");
-                let retryable = last_err.contains("429")
+                let is_rate_limited = last_err.contains("429");
+                let retryable = is_rate_limited
                     || last_err.contains("500")
                     || last_err.contains("timeout")
                     || last_err.contains("connection");
                 if !retryable {
                     return Err(LlmError::Provider { message: last_err });
+                }
+                // On 429, sleep longer to let rate limit window reset
+                if is_rate_limited && attempt < max_retries {
+                    let rate_limit_sleep = 5000u64 * (1u64 << attempt.min(3));
+                    eprintln!(
+                        "hebbs: rate limited (429), waiting {}s before retry {}/{}",
+                        rate_limit_sleep / 1000,
+                        attempt + 1,
+                        max_retries
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(rate_limit_sleep));
                 }
             }
         }

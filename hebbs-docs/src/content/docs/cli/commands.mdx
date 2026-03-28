@@ -58,6 +58,7 @@ hebbs init --force          # Reinitialize even if .hebbs/ exists
 | `--key` / `--api-key` | API key passed directly. Saved to `~/.hebbs/config.toml`. |
 | `--api-key-env` | Environment variable name holding the API key (e.g. `ANTHROPIC_API_KEY`). Better for CI/pipelines. |
 | `--base-url` | Base URL override for self-hosted providers |
+| `--max-concurrent` | Max concurrent API requests (default: 10). Lower to 1-2 for low-tier API accounts that hit rate limits. |
 
 When `--provider openai` is used, embedding auto-configures to `text-embedding-3-small` with the same key. LLM and embedding config are saved globally; local config inherits.
 

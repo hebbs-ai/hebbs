@@ -31,6 +31,8 @@ pub struct VaultConfig {
     pub extraction: ExtractionConfig,
     #[serde(default)]
     pub query_log: QueryLogConfig,
+    #[serde(default, skip_serializing_if = "ApiConfig::is_default")]
+    pub api: ApiConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -347,6 +349,33 @@ fn default_query_log_max_entries() -> u64 {
 
 fn default_query_log_max_age_days() -> u32 {
     30
+}
+
+/// API rate limiting configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ApiConfig {
+    /// Maximum concurrent API requests (LLM + embedding).
+    /// Lower to 1-2 for low-tier API accounts that hit rate limits.
+    #[serde(default = "default_max_concurrent_requests")]
+    pub max_concurrent_requests: usize,
+}
+
+fn default_max_concurrent_requests() -> usize {
+    10
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_requests: default_max_concurrent_requests(),
+        }
+    }
+}
+
+impl ApiConfig {
+    pub fn is_default(&self) -> bool {
+        self.max_concurrent_requests == 10
+    }
 }
 
 impl Default for ContradictionConfig {

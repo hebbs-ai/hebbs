@@ -77,6 +77,19 @@ hebbs init . --provider openai --key sk-proj-your-key-here
 
 One command. `--model` defaults to `gpt-4o-mini` for OpenAI (each provider has a sensible default). Embedding auto-configures to OpenAI `text-embedding-3-small` when the provider is OpenAI, so no manual embedding setup is needed and no local model download occurs.
 
+If you're on a new or low-tier API account and hit rate limits during indexing, lower the concurrency:
+
+```sh
+hebbs init . --provider openai --key sk-proj-your-key-here --max-concurrent 2
+```
+
+Or add to `~/.hebbs/config.toml` after init:
+
+```toml
+[api]
+max_concurrent_requests = 2
+```
+
 This saves LLM and embedding config to `~/.hebbs/config.toml` (global). Next time you run `hebbs init` in another project, you just need:
 
 ```sh

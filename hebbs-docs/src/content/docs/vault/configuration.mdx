@@ -78,6 +78,21 @@ Controls the embedding model. When `--provider openai` is used during init, embe
 | `api_key_env` | string | none | Environment variable name containing the API key (e.g. `"OPENAI_API_KEY"`). If both `api_key` and `api_key_env` are set, `api_key` takes precedence. |
 | `base_url` | string | none | Override the API endpoint (useful for proxies or Azure). |
 
+### `[api]`
+
+Controls API rate limiting for LLM and embedding requests.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `max_concurrent_requests` | integer | `10` | Maximum concurrent API requests during indexing. Lower to 1-2 for new/low-tier API accounts. |
+
+If you hit rate limit errors (429) during `hebbs index`, lower this value:
+
+```toml
+[api]
+max_concurrent_requests = 2
+```
+
 ### `[watch]`
 
 Controls file watching behavior for `hebbs watch` and the daemon.

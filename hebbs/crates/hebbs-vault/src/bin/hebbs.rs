@@ -116,6 +116,9 @@ enum Commands {
         /// Store LLM config in this vault only (default: save to global ~/.hebbs/config.toml)
         #[arg(long)]
         local: bool,
+        /// Max concurrent API requests (default: 10). Lower to 1-2 for low-tier API accounts.
+        #[arg(long, default_value = "10")]
+        max_concurrent: usize,
     },
 
     /// View or modify vault configuration
@@ -812,6 +815,7 @@ async fn run_local(cli: Cli) -> i32 {
             ref api_key,
             ref base_url,
             local,
+            max_concurrent,
         } => {
             let path = match vault_path.as_ref().or(cli.vault.as_ref()) {
                 Some(p) => p.clone(),
@@ -827,6 +831,13 @@ async fn run_local(cli: Cli) -> i32 {
                 .filter(|g| g.llm.is_configured())
                 .map(|g| g.llm);
 
+            let mut api_config: Option<hebbs_vault::config::ApiConfig> = if max_concurrent != 10 {
+                Some(hebbs_vault::config::ApiConfig {
+                    max_concurrent_requests: max_concurrent.max(1),
+                })
+            } else {
+                None
+            };
             let (llm_config, save_to_global) = if provider.is_some() || model.is_some() {
                 // Flags provided, use them directly.
                 let resolved_key = api_key.clone().or_else(|| {
@@ -871,12 +882,14 @@ async fn run_local(cli: Cli) -> i32 {
                     (None, false)
                 } else {
                     // User wants different config -- run wizard, update global
-                    let cfg = interactive_llm_setup();
+                    let (cfg, api_cfg) = interactive_llm_setup();
+                    api_config = api_cfg;
                     (cfg, !local)
                 }
             } else if std::io::stdin().is_terminal() {
                 // Interactive mode: ask the user which LLM provider to use.
-                let cfg = interactive_llm_setup();
+                let (cfg, api_cfg) = interactive_llm_setup();
+                api_config = api_cfg;
                 // Save to global by default unless --local
                 (cfg, !local)
             } else {
@@ -908,6 +921,9 @@ async fn run_local(cli: Cli) -> i32 {
                     global_cfg.llm = llm.clone();
                     if let Some(ref embed) = embedding_config {
                         global_cfg.embedding = embed.clone();
+                    }
+                    if let Some(ref api) = api_config {
+                        global_cfg.api = api.clone();
                     }
                     if let Err(e) = global_cfg.save_global() {
                         eprintln!("Warning: could not save global config: {}", e);
@@ -3383,7 +3399,7 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
 
 /// Interactive LLM provider setup for `hebbs init` when no flags are given.
 /// LLM is required; returns `None` only if stdin read fails.
-fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
+fn interactive_llm_setup() -> (Option<hebbs_vault::config::LlmConfig>, Option<hebbs_vault::config::ApiConfig>) {
     println!();
     println!("  HEBBS requires an LLM for extracting knowledge from your notes.");
     println!("  You can use a cloud provider or a local model via Ollama.");
@@ -3398,7 +3414,7 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
 
     let mut choice = String::new();
     if io::stdin().read_line(&mut choice).is_err() {
-        return None;
+        return (None, None);
     }
     let choice = choice.trim();
 
@@ -3409,7 +3425,7 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
         "4" => ("openai", "gpt-4o-mini"),
         _ => {
             eprintln!("  Unknown choice '{}'. LLM is required for HEBBS.", choice);
-            return None;
+            return (None, None);
         }
     };
 
@@ -3418,7 +3434,7 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
     io::stdout().flush().ok();
     let mut model_input = String::new();
     if io::stdin().read_line(&mut model_input).is_err() {
-        return None;
+        return (None, None);
     }
     let model = model_input.trim();
     let model = if model.is_empty() {
@@ -3439,7 +3455,7 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
         io::stdout().flush().ok();
         let mut key_input = String::new();
         if io::stdin().read_line(&mut key_input).is_err() {
-            return None;
+            return (None, None);
         }
         let key_val = key_input.trim().to_string();
 
@@ -3470,13 +3486,36 @@ fn interactive_llm_setup() -> Option<hebbs_vault::config::LlmConfig> {
     println!();
     println!("  Using {}/{}", provider, model);
 
-    Some(hebbs_vault::config::LlmConfig {
+    // Ask for concurrency limit for cloud providers
+    let api_config = if provider != "ollama" {
+        print!("  Max concurrent API requests [10]: ");
+        io::stdout().flush().ok();
+        let mut concurrency_input = String::new();
+        let max_concurrent = if io::stdin().read_line(&mut concurrency_input).is_ok() {
+            let trimmed = concurrency_input.trim();
+            if trimmed.is_empty() {
+                10
+            } else {
+                trimmed.parse::<usize>().unwrap_or(10).max(1)
+            }
+        } else {
+            10
+        };
+        println!("  (Lower to 1-2 if you hit rate limits on a new/low-tier API account)");
+        Some(hebbs_vault::config::ApiConfig {
+            max_concurrent_requests: max_concurrent,
+        })
+    } else {
+        None
+    };
+
+    (Some(hebbs_vault::config::LlmConfig {
         provider: provider.to_string(),
         model: model.to_string(),
         api_key,
         api_key_env,
         base_url: None,
-    })
+    }), api_config)
 }
 
 /// Recursively count .md files under `dir`, skipping internal/generated directories.

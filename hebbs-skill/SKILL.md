@@ -72,6 +72,8 @@ hebbs init . --provider openai --key $OPENAI_API_KEY
 
 For other providers: `hebbs init . --provider anthropic --key $ANTHROPIC_API_KEY` or `hebbs init . --provider ollama` (local, no key needed).
 
+If indexing fails with rate limit errors (429), lower concurrency: `--max-concurrent 2` or add `[api]\nmax_concurrent_requests = 2` to `~/.hebbs/config.toml`.
+
 **You do NOT need to check if `.hebbs/` exists before running commands.** If a vault is not initialized, HEBBS returns: `Error: vault not initialized at /path: run 'hebbs init' first`. When you see this, just run `hebbs init <path>` and retry.
 
 ### Step 3: Index files

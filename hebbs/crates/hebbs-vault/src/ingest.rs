@@ -432,7 +432,10 @@ async fn phase2_ingest_inner(
     );
     // Default: concurrent real-time calls for speed.
     // Batch API (--batch flag) handled separately at the caller level.
-    let all_results = llm_provider.complete_parallel(all_requests);
+    let all_results = llm_provider.complete_parallel(
+        all_requests,
+        Some(config.api.max_concurrent_requests),
+    );
     let all_responses: Vec<hebbs_llm::LlmResponse> = all_results
         .into_iter()
         .map(|r| {

@@ -39,9 +39,13 @@ pub trait LlmProvider: Send + Sync {
     fn complete(&self, request: LlmRequest) -> Result<LlmResponse>;
 
     /// Process requests concurrently via real-time API calls.
-    /// Spawns up to `DEFAULT_PARALLEL_CONCURRENCY` threads at a time.
+    /// Spawns up to `max_concurrency` threads at a time (default 10).
     /// This is the fast path -- same API, just parallel.
-    fn complete_parallel(&self, requests: Vec<LlmRequest>) -> Vec<Result<LlmResponse>> {
+    fn complete_parallel(
+        &self,
+        requests: Vec<LlmRequest>,
+        max_concurrency: Option<usize>,
+    ) -> Vec<Result<LlmResponse>> {
         if requests.is_empty() {
             return Vec::new();
         }
@@ -49,7 +53,9 @@ pub trait LlmProvider: Send + Sync {
             return vec![self.complete(requests.into_iter().next().unwrap())];
         }
 
-        let concurrency = DEFAULT_PARALLEL_CONCURRENCY.min(requests.len());
+        let concurrency = max_concurrency
+            .unwrap_or(DEFAULT_PARALLEL_CONCURRENCY)
+            .min(requests.len());
         let mut all_results = Vec::with_capacity(requests.len());
 
         // Process in waves of `concurrency` parallel threads
@@ -75,7 +81,7 @@ pub trait LlmProvider: Send + Sync {
     /// Only cloud providers (OpenAI, Anthropic, Gemini) override this.
     /// Default: falls back to complete_parallel().
     fn complete_batch(&self, requests: Vec<LlmRequest>) -> Result<Vec<LlmResponse>> {
-        let results = self.complete_parallel(requests);
+        let results = self.complete_parallel(requests, None);
         results.into_iter().collect()
     }
 
@@ -126,7 +132,7 @@ impl Default for LlmProviderConfig {
             base_url: None,
             model: "mock".into(),
             timeout_secs: 60,
-            max_retries: 3,
+            max_retries: 6,
             retry_backoff_ms: 1000,
         }
     }

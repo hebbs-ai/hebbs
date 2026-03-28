@@ -58,37 +58,56 @@ impl DaemonClient {
         Ok(())
     }
 
-    /// Send a request and receive the final response.
+    /// Send a request and receive the final response with a default 30s timeout.
     ///
     /// Any `Progress` responses received before the final response are printed
     /// to stderr so the user sees live status updates.
     pub async fn send(&mut self, request: &DaemonRequest) -> Result<DaemonResponse, String> {
+        self.send_with_timeout(request, std::time::Duration::from_secs(30)).await
+    }
+
+    /// Send a request and receive the final response with a custom timeout.
+    pub async fn send_with_timeout(
+        &mut self,
+        request: &DaemonRequest,
+        timeout: std::time::Duration,
+    ) -> Result<DaemonResponse, String> {
         let (mut reader, mut writer) = self.stream.split();
 
         write_message(&mut writer, request)
             .await
             .map_err(|e| format!("failed to send request: {}", e))?;
 
-        loop {
-            let response: DaemonResponse = read_message(&mut reader)
-                .await
-                .map_err(|e| format!("failed to read response: {}", e))?
-                .ok_or_else(|| "daemon closed connection unexpectedly".to_string())?;
+        let read_loop = async {
+            loop {
+                let response: DaemonResponse = read_message(&mut reader)
+                    .await
+                    .map_err(|e| format!("failed to read response: {}", e))?
+                    .ok_or_else(|| "daemon closed connection unexpectedly".to_string())?;
 
-            if response.status == ResponseStatus::Progress {
-                if let Some(msg) = response
-                    .data
-                    .as_ref()
-                    .and_then(|d| d.get("message"))
-                    .and_then(|v| v.as_str())
-                {
-                    eprintln!("  {}", msg);
+                if response.status == ResponseStatus::Progress {
+                    if let Some(msg) = response
+                        .data
+                        .as_ref()
+                        .and_then(|d| d.get("message"))
+                        .and_then(|v| v.as_str())
+                    {
+                        eprintln!("  {}", msg);
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            return Ok(response);
-        }
+                return Ok(response);
+            }
+        };
+
+        tokio::time::timeout(timeout, read_loop)
+            .await
+            .map_err(|_| format!(
+                "Request timed out after {}s. The daemon may be unresponsive. \
+                 Check status with `hebbs status` or restart with `hebbs daemon stop && hebbs serve`.",
+                timeout.as_secs()
+            ))?
     }
 }
 
@@ -201,6 +220,44 @@ fn start_daemon(opts: &DaemonStartOpts) -> Result<(), String> {
                     if !alive {
                         debug!("removing stale PID file (PID {} not alive)", pid);
                         std::fs::remove_file(&pid_path).ok();
+                        // Also clean stale socket file
+                        if let Some(sock_path) = default_socket_path() {
+                            if sock_path.exists() {
+                                debug!("removing stale socket file");
+                                std::fs::remove_file(&sock_path).ok();
+                            }
+                        }
+                    } else {
+                        // PID is alive -- check if it's actually a hebbs process
+                        // to avoid false positives from PID reuse
+                        #[cfg(target_os = "macos")]
+                        {
+                            let output = std::process::Command::new("ps")
+                                .args(["-p", &pid.to_string(), "-o", "comm="])
+                                .output();
+                            if let Ok(out) = output {
+                                let comm = String::from_utf8_lossy(&out.stdout);
+                                if !comm.contains("hebbs") {
+                                    debug!("PID {} is alive but not hebbs ({}), cleaning stale files", pid, comm.trim());
+                                    std::fs::remove_file(&pid_path).ok();
+                                    if let Some(sock_path) = default_socket_path() {
+                                        std::fs::remove_file(&sock_path).ok();
+                                    }
+                                }
+                            }
+                        }
+                        #[cfg(target_os = "linux")]
+                        {
+                            let cmdline = std::fs::read_to_string(format!("/proc/{}/cmdline", pid))
+                                .unwrap_or_default();
+                            if !cmdline.contains("hebbs") {
+                                debug!("PID {} is alive but not hebbs, cleaning stale files", pid);
+                                std::fs::remove_file(&pid_path).ok();
+                                if let Some(sock_path) = default_socket_path() {
+                                    std::fs::remove_file(&sock_path).ok();
+                                }
+                            }
+                        }
                     }
                 }
             }

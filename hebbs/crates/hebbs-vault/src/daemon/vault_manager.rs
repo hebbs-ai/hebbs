@@ -147,10 +147,51 @@ impl VaultManager {
         std::fs::create_dir_all(&db_path)
             .map_err(|e| format!("failed to create db directory: {}", e))?;
 
-        let storage = Arc::new(
-            hebbs_storage::RocksDbBackend::open(&db_path)
-                .map_err(|e| format!("failed to open RocksDB: {}", e))?,
-        );
+        let storage = Arc::new(match hebbs_storage::RocksDbBackend::open(&db_path) {
+            Ok(s) => s,
+            Err(e) => {
+                let err_str = format!("{}", e);
+                if err_str.contains("lock") || err_str.contains("LOCK") || err_str.contains("Resource temporarily unavailable") {
+                    // Try to detect stale lock: check if the daemon PID is alive
+                    let lock_path = db_path.join("LOCK");
+                    let pid_path = dirs::home_dir().map(|h| h.join(".hebbs").join("daemon.pid"));
+                    let mut stale = false;
+                    if let Some(ref pp) = pid_path {
+                        if pp.exists() {
+                            if let Ok(pid_str) = std::fs::read_to_string(pp) {
+                                if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                                    #[cfg(unix)]
+                                    {
+                                        let alive = unsafe { libc::kill(pid, 0) } == 0;
+                                        if !alive {
+                                            stale = true;
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // No PID file but lock exists -- stale
+                            stale = true;
+                        }
+                    }
+                    if stale {
+                        tracing::warn!("detected stale RocksDB lock (daemon not running), removing and retrying");
+                        std::fs::remove_file(&lock_path).ok();
+                        hebbs_storage::RocksDbBackend::open(&db_path)
+                            .map_err(|e| format!("failed to open RocksDB after removing stale lock: {}", e))?
+                    } else {
+                        return Err(format!(
+                            "failed to open RocksDB: {}. Another HEBBS daemon is likely running. \
+                             Only one daemon can access the database at a time. \
+                             Stop it with `hebbs daemon stop` or check `hebbs status`.",
+                            e
+                        ));
+                    }
+                } else {
+                    return Err(format!("failed to open RocksDB: {}", e));
+                }
+            }
+        });
 
         let engine = Arc::new(
             Engine::new(storage, self.embedder.clone())
