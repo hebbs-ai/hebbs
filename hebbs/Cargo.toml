@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 rust-version = "1.75"
 # License is set per-crate: BSL-1.1 for engine, Apache-2.0 for client SDKs.
