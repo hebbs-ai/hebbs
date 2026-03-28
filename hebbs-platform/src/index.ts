@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { logger } from "hono/logger";
 
 import { migrate } from "./db/index.js";
@@ -17,6 +18,7 @@ import { configRoutes } from "./routes/config.js";
 import { panelProxyRoutes } from "./routes/panel-proxy.js";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
+const DASHBOARD_DIR = process.env.HEBBS_DASHBOARD_DIR || "/app/dashboard";
 
 // Initialize database
 migrate();
@@ -39,26 +41,49 @@ const app = new Hono();
 
 app.use("*", logger());
 
-// Health routes (no auth)
+// API: Health routes (no auth)
 app.route("/", healthRoutes());
 
-// Panel proxy (no auth, serves Memory Palace UI)
+// API: Panel proxy (no auth, proxies /api/panel/* to engine)
 app.route("/", panelProxyRoutes());
 
-// Auth middleware for /v1/* (except public endpoints)
+// API: Auth middleware for /v1/* (except public endpoints)
 app.use("/v1/*", authMiddleware);
 
-// Public API routes (auth handled internally)
+// API: Public routes (auth handled internally)
 app.route("/", authRoutes());
 app.route("/", onboardingRoutes());
 
-// Authenticated API routes
+// API: Authenticated routes
 app.route("/", memoryRoutes());
 app.route("/", uploadRoutes());
 app.route("/", keyRoutes());
 app.route("/", workspaceRoutes());
 app.route("/", accountRoutes());
 app.route("/", configRoutes());
+
+// Dashboard: Next.js static assets
+app.use("/_next/*", serveStatic({ root: DASHBOARD_DIR }));
+
+// Dashboard: static pages (login, onboarding, settings, team)
+for (const page of ["login", "onboarding", "settings", "team"]) {
+  app.get(`/${page}/*`, serveStatic({ root: DASHBOARD_DIR }));
+  app.get(`/${page}`, serveStatic({ root: DASHBOARD_DIR }));
+}
+
+// Dashboard: workspace routes (SPA fallback to workspaces/index.html)
+app.get("/workspaces/*", async (c) => {
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const html = await fs.readFile(
+    path.join(DASHBOARD_DIR, "workspaces", "index.html"),
+    "utf-8"
+  );
+  return c.html(html);
+});
+
+// Dashboard: root
+app.get("/", serveStatic({ root: DASHBOARD_DIR, path: "/index.html" }));
 
 console.log(`HEBBS Platform listening on port ${PORT}`);
 
