@@ -129,13 +129,46 @@ function OverviewTab({ slug }: { slug: string }) {
 
 // ── Files Tab ──
 
+interface FileEntry {
+  path: string;
+  section_count: number;
+  synced: number;
+  sections?: Array<{ state: string; heading_path: string }>;
+}
+
+function fileStatus(f: FileEntry): { label: string; color: "green" | "amber" | "red" | "zinc" } {
+  if (f.section_count === 0) return { label: "Pending", color: "amber" };
+  if (f.synced === f.section_count) return { label: "Indexed", color: "green" };
+  if (f.synced > 0) return { label: `Indexing (${f.synced}/${f.section_count})`, color: "amber" };
+  return { label: "Pending", color: "amber" };
+}
+
 function FilesTab({ slug }: { slug: string }) {
-  const [files, setFiles] = useState<Array<{ path: string; sections?: number; status?: string }>>([]);
+  const [files, setFiles] = useState<FileEntry[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [polling, setPolling] = useState(false);
+
+  const fetchFiles = () =>
+    api.get<{ files: FileEntry[] }>(`/v1/workspaces/${slug}/files`)
+      .then((d) => {
+        const f = d.files || [];
+        setFiles(f);
+        // Auto-poll if any file is not fully indexed
+        const allSynced = f.length > 0 && f.every((file) => file.synced === file.section_count);
+        setPolling(f.length > 0 && !allSynced);
+      })
+      .catch(() => {});
 
   useEffect(() => {
-    api.get<{ files: Array<{ path: string }> }>(`/v1/workspaces/${slug}/files`).then((d) => setFiles(d.files || [])).catch(() => {});
+    fetchFiles();
   }, [slug]);
+
+  // Poll every 5s while indexing is in progress
+  useEffect(() => {
+    if (!polling) return;
+    const timer = setInterval(fetchFiles, 5000);
+    return () => clearInterval(timer);
+  }, [polling, slug]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -154,7 +187,9 @@ function FilesTab({ slug }: { slug: string }) {
       });
       const data = await resp.json();
       if (data.uploaded > 0) {
-        api.get<{ files: Array<{ path: string }> }>(`/v1/workspaces/${slug}/files`).then((d) => setFiles(d.files || [])).catch(() => {});
+        // Start polling immediately after upload
+        setPolling(true);
+        fetchFiles();
       }
     } catch (err) {
       console.error("Upload failed:", err);
@@ -162,6 +197,10 @@ function FilesTab({ slug }: { slug: string }) {
       setUploading(false);
     }
   };
+
+  const totalSections = files.reduce((sum, f) => sum + f.section_count, 0);
+  const totalSynced = files.reduce((sum, f) => sum + f.synced, 0);
+  const allDone = files.length > 0 && totalSynced === totalSections;
 
   return (
     <div className="space-y-6">
@@ -173,26 +212,49 @@ function FilesTab({ slug }: { slug: string }) {
         </label>
       </div>
 
+      {/* Indexing progress bar */}
+      {files.length > 0 && (
+        <div className="text-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-zinc-400">
+              {allDone ? "All files indexed" : `Indexing: ${totalSynced}/${totalSections} sections`}
+            </span>
+            {polling && <span className="text-amber-400 text-xs animate-pulse">Indexing in progress...</span>}
+          </div>
+          <div className="w-full bg-[#1a1a2e] rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${allDone ? "bg-green-500" : "bg-amber-500"}`}
+              style={{ width: `${totalSections > 0 ? (totalSynced / totalSections) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <Card>
         {files.length > 0 ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-zinc-500 text-left">
                 <th className="pb-3">File</th>
+                <th className="pb-3">Sections</th>
                 <th className="pb-3">Status</th>
               </tr>
             </thead>
             <tbody className="text-zinc-300">
-              {files.map((f, i) => (
-                <tr key={i} className="border-t border-[#1e1e2e]">
-                  <td className="py-2 font-mono text-xs">{f.path}</td>
-                  <td className="py-2"><Badge color="green">Indexed</Badge></td>
-                </tr>
-              ))}
+              {files.map((f, i) => {
+                const status = fileStatus(f);
+                return (
+                  <tr key={i} className="border-t border-[#1e1e2e]">
+                    <td className="py-2 font-mono text-xs">{f.path}</td>
+                    <td className="py-2 text-xs text-zinc-500">{f.section_count}</td>
+                    <td className="py-2"><Badge color={status.color}>{status.label}</Badge></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (
-          <p className="text-zinc-500 text-sm text-center py-8">No files indexed. Upload files to get started.</p>
+          <p className="text-zinc-500 text-sm text-center py-8">No files yet. Upload files to get started.</p>
         )}
       </Card>
 
