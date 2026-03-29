@@ -470,7 +470,7 @@ function PalaceTab({ slug }: { slug: string }) {
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
-    fetch(`/api/panel/graph?vault=/data/workspaces/${slug}`)
+    fetch(`/api/panel/ws/${slug}/graph`)
       .then((r) => r.json())
       .then(setGraphData)
       .catch(() => {});
