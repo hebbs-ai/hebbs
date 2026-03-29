@@ -237,7 +237,7 @@ export function workspaceRoutes() {
       return c.json({ error: "Workspace not found" }, 404);
     }
 
-    if (auth.role === "workspace" && auth.workspaceId !== ws.id) {
+    if (!canAccessWorkspace(c, auth, ws.id)) {
       return c.json({ error: "Access denied" }, 403);
     }
 
@@ -268,7 +268,7 @@ export function workspaceRoutes() {
       return c.json({ error: "Workspace not found" }, 404);
     }
 
-    if (auth.role === "workspace" && auth.workspaceId !== ws.id) {
+    if (!canAccessWorkspace(c, auth, ws.id)) {
       return c.json({ error: "Access denied" }, 403);
     }
 
