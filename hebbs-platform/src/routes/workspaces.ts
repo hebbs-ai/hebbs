@@ -9,6 +9,32 @@ import type { AuthInfo } from "../lib/auth.js";
 const ENGINE_SOCKET =
   process.env.HEBBS_ENGINE_SOCKET || "/data/daemon/daemon.sock";
 
+function canAccessWorkspace(
+  c: { get: (k: never) => unknown },
+  auth: AuthInfo,
+  workspaceId: number
+): boolean {
+  if (auth.role === "admin") return true;
+
+  const session = c.get("session" as never) as { accountId: number; role: string } | undefined;
+  if (session?.role === "admin") return true;
+
+  // API key auth: check workspace binding
+  if (auth.workspaceId !== null) return auth.workspaceId === workspaceId;
+
+  // Session auth (developer): check workspace assignment
+  if (session) {
+    const assigned = db
+      .select()
+      .from(schema.accountWorkspaces)
+      .where(eq(schema.accountWorkspaces.accountId, session.accountId))
+      .all();
+    return assigned.some((a) => a.workspaceId === workspaceId);
+  }
+
+  return false;
+}
+
 export function workspaceRoutes() {
   const app = new Hono();
   const daemon = new DaemonClient(ENGINE_SOCKET);
@@ -140,8 +166,7 @@ export function workspaceRoutes() {
       return c.json({ error: "Workspace not found" }, 404);
     }
 
-    // Workspace-scoped keys can only see their own workspace
-    if (auth.role === "workspace" && auth.workspaceId !== ws.id) {
+    if (!canAccessWorkspace(c, auth, ws.id)) {
       return c.json({ error: "Access denied" }, 403);
     }
 
@@ -290,6 +315,7 @@ export function workspaceRoutes() {
   async function resolveWorkspace(c: { req: { param: (k: string) => string }; json: (d: unknown, s?: number) => Response; get: (k: never) => unknown }) {
     const slug = c.req.param("slug");
     const auth = c.get("auth" as never) as AuthInfo;
+    const session = c.get("session" as never) as { accountId: number; role: string } | undefined;
 
     const [ws] = db
       .select()
@@ -299,8 +325,26 @@ export function workspaceRoutes() {
       .all();
 
     if (!ws) return null;
-    if (auth.role === "workspace" && auth.workspaceId !== ws.id) return null;
-    return ws;
+
+    // Admin: access all workspaces
+    if (auth.role === "admin" || (session && session.role === "admin")) return ws;
+
+    // API key auth: check workspace binding
+    if (auth.workspaceId !== null) {
+      return auth.workspaceId === ws.id ? ws : null;
+    }
+
+    // Session auth (developer): check workspace assignment
+    if (session) {
+      const assigned = db
+        .select()
+        .from(schema.accountWorkspaces)
+        .where(eq(schema.accountWorkspaces.accountId, session.accountId))
+        .all();
+      return assigned.some((a) => a.workspaceId === ws.id) ? ws : null;
+    }
+
+    return null;
   }
 
   // Remember into workspace
