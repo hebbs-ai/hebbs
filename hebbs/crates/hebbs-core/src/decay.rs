@@ -208,7 +208,10 @@ impl Drop for DecayHandle {
 ///
 /// Returns a `DecayHandle` for controlling the worker from the engine.
 /// The worker starts in a paused state and must be resumed explicitly.
-pub fn spawn_decay_worker(storage: Arc<dyn StorageBackend>, config: DecayConfig) -> DecayHandle {
+pub fn spawn_decay_worker(
+    storage: std::sync::Weak<dyn StorageBackend>,
+    config: DecayConfig,
+) -> DecayHandle {
     let (tx, rx) = crossbeam_channel::unbounded();
 
     let thread = thread::Builder::new()
@@ -225,7 +228,7 @@ pub fn spawn_decay_worker(storage: Arc<dyn StorageBackend>, config: DecayConfig)
 }
 
 fn decay_worker_loop(
-    storage: Arc<dyn StorageBackend>,
+    weak_storage: std::sync::Weak<dyn StorageBackend>,
     mut config: DecayConfig,
     rx: Receiver<DecaySignal>,
 ) {
@@ -253,8 +256,19 @@ fn decay_worker_loop(
             continue;
         }
 
+        // Upgrade Weak to temporary Arc for this sweep cycle.
+        // If the Engine has been dropped (vault evicted), exit the worker.
+        let storage = match weak_storage.upgrade() {
+            Some(s) => s,
+            None => return,
+        };
+
         // Run one sweep
         run_decay_sweep(&storage, &config);
+
+        // Drop the temporary Arc so it doesn't extend Storage lifetime
+        // between sweep cycles.
+        drop(storage);
 
         // Wait for the sweep interval, checking for signals
         let interval = Duration::from_micros(config.sweep_interval_us);

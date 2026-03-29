@@ -86,6 +86,12 @@ Every code change must comply with the guiding principles. The most commonly rel
 - **Principle 11 (Correctness):** Multi-index updates must be atomic (RocksDB WriteBatch). Design interfaces for async and zero-copy.
 - **Principle 12 (Security):** Validate inputs at boundaries. Tenant isolation is structural.
 
+### Resource Lifecycle
+
+- **Never use Arc for shared resources where background workers can extend lifetime beyond the owner's intent.** Workers must hold `Weak` references to storage, indexes, and any resource that holds a system lock (file locks, database locks). Use `Weak::upgrade()` at the start of each work cycle and exit if the resource is gone.
+- **No band-aid fixes.** If a design is structurally flawed, fix the design. Do not add workarounds that rely on every call site remembering to do the right thing. Make the wrong thing impossible, not just unlikely.
+- **Every resource with a system lock must have a clear, single owner.** If multiple components need access, the owner lends via Arc (for request-scoped access) or Weak (for background workers). The owner's Drop must release the lock.
+
 ### Rust Conventions
 
 - All I/O-bound operations are `async`.

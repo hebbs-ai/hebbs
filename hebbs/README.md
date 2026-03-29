@@ -6,6 +6,8 @@
 
 **The memory engine for AI agents.** Four recall strategies. Native consolidation. Automatic decay. One binary.
 
+> **Note:** This is the open-source version of HEBBS. We are currently focused on our enterprise rollouts and the latest research may not be reflected here. This version is fully functional. For enterprise deployments, managed hosting, or to learn more, please reach out to us at [hebbs.ai](https://hebbs.ai).
+
 HEBBS is a cognitive memory primitive purpose-built for AI agents. Vector search tells your agent what's *similar*. HEBBS tells your agent what *happened*, what *caused* it, and what *worked before*.
 
 ```

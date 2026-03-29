@@ -19,6 +19,7 @@ A memory engine for AI agents — deployed on the customer's infrastructure, man
 | 09 | [Deployment](09-deployment.md) | DevOps, Customer | Docker package, docker-compose, config, operations |
 | 10 | [Central Dashboard](10-central-dashboard.md) | Engineering, Ops | Our admin panel for all deployments |
 | 11 | [Rollout Plan](11-rollout-plan.md) | Engineering, Leadership | Build order, ~9 weeks to first customer |
+| 12 | [Dashboard Wireframes](12-dashboard-wireframes.md) | Engineering, Design | All 13 screens: login, onboarding, workspaces, search, settings, team |
 | -- | [Future Tasks](FUTURE-TASKS.md) | Engineering, Product | Parked capabilities: global brain, edge linking, reflection control, etc. |
 
 ---

@@ -1764,7 +1764,7 @@ impl Engine {
     /// or by calling `resume_decay()`.
     pub fn start_decay(&self, config: DecayConfig) {
         let config = config.validated();
-        let handle = spawn_decay_worker(self.storage.clone(), config);
+        let handle = spawn_decay_worker(Arc::downgrade(&self.storage), config);
         handle.resume();
         let mut guard = self.decay_handle.lock();
         *guard = Some(handle);
@@ -2079,9 +2079,9 @@ impl Engine {
     pub fn start_reflect(&self, config: ReflectConfig) {
         let config = config.validated();
         let handle = spawn_reflect_worker(
-            self.storage.clone(),
+            Arc::downgrade(&self.storage),
             self.embedder.clone(),
-            self.index_manager.clone(),
+            Arc::downgrade(&self.index_manager),
             self.subscribe_registry.clone(),
             config,
         );
@@ -2113,6 +2113,17 @@ impl Engine {
             handle.shutdown();
         }
         *guard = None;
+    }
+
+    /// Shut down all background workers synchronously.
+    ///
+    /// After this returns, the decay worker, reflect worker, and all
+    /// subscription workers have exited and dropped their references.
+    /// Safe to call multiple times (idempotent).
+    pub fn shutdown(&self) {
+        self.stop_decay();
+        self.stop_reflect();
+        self.subscribe_registry.shutdown_all();
     }
 
     /// Reconfigure the background reflect monitor.
@@ -3386,6 +3397,7 @@ fn json_type_matches(a: &serde_json::Value, b: &serde_json::Value) -> bool {
 
 impl Drop for Engine {
     fn drop(&mut self) {
+        self.stop_decay();
         self.stop_reflect();
         self.subscribe_registry.shutdown_all();
     }
