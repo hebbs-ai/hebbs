@@ -13,14 +13,28 @@ export function workspaceRoutes() {
   const app = new Hono();
   const daemon = new DaemonClient(ENGINE_SOCKET);
 
-  // List workspaces (admin only)
+  // List workspaces (admin: all, developer: assigned only)
   app.get("/v1/workspaces", async (c) => {
     const auth = c.get("auth" as never) as AuthInfo;
-    if (auth.role !== "admin") {
-      return c.json({ error: "Admin access required" }, 403);
-    }
+    const session = c.get("session" as never) as { accountId: number; role: string } | undefined;
 
-    const rows = db.select().from(schema.workspaces).all();
+    let rows;
+    if (auth.role === "admin") {
+      rows = db.select().from(schema.workspaces).all();
+    } else if (session) {
+      // Developer: return only assigned workspaces
+      const assignments = db
+        .select({ workspaceId: schema.accountWorkspaces.workspaceId })
+        .from(schema.accountWorkspaces)
+        .where(eq(schema.accountWorkspaces.accountId, session.accountId))
+        .all();
+      const wsIds = assignments.map((a) => a.workspaceId);
+      rows = wsIds.length > 0
+        ? db.select().from(schema.workspaces).all().filter((ws) => wsIds.includes(ws.id))
+        : [];
+    } else {
+      return c.json({ error: "Access denied" }, 403);
+    }
 
     const workspaces = await Promise.all(
       rows.map(async (ws) => {
