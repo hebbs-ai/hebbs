@@ -126,7 +126,9 @@ impl VaultManager {
             }
             // Vault was re-initialized (epoch changed). Evict stale handle.
             info!("vault epoch changed for {}, reopening", canonical.display());
-            self.open_vaults.remove(&canonical);
+            if let Some(vault) = self.open_vaults.remove(&canonical) {
+                Self::shutdown_vault(&vault);
+            }
         }
 
         // Check capacity before opening
@@ -315,6 +317,15 @@ impl VaultManager {
     ///
     /// Returns the number of vaults evicted. Watcher handles are dropped
     /// automatically, stopping file watching for evicted vaults.
+    /// Shut down an OpenVault's background workers before dropping it.
+    /// This ensures worker threads release their references promptly so that
+    /// RocksDB can close and its LOCK file is released.
+    /// With Weak references in workers, this is belt-and-suspenders for
+    /// immediate cleanup (workers would exit naturally on next cycle).
+    fn shutdown_vault(vault: &OpenVault) {
+        vault.engine.shutdown();
+    }
+
     pub fn evict_idle(&mut self) -> usize {
         let now = Instant::now();
         let timeout = self.idle_timeout;
@@ -328,8 +339,10 @@ impl VaultManager {
 
         let count = stale_keys.len();
         for key in stale_keys {
-            info!("evicting idle vault (watcher stopped): {}", key.display());
-            self.open_vaults.remove(&key);
+            if let Some(vault) = self.open_vaults.remove(&key) {
+                info!("evicting idle vault (shutting down workers): {}", key.display());
+                Self::shutdown_vault(&vault);
+            }
         }
         count
     }
@@ -342,8 +355,10 @@ impl VaultManager {
             .min_by_key(|(_, v)| v.last_accessed)
             .map(|(k, _)| k.clone())
         {
-            info!("evicting LRU vault: {}", oldest_key.display());
-            self.open_vaults.remove(&oldest_key);
+            if let Some(vault) = self.open_vaults.remove(&oldest_key) {
+                info!("evicting LRU vault: {}", oldest_key.display());
+                Self::shutdown_vault(&vault);
+            }
         }
     }
 
@@ -352,16 +367,21 @@ impl VaultManager {
         let canonical = vault_path
             .canonicalize()
             .unwrap_or_else(|_| vault_path.to_path_buf());
-        if self.open_vaults.remove(&canonical).is_some() {
-            info!("closed vault (watcher stopped): {}", canonical.display());
+        if let Some(vault) = self.open_vaults.remove(&canonical) {
+            Self::shutdown_vault(&vault);
+            info!("closed vault (workers stopped): {}", canonical.display());
         }
     }
 
     /// Close all open vaults.
     pub fn close_all(&mut self) {
         let count = self.open_vaults.len();
-        self.open_vaults.clear();
-        info!("closed all {} vaults (watchers stopped)", count);
+        let vaults: Vec<(PathBuf, OpenVault)> = self.open_vaults.drain().collect();
+        for (path, vault) in vaults {
+            info!("shutting down vault: {}", path.display());
+            Self::shutdown_vault(&vault);
+        }
+        info!("closed all {} vaults (workers stopped)", count);
     }
 
     /// Number of currently open vaults.
@@ -383,7 +403,9 @@ impl VaultManager {
 
         // Remove unhealthy vaults
         for path in &unhealthy {
-            self.open_vaults.remove(path);
+            if let Some(vault) = self.open_vaults.remove(path) {
+                Self::shutdown_vault(&vault);
+            }
         }
 
         unhealthy

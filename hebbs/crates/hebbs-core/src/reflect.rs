@@ -255,9 +255,9 @@ impl ReflectHandle {
 }
 
 pub(crate) fn spawn_reflect_worker(
-    storage: Arc<dyn StorageBackend>,
+    storage: std::sync::Weak<dyn StorageBackend>,
     embedder: Arc<dyn Embedder>,
-    index_manager: Arc<IndexManager>,
+    index_manager: std::sync::Weak<IndexManager>,
     subscribe_registry: Arc<SubscriptionRegistry>,
     config: ReflectConfig,
 ) -> ReflectHandle {
@@ -283,10 +283,19 @@ pub(crate) fn spawn_reflect_worker(
     }
 }
 
+impl Drop for ReflectHandle {
+    fn drop(&mut self) {
+        let _ = self.tx.send(ReflectSignal::Shutdown);
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+
 fn reflect_worker_loop(
-    storage: Arc<dyn StorageBackend>,
+    weak_storage: std::sync::Weak<dyn StorageBackend>,
     embedder: Arc<dyn Embedder>,
-    index_manager: Arc<IndexManager>,
+    weak_index_manager: std::sync::Weak<IndexManager>,
     subscribe_registry: Arc<SubscriptionRegistry>,
     mut config: ReflectConfig,
     rx: Receiver<ReflectSignal>,
@@ -313,6 +322,14 @@ fn reflect_worker_loop(
             }
             Ok(ReflectSignal::TriggerNow(scope)) => {
                 if !paused && config.enabled {
+                    let storage = match weak_storage.upgrade() {
+                        Some(s) => s,
+                        None => return,
+                    };
+                    let index_manager = match weak_index_manager.upgrade() {
+                        Some(i) => i,
+                        None => return,
+                    };
                     let _ = run_reflect_background(
                         &storage,
                         &embedder,
@@ -339,6 +356,14 @@ fn reflect_worker_loop(
             now_us.saturating_sub(last_scheduled_us) >= config.schedule_trigger_interval_us;
 
         if threshold_triggered || schedule_triggered {
+            let storage = match weak_storage.upgrade() {
+                Some(s) => s,
+                None => return,
+            };
+            let index_manager = match weak_index_manager.upgrade() {
+                Some(i) => i,
+                None => return,
+            };
             let scope = ReflectScope::Global { since_us: None };
             if run_reflect_background(
                 &storage,
