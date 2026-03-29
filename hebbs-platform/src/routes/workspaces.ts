@@ -29,10 +29,9 @@ export function workspaceRoutes() {
           const resp = await daemon.send({ type: "status" }, ws.vaultPath, 5000);
           if (resp.status === "ok" && resp.data) {
             const d = resp.data as Record<string, unknown>;
-            const s = d.stats as Record<string, number> | undefined;
             stats = {
-              memories: s?.memory_count ?? 0,
-              files: s?.file_count ?? 0,
+              memories: (d.total_memories as number) ?? 0,
+              files: (d.total_files as number) ?? 0,
             };
           }
         } catch {
@@ -137,10 +136,9 @@ export function workspaceRoutes() {
       const resp = await daemon.send({ type: "status" }, ws.vaultPath, 5000);
       if (resp.status === "ok" && resp.data) {
         const d = resp.data as Record<string, unknown>;
-        const s = d.stats as Record<string, number> | undefined;
         stats = {
-          memories: s?.memory_count ?? 0,
-          files: s?.file_count ?? 0,
+          memories: (d.total_memories as number) ?? 0,
+          files: (d.total_files as number) ?? 0,
         };
       }
     } catch {
@@ -247,10 +245,9 @@ export function workspaceRoutes() {
       const statusResp = await daemon.send({ type: "status" }, ws.vaultPath, 5000);
       if (statusResp.status === "ok" && statusResp.data) {
         const d = statusResp.data as Record<string, unknown>;
-        const s = d.stats as Record<string, number> | undefined;
-        stats.memories = s?.memory_count ?? 0;
-        stats.files = s?.file_count ?? 0;
-        stats.indexing_status = d.indexing_status ?? "idle";
+        stats.memories = (d.total_memories as number) ?? 0;
+        stats.files = (d.total_files as number) ?? 0;
+        stats.indexing_status = d.indexing ? "indexing" : "idle";
       }
     } catch {
       // Vault may not be open
