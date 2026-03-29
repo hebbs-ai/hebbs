@@ -33,17 +33,13 @@ export function uploadRoutes() {
       return c.json({ error: "No files uploaded" }, 400);
     }
 
-    // Trigger indexing for the workspace's vault
-    try {
-      await daemon.send({ type: "index" }, auth.vaultPath, 120_000);
-    } catch {
-      // Indexing may already be in progress; files will be picked up by watcher
-    }
+    // Fire-and-forget: trigger indexing without waiting for completion
+    daemon.send({ type: "index" }, auth.vaultPath, 5000).catch(() => {});
 
     return c.json({
       uploaded: uploaded.length,
       files: uploaded,
-      message: "Files uploaded. Indexing triggered.",
+      message: "Files uploaded. Indexing triggered. Check status for progress.",
     });
   });
 
