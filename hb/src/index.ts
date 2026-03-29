@@ -190,22 +190,23 @@ program
 
       console.log(`Pushing ${files.length} file(s)...`);
 
+      const config = loadConfig();
       const formData = new FormData();
       for (const f of files) {
         const content = readFileSync(f.absolute);
-        const blob = new Blob([content]);
-        formData.append("files", blob, f.relative);
+        formData.append("files", new Blob([content]), f.relative);
       }
 
-      const res = await api.post<{ uploaded: number }>("/v1/upload", undefined);
-      // Use fetch directly for multipart
-      const config = loadConfig();
       const resp = await fetch(`${config.endpoint}/v1/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${config.api_key}` },
         body: formData,
       });
       const data = await resp.json() as Record<string, unknown>;
+      if (data.error) {
+        console.error(`Upload failed: ${data.error}`);
+        process.exit(1);
+      }
       console.log(`Uploaded: ${data.uploaded} file(s). Indexing triggered.`);
     } catch (e: unknown) {
       console.error(e instanceof Error ? e.message : "Failed");
