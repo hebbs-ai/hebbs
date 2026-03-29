@@ -338,7 +338,8 @@ function SearchTab({ slug }: { slug: string }) {
                 <div className="flex gap-4 mt-2 text-xs text-zinc-500">
                   {r.score !== undefined && <span>score: {Number(r.score).toFixed(3)}</span>}
                   {r.importance !== undefined && <span>importance: {Number(r.importance).toFixed(2)}</span>}
-                  {r.file_path ? <span>source: {String(r.file_path)}</span> : null}
+                  {(r.context as Record<string, unknown>)?.file_path ? <span>source: {String((r.context as Record<string, unknown>).file_path)}</span> : null}
+                  {(r.context as Record<string, unknown>)?.layer ? <span>type: {String((r.context as Record<string, unknown>).layer)}</span> : null}
                 </div>
               </div>
               <span className="text-xs text-zinc-600 ml-4">{i + 1}</span>

@@ -89,7 +89,9 @@ program
         const r = results[i];
         const score = Number(r.score || 0).toFixed(3);
         console.log(`  ${i + 1}. [${score}] ${r.content}`);
-        if (r.file_path) console.log(`     source: ${r.file_path}`);
+        const ctx = r.context as Record<string, unknown> | undefined;
+        if (ctx?.file_path) console.log(`     source: ${ctx.file_path}`);
+        if (ctx?.layer) console.log(`     type: ${ctx.layer}`);
       }
     } catch (e: unknown) {
       console.error(e instanceof Error ? e.message : "Failed");

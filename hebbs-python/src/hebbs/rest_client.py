@@ -56,14 +56,15 @@ class RestMemory:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> RestMemory:
+        ctx = d.get("context") or {}
         return cls(
             memory_id=d.get("memory_id", ""),
             content=d.get("content", ""),
             importance=d.get("importance", 0.0),
             decay_score=d.get("decay_score", 0.0),
             entity_id=d.get("entity_id"),
-            file_path=d.get("file_path"),
-            kind=d.get("kind"),
+            file_path=d.get("file_path") or ctx.get("file_path"),
+            kind=d.get("kind") or ctx.get("layer"),
             score=d.get("score", 0.0),
             access_count=d.get("access_count", 0),
             created_at_us=d.get("created_at_us", 0),

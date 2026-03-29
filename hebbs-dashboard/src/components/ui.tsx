@@ -4,10 +4,11 @@ import { useState } from "react";
 import type { InputHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  const hasWidth = props.className && /\b(w-|flex-)/.test(props.className);
   return (
     <input
       {...props}
-      className={`w-full bg-[#1a1a2e] border border-[#1e1e2e] rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 ${props.className || ""}`}
+      className={`${hasWidth ? "" : "w-full "}bg-[#1a1a2e] border border-[#1e1e2e] rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 ${props.className || ""}`}
     />
   );
 }
