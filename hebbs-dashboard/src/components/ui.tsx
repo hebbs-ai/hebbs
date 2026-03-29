@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { InputHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
@@ -80,16 +81,39 @@ export function Badge({ children, color = "zinc" }: { children: ReactNode; color
 }
 
 export function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
   const copy = () => {
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(fallback);
+    } else {
+      fallback();
+    }
   };
+
+  const fallback = () => {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+    setCopied(true);
+  };
+
+  if (copied) {
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <button
       onClick={copy}
       className="text-zinc-500 hover:text-amber-500 text-xs ml-2"
       title="Copy"
     >
-      Copy
+      {copied ? "Copied!" : "Copy"}
     </button>
   );
 }

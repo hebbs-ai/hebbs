@@ -8,10 +8,17 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
     ...(opts.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Only set Content-Type for JSON bodies, not FormData (browser sets multipart boundary)
   if (opts.body && typeof opts.body === "string")
     headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const fetchOpts: RequestInit = { ...opts, headers };
+  // For FormData, remove Content-Type so browser auto-sets multipart/form-data with boundary
+  if (opts.body instanceof FormData) {
+    delete headers["Content-Type"];
+  }
+
+  const res = await fetch(`${BASE}${path}`, fetchOpts);
 
   if (res.status === 401) {
     if (typeof window !== "undefined" && !path.includes("/auth/login")) {

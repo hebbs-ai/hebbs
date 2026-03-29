@@ -420,5 +420,40 @@ export function workspaceRoutes() {
     return c.json(resp.data);
   });
 
+  // Upload files to workspace
+  app.post("/v1/workspaces/:slug/upload", async (c) => {
+    const ws = await resolveWorkspace(c);
+    if (!ws) return c.json({ error: "Workspace not found or access denied" }, 404);
+
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const { join, dirname } = await import("node:path");
+
+    const body = await c.req.parseBody({ all: true });
+    const rawFiles = Array.isArray(body["files"]) ? body["files"] : [body["files"]];
+
+    const uploaded: string[] = [];
+    for (const file of rawFiles) {
+      if (!(file instanceof File)) continue;
+      const targetPath = join(ws.vaultPath, file.name);
+      await mkdir(dirname(targetPath), { recursive: true });
+      const arrayBuffer = await file.arrayBuffer();
+      await writeFile(targetPath, Buffer.from(arrayBuffer));
+      uploaded.push(file.name);
+    }
+
+    if (uploaded.length === 0) {
+      return c.json({ error: "No files uploaded" }, 400);
+    }
+
+    // Fire-and-forget: index command opens the vault and scans for new files
+    daemon.send({ type: "index" }, ws.vaultPath, 5000).catch(() => {});
+
+    return c.json({
+      uploaded: uploaded.length,
+      files: uploaded,
+      message: "Files uploaded. Indexing triggered.",
+    });
+  });
+
   return app;
 }

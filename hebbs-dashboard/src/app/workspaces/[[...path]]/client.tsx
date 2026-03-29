@@ -141,11 +141,23 @@ function FilesTab({ slug }: { slug: string }) {
     const fileList = e.target.files;
     if (!fileList?.length) return;
     setUploading(true);
-    const fd = new FormData();
-    for (const f of Array.from(fileList)) fd.append("files", f);
     try {
-      await api.upload(`/v1/upload`, fd);
-      api.get<{ files: Array<{ path: string }> }>(`/v1/workspaces/${slug}/files`).then((d) => setFiles(d.files || [])).catch(() => {});
+      const fd = new FormData();
+      for (let i = 0; i < fileList.length; i++) {
+        fd.append("files", fileList[i]);
+      }
+      const token = localStorage.getItem("hebbs_token") || "";
+      const resp = await fetch(`/v1/workspaces/${slug}/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await resp.json();
+      if (data.uploaded > 0) {
+        api.get<{ files: Array<{ path: string }> }>(`/v1/workspaces/${slug}/files`).then((d) => setFiles(d.files || [])).catch(() => {});
+      }
+    } catch (err) {
+      console.error("Upload failed:", err);
     } finally {
       setUploading(false);
     }
@@ -155,9 +167,9 @@ function FilesTab({ slug }: { slug: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm text-zinc-400">Files ({files.length})</h2>
-        <label className="cursor-pointer">
-          <Button disabled={uploading}>{uploading ? "Uploading..." : "Upload Files"}</Button>
-          <input type="file" multiple accept=".md,.txt,.pdf" className="hidden" onChange={handleUpload} />
+        <label className="cursor-pointer px-4 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-700 text-white inline-block">
+          {uploading ? "Uploading..." : "Upload Files"}
+          <input type="file" multiple accept=".md,.txt,.pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
         </label>
       </div>
 
@@ -444,7 +456,7 @@ function KeysTab({ slug }: { slug: string }) {
             {createdKey}
           </div>
           <div className="flex justify-end">
-            <Button onClick={() => navigator.clipboard.writeText(createdKey || "")}>Copy Key</Button>
+            <CopyButton text={createdKey || ""} />
           </div>
         </div>
       </Modal>

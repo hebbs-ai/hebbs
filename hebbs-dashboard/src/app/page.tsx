@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { Nav } from "@/components/nav";
-import { Card, Badge, Button, StatBox } from "@/components/ui";
+import { Card, Badge, Button, StatBox, Input, CopyButton } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { Input } from "@/components/ui";
 
 interface Workspace {
   id: number;
@@ -158,7 +157,7 @@ export default function Dashboard() {
             {createdKey}
           </div>
           <div className="flex justify-end">
-            <Button onClick={() => { navigator.clipboard.writeText(createdKey || ""); }}>Copy Key</Button>
+            <CopyButton text={createdKey || ""} />
           </div>
         </div>
       </Modal>
