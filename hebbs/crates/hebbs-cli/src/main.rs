@@ -53,6 +53,9 @@ fn main() {
         .expect("failed to create tokio runtime");
 
     rt.block_on(async {
+        // Resolve API key: CLI flag > env var > config file
+        let api_key = cli.api_key.clone().or(config.api_key.clone());
+
         let cmd = match cli.command {
             Some(cmd) => cmd,
             None => {
@@ -88,9 +91,6 @@ fn main() {
                 }
             }
         };
-
-        // Resolve API key: CLI flag > env var > config file
-        let api_key = cli.api_key.clone().or(config.api_key.clone());
 
         // Login is always handled by REST (it's a remote-only command)
         #[cfg(feature = "rest")]
