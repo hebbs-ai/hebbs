@@ -3,6 +3,7 @@
  */
 
 export { HebbsClient, type HebbsClientOptions } from './client.js';
+export { HebbsRestClient, HebbsRestError, type RestClientOptions, type RestMemory, type RestRecallOutput, type RestPrimeOutput, type RestForgetResult, type RestInsightsOutput, type RestStatusOutput, type RestUploadResult } from './rest-client.js';
 export { Subscription } from './services/subscribe.js';
 
 export {
@@ -56,4 +57,4 @@ export {
   HebbsRateLimitError,
 } from './errors.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
