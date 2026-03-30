@@ -61,7 +61,8 @@ fn main() {
                 {
                     let is_tty = std::io::stdout().is_terminal();
                     let use_color = config.should_color(is_tty);
-                    let renderer = hebbs_cli::format::Renderer::new(config.output_format, use_color);
+                    let renderer =
+                        hebbs_cli::format::Renderer::new(config.output_format, use_color);
                     let mut conn = hebbs_cli::connection::ConnectionManager::new(
                         config.endpoint.clone(),
                         config.timeout_ms,
@@ -91,8 +92,13 @@ fn main() {
         // Login is always handled by REST (it's a remote-only command)
         #[cfg(feature = "rest")]
         if matches!(cmd, Commands::Login { .. }) {
-            let exit_code =
-                hebbs_cli::rest::execute_rest(cmd, &config, cli.api_key.clone(), config.output_format).await;
+            let exit_code = hebbs_cli::rest::execute_rest(
+                cmd,
+                &config,
+                cli.api_key.clone(),
+                config.output_format,
+            )
+            .await;
             std::process::exit(exit_code);
         }
 

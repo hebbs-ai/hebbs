@@ -33,11 +33,7 @@ impl RestClient {
         }
     }
 
-    async fn request(
-        &self,
-        method: reqwest::Method,
-        path: &str,
-    ) -> reqwest::RequestBuilder {
+    async fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let mut req = self
             .client
             .request(method, format!("{}{}", self.endpoint, path))
@@ -141,12 +137,8 @@ impl RestClient {
             403 => Err(CliError::Internal {
                 message: format!("Access denied: {}", error_msg),
             }),
-            404 => Err(CliError::NotFound {
-                message: error_msg,
-            }),
-            _ => Err(CliError::ServerError {
-                message: error_msg,
-            }),
+            404 => Err(CliError::NotFound { message: error_msg }),
+            _ => Err(CliError::ServerError { message: error_msg }),
         }
     }
 }
@@ -163,13 +155,25 @@ pub async fn execute_rest(
     let client = RestClient::new(&config.endpoint, api_key, config.timeout_ms);
 
     let result = match cmd {
-        Commands::Login { endpoint, api_key } => exec_login(&endpoint, api_key.as_deref(), &mut w).await,
+        Commands::Login { endpoint, api_key } => {
+            exec_login(&endpoint, api_key.as_deref(), &mut w).await
+        }
         Commands::Remember {
             content,
             importance,
             entity_id,
             ..
-        } => exec_remember(&client, content, importance, entity_id, output_format, &mut w).await,
+        } => {
+            exec_remember(
+                &client,
+                content,
+                importance,
+                entity_id,
+                output_format,
+                &mut w,
+            )
+            .await
+        }
         Commands::Recall {
             cue,
             strategy,
@@ -183,18 +187,25 @@ pub async fn execute_rest(
                 crate::cli::StrategyArg::Causal => "causal",
                 crate::cli::StrategyArg::Analogical => "analogical",
             });
-            exec_recall(&client, cue, top_k, entity_id, strat.map(String::from), output_format, &mut w).await
+            exec_recall(
+                &client,
+                cue,
+                top_k,
+                entity_id,
+                strat.map(String::from),
+                output_format,
+                &mut w,
+            )
+            .await
         }
         Commands::Prime {
             entity_id,
             max_memories,
             ..
         } => exec_prime(&client, entity_id, max_memories, output_format, &mut w).await,
-        Commands::Forget {
-            ids,
-            entity_id,
-            ..
-        } => exec_forget(&client, ids, entity_id, &mut w).await,
+        Commands::Forget { ids, entity_id, .. } => {
+            exec_forget(&client, ids, entity_id, &mut w).await
+        }
         Commands::Status => exec_status(&client, &mut w).await,
         Commands::Push { path } => exec_push(&client, &path, &mut w).await,
         Commands::Workspaces(sub) => exec_workspaces(&client, sub, &mut w).await,
@@ -233,10 +244,12 @@ async fn exec_login(
 
     // Test connection
     let url = format!("{}/v1/system/health", endpoint);
-    let resp = reqwest::get(&url).await.map_err(|e| CliError::ConnectionFailed {
-        endpoint: endpoint.to_string(),
-        source: e.to_string(),
-    })?;
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| CliError::ConnectionFailed {
+            endpoint: endpoint.to_string(),
+            source: e.to_string(),
+        })?;
 
     if !resp.status().is_success() {
         return Err(CliError::ConnectionFailed {
@@ -268,7 +281,11 @@ async fn exec_login(
     if api_key.is_some() {
         writeln!(w, "API key saved. Ready.").ok();
     } else {
-        writeln!(w, "Endpoint saved. Set API key with --api-key or HEBBS_API_KEY env var.").ok();
+        writeln!(
+            w,
+            "Endpoint saved. Set API key with --api-key or HEBBS_API_KEY env var."
+        )
+        .ok();
     }
 
     Ok(())
@@ -289,9 +306,11 @@ async fn exec_remember(
             // Read from stdin if piped
             use std::io::Read;
             let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf).map_err(|e| CliError::Internal {
-                message: format!("Failed to read stdin: {}", e),
-            })?;
+            std::io::stdin()
+                .read_to_string(&mut buf)
+                .map_err(|e| CliError::Internal {
+                    message: format!("Failed to read stdin: {}", e),
+                })?;
             buf.trim().to_string()
         }
     };
@@ -313,7 +332,12 @@ async fn exec_remember(
     let resp = client.post("/v1/memories", body).await?;
 
     match output_format {
-        OutputFormat::Json => writeln!(w, "{}", serde_json::to_string_pretty(&resp).unwrap_or_default()).ok(),
+        OutputFormat::Json => writeln!(
+            w,
+            "{}",
+            serde_json::to_string_pretty(&resp).unwrap_or_default()
+        )
+        .ok(),
         _ => {
             writeln!(w, "Remembered: {:?}", content).ok();
             if let Some(id) = resp.get("memory_id").and_then(|v| v.as_str()) {
@@ -358,7 +382,12 @@ async fn exec_recall(
 
     match output_format {
         OutputFormat::Json => {
-            writeln!(w, "{}", serde_json::to_string_pretty(&resp).unwrap_or_default()).ok();
+            writeln!(
+                w,
+                "{}",
+                serde_json::to_string_pretty(&resp).unwrap_or_default()
+            )
+            .ok();
         }
         _ => {
             let results = resp.get("results").and_then(|v| v.as_array());
@@ -406,7 +435,12 @@ async fn exec_prime(
 
     match output_format {
         OutputFormat::Json => {
-            writeln!(w, "{}", serde_json::to_string_pretty(&resp).unwrap_or_default()).ok();
+            writeln!(
+                w,
+                "{}",
+                serde_json::to_string_pretty(&resp).unwrap_or_default()
+            )
+            .ok();
         }
         _ => {
             let results = resp.get("results").and_then(|v| v.as_array());
@@ -446,7 +480,10 @@ async fn exec_forget(
     }
 
     let resp = client.post("/v1/forget", body).await?;
-    let count = resp.get("forgotten_count").and_then(|v| v.as_u64()).unwrap_or(0);
+    let count = resp
+        .get("forgotten_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     writeln!(w, "Forgotten: {} memories", count).ok();
 
     Ok(())
@@ -456,9 +493,18 @@ async fn exec_forget(
 async fn exec_status(client: &RestClient, w: &mut dyn Write) -> Result<(), CliError> {
     let resp = client.get("/v1/system/health").await?;
 
-    let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let version = resp.get("version").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let engine = resp.get("engine").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let status = resp
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let version = resp
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    let engine = resp
+        .get("engine")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
 
     writeln!(w, "Engine:  {}", engine).ok();
     writeln!(w, "Version: {}", version).ok();
@@ -482,7 +528,9 @@ async fn exec_push(client: &RestClient, dir_path: &str, w: &mut dyn Write) -> Re
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let p = entry.path();
-                if p.file_name().map_or(false, |n| n.to_string_lossy().starts_with('.')) {
+                if p.file_name()
+                    .map_or(false, |n| n.to_string_lossy().starts_with('.'))
+                {
                     continue;
                 }
                 if p.is_dir() {
@@ -504,7 +552,11 @@ async fn exec_push(client: &RestClient, dir_path: &str, w: &mut dyn Write) -> Re
         let content = std::fs::read(path).map_err(|e| CliError::Internal {
             message: format!("Failed to read file: {}", e),
         })?;
-        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         files.push((name, content));
     } else {
         collect(path, path, &mut files);
@@ -656,15 +708,24 @@ fn exec_dashboard(endpoint: &str, w: &mut dyn Write) -> Result<(), CliError> {
     writeln!(w, "Open: {}", endpoint).ok();
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open").arg(endpoint).spawn().ok();
+        std::process::Command::new("open")
+            .arg(endpoint)
+            .spawn()
+            .ok();
     }
     #[cfg(target_os = "linux")]
     {
-        std::process::Command::new("xdg-open").arg(endpoint).spawn().ok();
+        std::process::Command::new("xdg-open")
+            .arg(endpoint)
+            .spawn()
+            .ok();
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("start").arg(endpoint).spawn().ok();
+        std::process::Command::new("start")
+            .arg(endpoint)
+            .spawn()
+            .ok();
     }
     Ok(())
 }

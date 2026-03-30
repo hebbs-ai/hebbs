@@ -112,7 +112,7 @@ export class HebbsRestClient {
       results,
       count: data.count ?? results.length,
       indexingPct: data.indexing_pct,
-      text: results.map((r) => r.content).join('\n\n'),
+      text: results.map((r: RestMemory) => r.content).join('\n\n'),
     };
   }
 
@@ -129,7 +129,7 @@ export class HebbsRestClient {
     return {
       results,
       count: data.count ?? results.length,
-      text: results.map((r) => r.content).join('\n\n'),
+      text: results.map((r: RestMemory) => r.content).join('\n\n'),
     };
   }
 
@@ -165,10 +165,10 @@ export class HebbsRestClient {
     };
   }
 
-  async index(files: { name: string; content: Buffer | Uint8Array }[]): Promise<RestUploadResult> {
+  async index(files: { name: string; content: Uint8Array }[]): Promise<RestUploadResult> {
     const formData = new FormData();
     for (const f of files) {
-      formData.append('files', new Blob([f.content]), f.name);
+      formData.append('files', new Blob([f.content as unknown as ArrayBuffer]), f.name);
     }
 
     const resp = await fetch(`${this.endpoint}/v1/upload`, {
@@ -178,8 +178,8 @@ export class HebbsRestClient {
       signal: AbortSignal.timeout(this.timeout),
     });
 
-    const data = await resp.json();
-    if (!resp.ok) throw new HebbsRestError(data.error ?? `HTTP ${resp.status}`, resp.status);
+    const data = (await resp.json()) as Record<string, any>;
+    if (!resp.ok) throw new HebbsRestError((data as any).error ?? `HTTP ${resp.status}`, resp.status);
 
     return {
       uploaded: data.uploaded ?? 0,
@@ -195,8 +195,8 @@ export class HebbsRestClient {
       signal: AbortSignal.timeout(this.timeout),
     });
 
-    const data = await resp.json();
-    if (!resp.ok) throw new HebbsRestError(data.error ?? `HTTP ${resp.status}`, resp.status);
+    const data = (await resp.json()) as Record<string, any>;
+    if (!resp.ok) throw new HebbsRestError((data as any).error ?? `HTTP ${resp.status}`, resp.status);
     return data;
   }
 
@@ -208,8 +208,8 @@ export class HebbsRestClient {
       signal: AbortSignal.timeout(this.timeout),
     });
 
-    const data = await resp.json();
-    if (!resp.ok) throw new HebbsRestError(data.error ?? `HTTP ${resp.status}`, resp.status);
+    const data = (await resp.json()) as Record<string, any>;
+    if (!resp.ok) throw new HebbsRestError((data as any).error ?? `HTTP ${resp.status}`, resp.status);
     return data;
   }
 

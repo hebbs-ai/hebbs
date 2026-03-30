@@ -261,11 +261,7 @@ pub async fn execute(
         | Commands::Workspaces(_)
         | Commands::Keys(_)
         | Commands::Dashboard => {
-            writeln!(
-                stdout,
-                "This command requires a remote server connection."
-            )
-            .ok();
+            writeln!(stdout, "This command requires a remote server connection.").ok();
             writeln!(stdout, "Run: hebbs login --endpoint <url>").ok();
             Ok(())
         }
