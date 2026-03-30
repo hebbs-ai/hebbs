@@ -1,59 +1,28 @@
 # HEBBS Enterprise
 
-Cognitive memory engine for AI agents. Deploy on your infrastructure in minutes.
+Cognitive memory engine for AI agents. Deploy on your infrastructure in one line.
+
+HEBBS ships as a skill for Claude Code and OpenClaw. No SDK integration. No glue code. No configuration. Install HEBBS, and your agent automatically stores memories, recalls with the right strategy, consolidates insights, and forgets what's stale.
 
 ## Quick Start
 
-### 1. Authenticate with our registry
-
 ```sh
-echo "<your-token>" | docker login ghcr.io -u hebbs-customer --password-stdin
+curl -sSf https://hebbs.ai/server | OPENAI_API_KEY=sk-your-key sh
 ```
 
-### 2. Configure
+Open `http://your-server:8080` when it finishes. The onboarding wizard runs on first visit: create your admin account, name your first workspace, and save the generated API key.
 
-```sh
-cp .env.example .env
-# Edit .env: set your OPENAI_API_KEY
-```
-
-### 3. Start
-
-```sh
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### 4. Open the dashboard
-
-```
-http://your-server:8080
-```
-
-The onboarding wizard runs on first visit. Create your admin account and first workspace.
-
-## Developer Setup
-
-### CLI
+## CLI (for your developers)
 
 ```sh
 curl -sSf https://hebbs.ai/install | sh
 hebbs login --endpoint http://your-server:8080 --api-key <your-workspace-key>
-hebbs recall "your query"
-hebbs push ./docs
 ```
-
-### Python SDK
 
 ```sh
-pip install hebbs
-```
-
-```python
-from hebbs.rest_client import HebbsRestClient
-
-async with HebbsRestClient("http://your-server:8080", api_key="hb_live_sk_...") as hb:
-    results = await hb.recall("your query")
-    print(results.text)
+hebbs recall "your query"
+hebbs remember "important fact"
+hebbs push ./docs
 ```
 
 ## Configuration
@@ -64,21 +33,16 @@ async with HebbsRestClient("http://your-server:8080", api_key="hb_live_sk_...") 
 | `HEBBS_PORT` | 8080 | Dashboard + API port |
 | `HEBBS_LLM_MODEL` | gpt-4o-mini | LLM model for extraction |
 | `HEBBS_EMBED_MODEL` | text-embedding-3-small | Embedding model |
+| `HEBBS_DIR` | ./hebbs | Installation directory |
+| `HEBBS_VERSION` | 0.4.0 | Image version |
 
 ## Operations
 
 ```sh
-# View logs
-docker compose -f docker-compose.prod.yml logs -f
-
-# Upgrade
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
-
-# Backup
-docker compose -f docker-compose.prod.yml stop
-tar czf hebbs-backup-$(date +%Y%m%d).tar.gz -C /var/lib/docker/volumes/hebbs-enterprise_hebbs-data/_data .
-docker compose -f docker-compose.prod.yml start
+cd hebbs/                                           # your install directory
+docker compose logs -f                              # view logs
+docker compose down                                 # stop
+docker compose pull && docker compose up -d         # upgrade
 ```
 
 ## Support

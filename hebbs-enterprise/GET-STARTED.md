@@ -2,36 +2,44 @@
 
 Welcome to HEBBS, the cognitive memory engine for AI agents. This guide walks you through deploying HEBBS on your infrastructure and getting your first recall working.
 
-## Prerequisites
+## Quick Start (one line)
+
+```sh
+curl -sSf https://hebbs.ai/server | OPENAI_API_KEY=sk-your-key sh
+```
+
+This installs and starts HEBBS Enterprise. Open `http://your-server:8080` when it finishes.
+
+**Prerequisites:** Linux (Ubuntu 22.04+) or macOS, Docker Engine 24+, 4 vCPUs / 4 GB RAM, port 8080 open.
+
+**Optional overrides:** `HEBBS_PORT=9090`, `HEBBS_DIR=/opt/hebbs`, `HEBBS_LLM_MODEL=gpt-4o`, `HEBBS_EMBED_MODEL=text-embedding-3-large`.
+
+Skip to [Step 5](#step-5-open-the-dashboard) after the installer finishes.
+
+---
+
+## Manual Setup
+
+If you prefer to set things up manually, follow these steps instead.
+
+### Prerequisites
 
 - A Linux machine (Ubuntu 22.04+ recommended) with Docker Engine 24+ and Docker Compose v2
 - 4 vCPUs, 4 GB RAM minimum
 - An OpenAI API key with access to gpt-4o-mini and text-embedding-3-small
 - Port 8080 open for your team to access the dashboard and API
 
-## Step 1: Authenticate with the HEBBS registry
-
-We provide you with a private access token. Run this on your server:
-
-```sh
-echo "<your-token>" | docker login ghcr.io -u hebbs-customer --password-stdin
-```
-
-You should see "Login Succeeded".
-
-## Step 2: Download the deployment package
+### Step 1: Download the deployment package
 
 ```sh
 mkdir hebbs && cd hebbs
 
-curl -sL -o docker-compose.yml https://raw.githubusercontent.com/parag/hebbs-repos/main/hebbs-enterprise/docker-compose.prod.yml
+curl -sL -o docker-compose.yml https://raw.githubusercontent.com/hebbs-ai/hebbs-enterprise/main/docker-compose.yml
 
-curl -sL -o .env.example https://raw.githubusercontent.com/parag/hebbs-repos/main/hebbs-enterprise/.env.example
+curl -sL -o .env.example https://raw.githubusercontent.com/hebbs-ai/hebbs-enterprise/main/.env.example
 ```
 
-Or copy the files we sent you into a directory called `hebbs/`.
-
-## Step 3: Configure your environment
+### Step 2: Configure your environment
 
 ```sh
 cp .env.example .env
@@ -43,7 +51,7 @@ Edit `.env` and set your OpenAI API key:
 OPENAI_API_KEY=sk-proj-your-actual-key-here
 ```
 
-## Step 4: Start HEBBS
+### Step 3: Start HEBBS
 
 ```sh
 docker compose up -d
@@ -51,7 +59,7 @@ docker compose up -d
 
 This pulls two images (~200MB each) and starts the engine and platform. First startup takes about 60 seconds while the engine initializes.
 
-Verify both containers are running:
+### Step 4: Verify
 
 ```sh
 docker compose ps
@@ -123,11 +131,7 @@ print(results.text)
 Each developer on your team can install the HEBBS CLI on their laptop:
 
 ```sh
-# macOS / Linux (CLI only, ~5MB)
 curl -sSf https://hebbs.ai/install | sh
-
-# Or full engine binary (~10MB, includes local mode)
-curl -sSf https://hebbs.ai/install | sh -s -- --full
 ```
 
 Then connect to your server:
