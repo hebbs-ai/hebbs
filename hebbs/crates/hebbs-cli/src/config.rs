@@ -11,6 +11,7 @@ pub struct CliConfig {
     pub history_file: PathBuf,
     pub max_history: usize,
     pub tenant: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -41,6 +42,7 @@ impl Default for CliConfig {
             history_file,
             max_history: 1000,
             tenant: None,
+            api_key: None,
         }
     }
 }
@@ -73,6 +75,9 @@ impl CliConfig {
             }
             if let Some(t) = file_cfg.tenant {
                 cfg.tenant = Some(t);
+            }
+            if let Some(k) = file_cfg.api_key {
+                cfg.api_key = Some(k);
             }
         }
 
@@ -118,6 +123,7 @@ struct FileConfig {
     history_file: Option<PathBuf>,
     max_history: Option<usize>,
     tenant: Option<String>,
+    api_key: Option<String>,
 }
 
 fn load_config_file() -> Option<FileConfig> {

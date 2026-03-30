@@ -67,7 +67,7 @@ fn main() {
                         config.endpoint.clone(),
                         config.timeout_ms,
                     )
-                    .with_api_key(cli.api_key.clone());
+                    .with_api_key(api_key.clone());
                     hebbs_cli::repl::run_repl(
                         &mut conn,
                         &renderer,
@@ -89,16 +89,15 @@ fn main() {
             }
         };
 
+        // Resolve API key: CLI flag > env var > config file
+        let api_key = cli.api_key.clone().or(config.api_key.clone());
+
         // Login is always handled by REST (it's a remote-only command)
         #[cfg(feature = "rest")]
         if matches!(cmd, Commands::Login { .. }) {
-            let exit_code = hebbs_cli::rest::execute_rest(
-                cmd,
-                &config,
-                cli.api_key.clone(),
-                config.output_format,
-            )
-            .await;
+            let exit_code =
+                hebbs_cli::rest::execute_rest(cmd, &config, api_key.clone(), config.output_format)
+                    .await;
             std::process::exit(exit_code);
         }
 
@@ -125,7 +124,7 @@ fn main() {
                 let exit_code = hebbs_cli::rest::execute_rest(
                     cmd,
                     &config,
-                    cli.api_key.clone(),
+                    api_key.clone(),
                     config.output_format,
                 )
                 .await;
@@ -149,7 +148,7 @@ fn main() {
                 config.endpoint.clone(),
                 config.timeout_ms,
             )
-            .with_api_key(cli.api_key.clone());
+            .with_api_key(api_key.clone());
             let tenant_id = config.tenant.as_deref();
             let exit_code = hebbs_cli::commands::execute(
                 cmd,
