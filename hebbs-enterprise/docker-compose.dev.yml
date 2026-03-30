@@ -1,8 +1,10 @@
 services:
   platform:
-    image: ghcr.io/hebbs-ai/hebbs-platform:0.4.0
+    build:
+      context: ..
+      dockerfile: hebbs-platform/Dockerfile
     ports:
-      - "${HEBBS_PORT:-8080}:8080"
+      - "8080:8080"
     environment:
       - HEBBS_ENGINE_URL=http://engine:6381
       - HEBBS_ENGINE_SOCKET=/data/daemon/daemon.sock
@@ -20,7 +22,10 @@ services:
     restart: unless-stopped
 
   engine:
-    image: ghcr.io/hebbs-ai/hebbs-engine:0.4.0
+    build:
+      context: ..
+      dockerfile: hebbs-enterprise/Dockerfile
+    # No ports exposed to host; only reachable via platform
     environment:
       - HEBBS_LLM_PROVIDER=openai
       - HEBBS_LLM_MODEL=${HEBBS_LLM_MODEL:-gpt-4o-mini}
