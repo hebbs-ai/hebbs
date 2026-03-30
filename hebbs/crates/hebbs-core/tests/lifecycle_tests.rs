@@ -45,8 +45,7 @@ fn shutdown_releases_worker_arcs() {
     let backend = Arc::new(InMemoryBackend::new());
     let embedder = Arc::new(MockEmbedder::default_dims());
     let engine = Arc::new(
-        Engine::new_with_params(backend.clone(), embedder, HnswParams::with_m(384, 4), 42)
-            .unwrap(),
+        Engine::new_with_params(backend.clone(), embedder, HnswParams::with_m(384, 4), 42).unwrap(),
     );
 
     // Before starting workers: only engine holds storage via Arc<Engine>
@@ -326,7 +325,9 @@ fn concurrent_recall_during_shutdown() {
     engine.shutdown();
 
     // Recalls must complete (no deadlock). Some may error, that's fine.
-    let (successes, errors) = recall_handle.join().expect("recall thread should not panic");
+    let (successes, errors) = recall_handle
+        .join()
+        .expect("recall thread should not panic");
     assert!(
         successes + errors == 20,
         "all recall attempts should complete (got {} successes, {} errors)",

@@ -63,7 +63,8 @@ impl DaemonClient {
     /// Any `Progress` responses received before the final response are printed
     /// to stderr so the user sees live status updates.
     pub async fn send(&mut self, request: &DaemonRequest) -> Result<DaemonResponse, String> {
-        self.send_with_timeout(request, std::time::Duration::from_secs(30)).await
+        self.send_with_timeout(request, std::time::Duration::from_secs(30))
+            .await
     }
 
     /// Send a request and receive the final response with a custom timeout.
@@ -238,7 +239,11 @@ fn start_daemon(opts: &DaemonStartOpts) -> Result<(), String> {
                             if let Ok(out) = output {
                                 let comm = String::from_utf8_lossy(&out.stdout);
                                 if !comm.contains("hebbs") {
-                                    debug!("PID {} is alive but not hebbs ({}), cleaning stale files", pid, comm.trim());
+                                    debug!(
+                                        "PID {} is alive but not hebbs ({}), cleaning stale files",
+                                        pid,
+                                        comm.trim()
+                                    );
                                     std::fs::remove_file(&pid_path).ok();
                                     if let Some(sock_path) = default_socket_path() {
                                         std::fs::remove_file(&sock_path).ok();

@@ -3399,7 +3399,10 @@ fn map_to_cli_command(cmd: Commands) -> Option<hebbs_cli::cli::Commands> {
 
 /// Interactive LLM provider setup for `hebbs init` when no flags are given.
 /// LLM is required; returns `None` only if stdin read fails.
-fn interactive_llm_setup() -> (Option<hebbs_vault::config::LlmConfig>, Option<hebbs_vault::config::ApiConfig>) {
+fn interactive_llm_setup() -> (
+    Option<hebbs_vault::config::LlmConfig>,
+    Option<hebbs_vault::config::ApiConfig>,
+) {
     println!();
     println!("  HEBBS requires an LLM for extracting knowledge from your notes.");
     println!("  You can use a cloud provider or a local model via Ollama.");
@@ -3509,13 +3512,16 @@ fn interactive_llm_setup() -> (Option<hebbs_vault::config::LlmConfig>, Option<he
         None
     };
 
-    (Some(hebbs_vault::config::LlmConfig {
-        provider: provider.to_string(),
-        model: model.to_string(),
-        api_key,
-        api_key_env,
-        base_url: None,
-    }), api_config)
+    (
+        Some(hebbs_vault::config::LlmConfig {
+            provider: provider.to_string(),
+            model: model.to_string(),
+            api_key,
+            api_key_env,
+            base_url: None,
+        }),
+        api_config,
+    )
 }
 
 /// Recursively count .md files under `dir`, skipping internal/generated directories.

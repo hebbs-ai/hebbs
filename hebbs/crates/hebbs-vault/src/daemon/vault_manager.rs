@@ -153,7 +153,10 @@ impl VaultManager {
             Ok(s) => s,
             Err(e) => {
                 let err_str = format!("{}", e);
-                if err_str.contains("lock") || err_str.contains("LOCK") || err_str.contains("Resource temporarily unavailable") {
+                if err_str.contains("lock")
+                    || err_str.contains("LOCK")
+                    || err_str.contains("Resource temporarily unavailable")
+                {
                     // Try to detect stale lock: check if the daemon PID is alive
                     let lock_path = db_path.join("LOCK");
                     let pid_path = dirs::home_dir().map(|h| h.join(".hebbs").join("daemon.pid"));
@@ -179,8 +182,9 @@ impl VaultManager {
                     if stale {
                         tracing::warn!("detected stale RocksDB lock (daemon not running), removing and retrying");
                         std::fs::remove_file(&lock_path).ok();
-                        hebbs_storage::RocksDbBackend::open(&db_path)
-                            .map_err(|e| format!("failed to open RocksDB after removing stale lock: {}", e))?
+                        hebbs_storage::RocksDbBackend::open(&db_path).map_err(|e| {
+                            format!("failed to open RocksDB after removing stale lock: {}", e)
+                        })?
                     } else {
                         return Err(format!(
                             "failed to open RocksDB: {}. Another HEBBS daemon is likely running. \
@@ -340,7 +344,10 @@ impl VaultManager {
         let count = stale_keys.len();
         for key in stale_keys {
             if let Some(vault) = self.open_vaults.remove(&key) {
-                info!("evicting idle vault (shutting down workers): {}", key.display());
+                info!(
+                    "evicting idle vault (shutting down workers): {}",
+                    key.display()
+                );
                 Self::shutdown_vault(&vault);
             }
         }

@@ -53,11 +53,12 @@ pub(crate) fn http_post_json(
         if attempt > 0 {
             let backoff = retry_backoff_ms * (1u64 << (attempt - 1).min(6));
             // Add jitter: 50-150% of computed backoff to prevent thundering herd
-            let jitter = backoff / 2 + (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos() as u64
-                % backoff.max(1));
+            let jitter = backoff / 2
+                + (std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos() as u64
+                    % backoff.max(1));
             std::thread::sleep(std::time::Duration::from_millis(jitter));
         }
         let mut req = agent.post(url);
