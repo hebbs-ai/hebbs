@@ -1,0 +1,502 @@
+---
+// Bioluminescent Memory Palace: real enterprise legal vault simulation
+// Based on actual indexed vault: 8 files, contracts/compliance/risk/meetings
+// The star: ransomware sublimit contradiction ($2M policy vs $500K endorsement)
+---
+
+<section id="memory-palace" class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="text-center mb-10">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">Memory Palace</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+        See how your memories connect.
+      </h2>
+      <p class="text-muted text-lg max-w-3xl mx-auto">
+        Episodes cluster by topic. Insights emerge from patterns. Contradictions surface automatically. This is a live simulation of a real HEBBS memory graph.
+      </p>
+    </div>
+
+    <div class="relative rounded-xl overflow-hidden" style="background: #050510; border: 1px solid rgba(255,255,255,0.06);">
+      <canvas id="palace-canvas" class="w-full block" style="height: 560px; cursor: grab;"></canvas>
+
+      <!-- Legend -->
+      <div id="palace-legend" class="absolute top-4 right-4 rounded-lg px-4 py-3 text-xs pointer-events-none" style="background: rgba(5,5,16,0.85); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px);">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(251, 191, 36, 0.8); box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);"></span>
+          <span style="color: #94A3B8;">Episode</span>
+        </div>
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="inline-block w-3 h-3 rounded-full" style="background: rgba(52, 211, 153, 0.8); box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);"></span>
+          <span style="color: #94A3B8;">Insight</span>
+        </div>
+        <div style="border-top: 1px solid rgba(255,255,255,0.06); margin: 6px 0; padding-top: 6px;">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-4" style="border-top: 2px solid rgba(251, 191, 36, 0.5);"></span>
+            <span style="color: #94A3B8;">Causal</span>
+          </div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-block w-4 border-dashed" style="border-top: 2px dashed rgba(148, 163, 184, 0.3);"></span>
+            <span style="color: #94A3B8;">Similarity</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-4 border-dashed" style="border-top: 2px dashed rgba(248, 113, 113, 0.6);"></span>
+            <span style="color: #94A3B8;">Contradiction</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- File labels (overlaid on canvas) -->
+      <div id="palace-files" class="absolute top-4 left-4 rounded-lg px-4 py-3 text-xs pointer-events-none" style="background: rgba(5,5,16,0.85); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px);">
+        <div style="color: #64748B; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Indexed files</div>
+        <div style="color: #FBBF24; margin-bottom: 2px;">contracts/cyber-insurance-policy.md</div>
+        <div style="color: #FBBF24; margin-bottom: 2px;">contracts/endorsement-ransomware.md</div>
+        <div style="color: #38BDF8; margin-bottom: 2px;">compliance/data-retention-v1.md</div>
+        <div style="color: #38BDF8; margin-bottom: 2px;">compliance/data-retention-v2.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">risk/risk-register-2024-q4.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">risk/risk-register-2025-q2.md</div>
+        <div style="color: #34D399; margin-bottom: 2px;">audits/vendor-risk-cloudvault.md</div>
+        <div style="color: #34D399;">meetings/insurance-review.md</div>
+      </div>
+
+      <!-- Interaction hint -->
+      <div id="palace-hint" class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-xs pointer-events-none transition-opacity duration-700" style="background: rgba(5,5,16,0.7); border: 1px solid rgba(255,255,255,0.06); color: #64748B; backdrop-filter: blur(8px);">
+        Hover to inspect &middot; Scroll to zoom &middot; Drag to pan
+      </div>
+
+      <!-- Tooltip -->
+      <div id="palace-tooltip" class="absolute hidden rounded-lg px-3 py-2 text-xs pointer-events-none z-10 max-w-sm" style="background: rgba(5,5,16,0.92); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px);"></div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="mt-4 flex flex-wrap justify-center gap-6 text-sm font-mono" style="color: #64748B;">
+      <span><span style="color: #E2E8F0;" class="font-semibold">8</span> files</span>
+      <span><span style="color: #FBBF24;" class="font-semibold">19</span> episodes</span>
+      <span><span style="color: #34D399;" class="font-semibold">4</span> insights</span>
+      <span><span style="color: #F87171;" class="font-semibold">1</span> contradiction</span>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+(function() {
+  // ── Real vault data: enterprise-legal-mini ──────────────────────
+  // 8 files, 3 thematic clusters, 23 nodes from actual indexed sections
+
+  var DEMO_NODES = [
+    // ── Cluster 0: Contracts (amber) ──────────────────────────
+    // cyber-insurance-policy-2024.md
+    { id: 'cp1', label: '1. Insuring Agreements',                      file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.7,  recency: 0.4, reinforcement: 0.6 },
+    { id: 'cp2', label: 'Coverage: $2M per incident, $5M aggregate',   file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.85, recency: 0.5, reinforcement: 0.8 },
+    { id: 'cp3', label: '5. Exclusions (war, infrastructure, pre-existing)', file: 'cyber-insurance-policy.md', kind: 'episode', cluster: 0, importance: 0.6,  recency: 0.3, reinforcement: 0.5 },
+    { id: 'cp4', label: '6. Conditions (72hr breach notification)',     file: 'cyber-insurance-policy.md',   kind: 'episode', cluster: 0, importance: 0.65, recency: 0.35, reinforcement: 0.55 },
+    // endorsement-001-ransomware.md
+    { id: 'er1', label: 'Ransomware Payment Sublimit: $500K',          file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.9,  recency: 0.9, reinforcement: 0.9 },
+    { id: 'er2', label: 'CyberResolve Partners negotiation services',  file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.55, recency: 0.5, reinforcement: 0.4 },
+    { id: 'er3', label: 'OFAC sanctions screening required',           file: 'endorsement-ransomware.md',   kind: 'episode', cluster: 0, importance: 0.6,  recency: 0.45, reinforcement: 0.5 },
+
+    // ── Cluster 1: Compliance (cyan) ──────────────────────────
+    // policy-data-retention-v1.md
+    { id: 'dv1', label: 'Customer Data: 3 years post-termination',     file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.25, reinforcement: 0.4 },
+    { id: 'dv2', label: 'Log Data: 12 months retention',               file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.55, recency: 0.2,  reinforcement: 0.35 },
+    { id: 'dv3', label: 'EU Resident Data: 24 months',                 file: 'data-retention-v1.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.2,  reinforcement: 0.45 },
+    // policy-data-retention-v2.md
+    { id: 'dw1', label: 'Customer Data: 2 years (reduced from 3)',     file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.65, recency: 0.7,  reinforcement: 0.6 },
+    { id: 'dw2', label: 'Log Data: 18 months (SOC 2 auditor rec.)',   file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.6,  recency: 0.65, reinforcement: 0.55 },
+    { id: 'dw3', label: 'Deletion requests: 30-day response (NEW)',    file: 'data-retention-v2.md',        kind: 'episode', cluster: 1, importance: 0.7,  recency: 0.8,  reinforcement: 0.6 },
+
+    // ── Cluster 2: Risk & Governance (green) ──────────────────
+    // risk-register-2024-q4.md
+    { id: 'rq1', label: 'RISK-001: Cloudvault dependency (HIGH)',      file: 'risk-register-2024-q4.md',    kind: 'episode', cluster: 2, importance: 0.7,  recency: 0.3,  reinforcement: 0.6 },
+    { id: 'rq2', label: 'RISK-002: EU data residency gaps (HIGH)',     file: 'risk-register-2024-q4.md',    kind: 'episode', cluster: 2, importance: 0.7,  recency: 0.3,  reinforcement: 0.55 },
+    // risk-register-2025-q2.md
+    { id: 'rn1', label: 'RISK-001: Cloudvault now MEDIUM (EU deploy)', file: 'risk-register-2025-q2.md',    kind: 'episode', cluster: 2, importance: 0.65, recency: 0.85, reinforcement: 0.65 },
+    { id: 'rn2', label: 'RISK-007: Insurance coverage gap (NEW)',      file: 'risk-register-2025-q2.md',    kind: 'episode', cluster: 2, importance: 0.85, recency: 0.95, reinforcement: 0.8 },
+    // audits/vendor-risk-assessment-cloudvault.md
+    { id: 'vc1', label: 'Cloudvault: 85% infrastructure concentration',file: 'vendor-risk-cloudvault.md',   kind: 'episode', cluster: 2, importance: 0.75, recency: 0.4,  reinforcement: 0.7 },
+    // meetings/insurance-review.md
+    { id: 'mt1', label: 'Sublimit discovered: board told $2M, actual $500K', file: 'insurance-review.md',   kind: 'episode', cluster: 2, importance: 0.9,  recency: 0.95, reinforcement: 0.85 },
+
+    // ── Insights (emerged from cross-file patterns) ───────────
+    { id: 'i1',  label: 'Ransomware coverage is $500K, not $2M as reported to board', file: 'insight',      kind: 'insight', cluster: 2, importance: 0.95, recency: 0.9,  reinforcement: 0.95 },
+    { id: 'i2',  label: 'Data retention periods tightened across v2 update',           file: 'insight',      kind: 'insight', cluster: 1, importance: 0.8,  recency: 0.75, reinforcement: 0.7  },
+    { id: 'i3',  label: 'Cloudvault risk improving but 85% concentration remains',     file: 'insight',      kind: 'insight', cluster: 2, importance: 0.8,  recency: 0.8,  reinforcement: 0.75 },
+    { id: 'i4',  label: 'EU compliance strengthened: shorter retention + deletion SLA', file: 'insight',      kind: 'insight', cluster: 1, importance: 0.75, recency: 0.7,  reinforcement: 0.65 },
+  ];
+
+  var DEMO_EDGES = [
+    // ── Causal chains ─────────────────────────────────────────
+    // Insurance story: policy → endorsement → discovery
+    { source: 'cp1', target: 'cp2', type: 'causal', weight: 0.8  },
+    { source: 'cp2', target: 'er1', type: 'causal', weight: 0.9  },
+    { source: 'er1', target: 'er2', type: 'causal', weight: 0.6  },
+    { source: 'er1', target: 'er3', type: 'causal', weight: 0.5  },
+    { source: 'er1', target: 'mt1', type: 'causal', weight: 0.9  },
+    { source: 'mt1', target: 'rn2', type: 'causal', weight: 0.85 },
+    { source: 'rn2', target: 'i1',  type: 'causal', weight: 0.95 },
+
+    // Compliance evolution: v1 → v2
+    { source: 'dv1', target: 'dw1', type: 'causal', weight: 0.8  },
+    { source: 'dv2', target: 'dw2', type: 'causal', weight: 0.75 },
+    { source: 'dv3', target: 'dw3', type: 'causal', weight: 0.7  },
+    { source: 'dw1', target: 'i2',  type: 'causal', weight: 0.7  },
+    { source: 'dw3', target: 'i4',  type: 'causal', weight: 0.65 },
+
+    // Risk tracking: Q4 → Q2
+    { source: 'rq1', target: 'rn1', type: 'causal', weight: 0.8  },
+    { source: 'vc1', target: 'rq1', type: 'causal', weight: 0.75 },
+    { source: 'vc1', target: 'i3',  type: 'causal', weight: 0.7  },
+    { source: 'rn1', target: 'i3',  type: 'causal', weight: 0.65 },
+
+    // ── Similarity bridges (cross-cluster) ────────────────────
+    { source: 'rq2', target: 'dv3', type: 'similarity', weight: 0.55 },  // EU data residency risk ↔ EU retention
+    { source: 'cp4', target: 'er3', type: 'similarity', weight: 0.45 },  // Policy conditions ↔ OFAC compliance
+    { source: 'dw2', target: 'rn1', type: 'similarity', weight: 0.4  },  // SOC 2 log change ↔ risk improvement
+    { source: 'i2',  target: 'i4',  type: 'similarity', weight: 0.5  },  // Two compliance insights connected
+
+    // ── Contradiction ─────────────────────────────────────────
+    { source: 'cp2', target: 'er1', type: 'contradicts', weight: 0.95 },  // $2M coverage vs $500K sublimit
+  ];
+
+  var CLUSTER_COLORS = {
+    0: { label: 'Contracts',  base: [251, 191, 36] },
+    1: { label: 'Compliance', base: [56, 189, 248] },
+    2: { label: 'Risk & Gov', base: [52, 211, 153] },
+  };
+
+  // ── Canvas setup ────────────────────────────────────────────────
+
+  var canvas = document.getElementById('palace-canvas');
+  var ctx = canvas.getContext('2d');
+  var tooltip = document.getElementById('palace-tooltip');
+  var hint = document.getElementById('palace-hint');
+
+  var nodes = [], edges = [], nodeMap = new Map();
+  var offsetX = 0, offsetY = 0, scale = 1;
+  var hoveredNode = null, isPanning = false, lastMouse = { x: 0, y: 0 };
+  var alpha = 1.0, alphaDecay = 0.003, alphaMin = 0.001;
+  var running = true, animatedIn = false, entryStart = 0;
+  var isVisible = false, hintDismissed = false, rafId = null, breathPhase = 0;
+  var lastTouchDist = 0, touchPanning = false;
+
+  function initData() {
+    nodeMap.clear(); nodes = [];
+
+    var clusterOffsets = [
+      { x: -200, y: -60 },   // Contracts: upper-left
+      { x: 200, y: -40 },    // Compliance: upper-right
+      { x: 0, y: 150 },      // Risk: bottom-center
+    ];
+
+    DEMO_NODES.forEach(function(def, i) {
+      var co = clusterOffsets[def.cluster];
+      var intraIdx = 0;
+      for (var j = 0; j < i; j++) { if (DEMO_NODES[j].cluster === def.cluster) intraIdx++; }
+
+      var phi = (1 + Math.sqrt(5)) / 2;
+      var angle = 2 * Math.PI * intraIdx / phi + def.cluster * 2.2;
+      var r = 25 + Math.sqrt(intraIdx + 1) * 30;
+
+      var node = {
+        id: def.id, label: def.label, file: def.file,
+        kind: def.kind, cluster: def.cluster,
+        importance: def.importance, recency: def.recency, reinforcement: def.reinforcement,
+        x: co.x + Math.cos(angle) * r, y: co.y + Math.sin(angle) * r,
+        vx: 0, vy: 0, fadeIn: 0,
+        pulsePhase: Math.random() * Math.PI * 2,
+        cloudParticles: [],
+      };
+
+      var pc = node.kind === 'insight' ? 16 : 10;
+      for (var pi = 0; pi < pc; pi++) {
+        var pa = Math.random() * Math.PI * 2;
+        var pr = Math.random() * (4 + node.importance * 10);
+        node.cloudParticles.push({
+          ox: Math.cos(pa) * pr, oy: Math.sin(pa) * pr,
+          size: 0.3 + Math.random() * 1.3,
+          alpha: 0.12 + Math.random() * 0.4,
+          drift: Math.random() * Math.PI * 2,
+          speed: 0.15 + Math.random() * 0.55,
+        });
+      }
+      nodes.push(node); nodeMap.set(node.id, node);
+    });
+
+    edges = DEMO_EDGES.map(function(e) {
+      return { source: e.source, target: e.target, type: e.type, weight: e.weight,
+               sourceNode: nodeMap.get(e.source), targetNode: nodeMap.get(e.target) };
+    }).filter(function(e) { return e.sourceNode && e.targetNode; });
+
+    resize(); centerView();
+  }
+
+  // ── Physics ─────────────────────────────────────────────────────
+
+  function simulate() {
+    var repulsion = 1600, springLen = 95, springK = 0.022, gravity = 0.005, damping = 0.87;
+    for (var i = 0; i < nodes.length; i++) {
+      for (var j = i + 1; j < nodes.length; j++) {
+        var a = nodes[i], b = nodes[j];
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        var force = repulsion / (dist * dist);
+        var fx = (dx / dist) * force * alpha, fy = (dy / dist) * force * alpha;
+        a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+      }
+    }
+    for (var e of edges) {
+      var a = e.sourceNode, b = e.targetNode;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      var force = springK * (dist - springLen) * alpha;
+      var fx = (dx / dist) * force, fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }
+    for (var n of nodes) {
+      n.vx -= n.x * gravity * alpha; n.vy -= n.y * gravity * alpha;
+      n.vx *= damping; n.vy *= damping; n.x += n.vx; n.y += n.vy;
+    }
+  }
+
+  // ── Coord transforms ───────────────────────────────────────────
+
+  function screenToWorld(sx, sy) {
+    var d = window.devicePixelRatio || 1;
+    return { x: (sx - canvas.width/(2*d)) / scale - offsetX, y: (sy - canvas.height/(2*d)) / scale - offsetY };
+  }
+  function worldToScreen(wx, wy) {
+    var d = window.devicePixelRatio || 1;
+    return { x: (wx + offsetX) * scale + canvas.width/(2*d), y: (wy + offsetY) * scale + canvas.height/(2*d) };
+  }
+  function findNodeAt(sx, sy) {
+    var w = screenToWorld(sx, sy), closest = null, minD = Infinity;
+    for (var n of nodes) {
+      if (n.fadeIn < 0.3) continue;
+      var r = 5 + n.importance * 7 + 5;
+      var dx = w.x - n.x, dy = w.y - n.y, d = Math.sqrt(dx*dx+dy*dy);
+      if (d < r && d < minD) { closest = n; minD = d; }
+    }
+    return closest;
+  }
+  function centerView() {
+    if (!nodes.length) return;
+    var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for (var n of nodes) { minX=Math.min(minX,n.x); minY=Math.min(minY,n.y); maxX=Math.max(maxX,n.x); maxY=Math.max(maxY,n.y); }
+    offsetX = -(minX+maxX)/2; offsetY = -(minY+maxY)/2;
+    var d=window.devicePixelRatio||1;
+    scale = Math.min((canvas.width/d)/(maxX-minX+200), (canvas.height/d)/(maxY-minY+200), 1.5);
+  }
+  function resize() {
+    var d=window.devicePixelRatio||1, r=canvas.getBoundingClientRect();
+    canvas.width=r.width*d; canvas.height=r.height*d; ctx.scale(d,d);
+  }
+
+  // ── Entry animation ─────────────────────────────────────────────
+
+  function updateFadeIn(now) {
+    if (animatedIn) return;
+    if (!entryStart) entryStart = now;
+    var el = now - entryStart, done = true;
+    for (var n of nodes) {
+      var delay = n.cluster * 400;
+      var t = Math.max(0, Math.min(1, (el - delay) / 900));
+      n.fadeIn = 1 - Math.pow(1 - t, 3);
+      if (t < 1) done = false;
+    }
+    if (done) animatedIn = true;
+  }
+
+  // ── Rendering ───────────────────────────────────────────────────
+
+  function render() {
+    var w=canvas.width, h=canvas.height, d=window.devicePixelRatio||1, now=performance.now();
+    if (!animatedIn) updateFadeIn(now);
+    breathPhase = now * 0.001;
+
+    ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    var cx=w/(2*d), cy=h/(2*d);
+    ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(offsetX, offsetY);
+
+    var breath = 0.93 + 0.07 * Math.sin(breathPhase * 0.5);
+
+    // ── Cluster glow ──
+    for (var ci = 0; ci < 3; ci++) {
+      var cn = nodes.filter(function(n){ return n.cluster===ci; });
+      if (cn.length < 2) continue;
+      var ccx=0, ccy=0;
+      for (var nd of cn) { ccx+=nd.x; ccy+=nd.y; } ccx/=cn.length; ccy/=cn.length;
+      var cc = CLUSTER_COLORS[ci], fade = cn[0].fadeIn;
+      var glR = (ci===2 ? 140 : 130) * breath;
+
+      var g = ctx.createRadialGradient(ccx,ccy,0, ccx,ccy,glR);
+      g.addColorStop(0, 'rgba('+cc.base.join(',')+','+(0.06*fade)+')');
+      g.addColorStop(0.5, 'rgba('+cc.base.join(',')+','+(0.02*fade)+')');
+      g.addColorStop(1, 'rgba('+cc.base.join(',')+',0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ccx,ccy,glR,0,Math.PI*2); ctx.fill();
+
+      // Label
+      ctx.save(); ctx.font='10px system-ui,sans-serif'; ctx.textAlign='center';
+      ctx.fillStyle='rgba('+cc.base.join(',')+','+(0.3*fade)+')';
+      var topY=Infinity; for (var nd of cn) if(nd.y<topY) topY=nd.y;
+      ctx.fillText(cc.label, ccx, topY-26); ctx.restore();
+    }
+
+    // ── Edges ──
+    for (var e of edges) {
+      var a=e.sourceNode, b=e.targetNode;
+      var ea = Math.min(a.fadeIn, b.fadeIn); if (ea<0.05) continue;
+      var dx=b.x-a.x, dy=b.y-a.y, dist=Math.sqrt(dx*dx+dy*dy);
+      var mx=(a.x+b.x)/2+dy*0.07*Math.sin(breathPhase*0.3+dist*0.01);
+      var my=(a.y+b.y)/2-dx*0.07*Math.sin(breathPhase*0.3+dist*0.01);
+
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my,b.x,b.y);
+
+      if (e.type==='contradicts') {
+        // Pulsing red glow for the contradiction
+        var pulse = 0.6 + 0.4 * Math.sin(breathPhase * 1.5);
+        ctx.setLineDash([6,4]);
+        ctx.strokeStyle='rgba(248,113,113,'+(0.4+e.weight*0.4)*ea*pulse+')';
+        ctx.lineWidth=2;
+        ctx.shadowColor='rgba(248,113,113,'+(0.5*pulse)+')';
+        ctx.shadowBlur=12;
+      } else if (e.type==='similarity') {
+        ctx.setLineDash([3,5]);
+        ctx.strokeStyle='rgba(148,163,184,'+(0.08+e.weight*0.12)*ea+')';
+        ctx.lineWidth=0.5; ctx.shadowBlur=0;
+      } else {
+        ctx.setLineDash([]);
+        var ecc=CLUSTER_COLORS[a.cluster]||CLUSTER_COLORS[0];
+        ctx.strokeStyle='rgba('+ecc.base.join(',')+','+(0.12+e.weight*0.2)*ea+')';
+        ctx.lineWidth=0.7;
+        ctx.shadowColor='rgba('+ecc.base.join(',')+',0.1)'; ctx.shadowBlur=3;
+      }
+      ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0;
+    }
+
+    // ── Nodes ──
+    for (var n of nodes) {
+      if (n.fadeIn<0.02) continue;
+      var cc=CLUSTER_COLORS[n.cluster]||CLUSTER_COLORS[0];
+      var bR=cc.base[0],bG=cc.base[1],bB=cc.base[2];
+      var isIns=n.kind==='insight', isH=(hoveredNode===n);
+      if (isIns) { bR=52; bG=211; bB=153; }
+
+      var nb = 0.92+0.08*Math.sin(breathPhase*0.7+n.pulsePhase);
+      var cr = (3+n.importance*5)*nb;
+      ctx.globalAlpha = n.fadeIn;
+
+      // Particle cloud
+      var sp = isH ? 1.3 : 1.0;
+      for (var p of n.cloudParticles) {
+        var px=n.x+(p.ox*sp+Math.sin(breathPhase*p.speed+p.drift)*1.5)*breath;
+        var py=n.y+(p.oy*sp+Math.cos(breathPhase*p.speed+p.drift)*1.5)*breath;
+        var pa=p.alpha*n.fadeIn*(isH?1.1:0.65)*nb;
+        ctx.beginPath(); ctx.arc(px,py,p.size*breath,0,Math.PI*2);
+        ctx.fillStyle='rgba('+bR+','+bG+','+bB+','+Math.min(pa,0.6)+')'; ctx.fill();
+      }
+
+      // Core glow
+      var glR=cr*(isH?3.5:2.5);
+      var cg=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,glR);
+      cg.addColorStop(0,'rgba('+bR+','+bG+','+bB+','+(isH?0.4:0.22)*n.fadeIn+')');
+      cg.addColorStop(0.5,'rgba('+bR+','+bG+','+bB+','+(isH?0.1:0.05)*n.fadeIn+')');
+      cg.addColorStop(1,'rgba('+bR+','+bG+','+bB+',0)');
+      ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(n.x,n.y,glR,0,Math.PI*2); ctx.fill();
+
+      // Core
+      ctx.beginPath(); ctx.arc(n.x,n.y,cr,0,Math.PI*2);
+      ctx.fillStyle='rgba('+bR+','+bG+','+bB+','+(0.7+n.reinforcement*0.3)*n.fadeIn+')';
+      ctx.shadowColor='rgba('+bR+','+bG+','+bB+',0.45)';
+      ctx.shadowBlur=isH?14:5; ctx.fill(); ctx.shadowBlur=0;
+
+      // Hover label
+      if (isH && n.label) {
+        ctx.font='11px system-ui,sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle='#E2E8F0'; ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
+        ctx.fillText(n.label, n.x, n.y-cr-10); ctx.shadowBlur=0;
+      }
+    }
+    ctx.globalAlpha=1; ctx.restore();
+    renderTooltip();
+  }
+
+  function renderTooltip() {
+    if (!hoveredNode) { tooltip.classList.add('hidden'); return; }
+    var n=hoveredNode;
+    var kc = n.kind==='insight'?'#34D399':'#FBBF24';
+    var kb = n.kind==='insight'?'rgba(52,211,153,0.15)':'rgba(251,191,36,0.15)';
+    var kl = n.kind==='insight'?'INSIGHT':'EPISODE';
+    var fileTag = n.file!=='insight' ? '<div style="color:#64748B;font-size:10px;margin-top:4px;font-family:monospace;">'+n.file+'</div>' : '';
+    tooltip.innerHTML = '<span style="display:inline-block;background:'+kb+';color:'+kc+';border-radius:4px;padding:1px 6px;margin-right:6px;font-size:10px;font-weight:600;">'+kl+'</span><span style="color:#E2E8F0;">'+n.label+'</span>'+fileTag;
+    tooltip.classList.remove('hidden');
+    var sp=worldToScreen(n.x,n.y), tx=sp.x+15, ty=sp.y-10;
+    var cr=canvas.parentElement.getBoundingClientRect();
+    if(tx+tooltip.offsetWidth>cr.width-8) tx=sp.x-tooltip.offsetWidth-10;
+    if(ty<8) ty=8;
+    tooltip.style.left=tx+'px'; tooltip.style.top=ty+'px';
+  }
+
+  // ── Loop ────────────────────────────────────────────────────────
+
+  function tick() {
+    if (!isVisible) { rafId=null; return; }
+    if (running && alpha>alphaMin) { simulate(); alpha=Math.max(alpha-alphaDecay,0); }
+    render(); rafId=requestAnimationFrame(tick);
+  }
+  function startLoop() { if(rafId) return; rafId=requestAnimationFrame(tick); }
+  var obs=new IntersectionObserver(function(es) {
+    for(var e of es) { isVisible=e.isIntersecting; if(isVisible) startLoop(); }
+  },{threshold:0.1});
+
+  // ── Events ──────────────────────────────────────────────────────
+
+  canvas.addEventListener('mousemove',function(e){
+    var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    if(isPanning){ offsetX+=(mx-lastMouse.x)/scale; offsetY+=(my-lastMouse.y)/scale; lastMouse={x:mx,y:my}; return; }
+    var nd=findNodeAt(mx,my); if(nd!==hoveredNode){ hoveredNode=nd; canvas.style.cursor=nd?'pointer':'grab'; }
+  });
+  canvas.addEventListener('mousedown',function(e){
+    var r=canvas.getBoundingClientRect(); isPanning=true; lastMouse={x:e.clientX-r.left,y:e.clientY-r.top};
+    canvas.style.cursor='grabbing'; dismissHint();
+  });
+  canvas.addEventListener('mouseup',function(){ isPanning=false; canvas.style.cursor=hoveredNode?'pointer':'grab'; });
+  canvas.addEventListener('mouseleave',function(){ hoveredNode=null; isPanning=false; tooltip.classList.add('hidden'); });
+  canvas.addEventListener('wheel',function(e){
+    e.preventDefault(); var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    var zf=e.deltaY>0?0.9:1.1, ns=Math.max(0.3,Math.min(6,scale*zf));
+    var w=screenToWorld(mx,my); scale=ns; var nw=screenToWorld(mx,my);
+    offsetX+=nw.x-w.x; offsetY+=nw.y-w.y; dismissHint();
+  },{passive:false});
+
+  canvas.addEventListener('touchstart',function(e){
+    e.preventDefault(); dismissHint();
+    if(e.touches.length===1){ isPanning=true; lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY}; }
+    else if(e.touches.length===2){ isPanning=false; var t0=e.touches[0],t1=e.touches[1];
+      lastTouchDist=Math.sqrt((t1.clientX-t0.clientX)**2+(t1.clientY-t0.clientY)**2); }
+  },{passive:false});
+  canvas.addEventListener('touchmove',function(e){
+    e.preventDefault();
+    if(e.touches.length===1&&isPanning){
+      offsetX+=(e.touches[0].clientX-lastMouse.x)/scale; offsetY+=(e.touches[0].clientY-lastMouse.y)/scale;
+      lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    } else if(e.touches.length===2){
+      var t0=e.touches[0],t1=e.touches[1];
+      var dist=Math.sqrt((t1.clientX-t0.clientX)**2+(t1.clientY-t0.clientY)**2);
+      if(lastTouchDist>0){
+        var r=canvas.getBoundingClientRect(), tcx=(t0.clientX+t1.clientX)/2-r.left, tcy=(t0.clientY+t1.clientY)/2-r.top;
+        var w=screenToWorld(tcx,tcy); scale=Math.max(0.3,Math.min(6,scale*(dist/lastTouchDist)));
+        var nw=screenToWorld(tcx,tcy); offsetX+=nw.x-w.x; offsetY+=nw.y-w.y;
+      } lastTouchDist=dist;
+    }
+  },{passive:false});
+  canvas.addEventListener('touchend',function(e){
+    if(!e.touches.length){ isPanning=false; lastTouchDist=0; }
+    else if(e.touches.length===1){ isPanning=true; lastMouse={x:e.touches[0].clientX,y:e.touches[0].clientY}; lastTouchDist=0; }
+  });
+
+  function dismissHint(){ if(hintDismissed) return; hintDismissed=true; hint.style.opacity='0'; setTimeout(function(){hint.style.display='none';},700); }
+  window.addEventListener('resize',function(){ resize(); centerView(); });
+
+  initData(); obs.observe(canvas.parentElement);
+})();
+</script>

@@ -1,0 +1,190 @@
+---
+const scenarios = [
+  {
+    situation: "Why did this deal fail?",
+    thought: "Causal chain, scoped to Acme, importance over recency.",
+    strategy: "causal",
+    weight: "importance: 0.5",
+    scope: "entity: acme",
+    kinds: "episode + insight",
+    color: "text-red",
+    bgColor: "bg-red/[0.06]",
+    borderColor: "border-red/20",
+  },
+  {
+    situation: "Prep me for the follow-up call",
+    thought: "Recent interactions, chronological order, rebuild context.",
+    strategy: "temporal",
+    weight: "recency: 0.6",
+    scope: "entity: acme",
+    kinds: "episode",
+    color: "text-cyan",
+    bgColor: "bg-cyan/[0.06]",
+    borderColor: "border-cyan/20",
+  },
+  {
+    situation: "Handle this pricing objection",
+    thought: "Patterns from similar objections across all accounts.",
+    strategy: "analogical",
+    weight: "reinforcement: 0.5",
+    scope: "all entities",
+    kinds: "insight",
+    color: "text-green",
+    bgColor: "bg-green/[0.06]",
+    borderColor: "border-green/20",
+  },
+  {
+    situation: "What's our SLA with Acme?",
+    thought: "Closest semantic match. One call. Done.",
+    strategy: "similarity",
+    weight: "relevance: 1.0",
+    scope: "all entities",
+    kinds: "episode",
+    color: "text-accent",
+    bgColor: "bg-accent/[0.04]",
+    borderColor: "border-accent/20",
+  },
+];
+
+const parameters = [
+  { name: "strategy", values: "similarity, temporal, causal, analogical", desc: "Which recall path to take" },
+  { name: "scoring_weights", values: "relevance, recency, importance, reinforcement", desc: "Blend four signals into one score" },
+  { name: "entity_id", values: "any string or null", desc: "Scope to one entity or search globally" },
+  { name: "memory_kinds", values: "episode, insight, or both", desc: "Filter by memory type" },
+  { name: "top_k", values: "1 to N", desc: "How many results to return" },
+  { name: "time_range", values: "start, end timestamps", desc: "Restrict to a time window" },
+  { name: "scope", values: "project, global, or all", desc: "Search one vault or across vaults" },
+  { name: "min_score", values: "0.0 to 1.0", desc: "Minimum relevance threshold" },
+];
+---
+
+<section class="py-20 md:py-32 border-t border-border/50">
+  <div class="mx-auto max-w-6xl px-6">
+
+    <!-- ── Beat 1: The Insight ── -->
+    <div class="text-center mb-6">
+      <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">The design decision</p>
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-6">
+        Your agent is already smarter than your memory system.<br class="hidden md:block" />
+        Let it act like it.
+      </h2>
+    </div>
+
+    <div class="max-w-3xl mx-auto mb-16 md:mb-20">
+      <div class="rounded-xl border border-accent/20 bg-accent/[0.03] px-6 py-5 md:px-8 md:py-6">
+        <p class="text-muted text-base md:text-lg leading-relaxed mb-4">
+          Every memory system tries to be smarter than your agent at retrieval. They hardcode one strategy, optimize for one benchmark, and ship it as a black box.
+        </p>
+        <p class="text-muted text-base md:text-lg leading-relaxed mb-4">
+          Your agent gets smarter every quarter. Your infrastructure doesn't. Every hardcoded decision becomes a constraint the moment the agent outgrows it.
+        </p>
+        <p class="text-text text-base md:text-lg leading-relaxed font-medium">
+          HEBBS doesn't compete with your agent. It arms your agent. Four recall strategies, four scoring dimensions, full parameter control on every call. The agent decides how to retrieve because it already understands the query.
+        </p>
+      </div>
+    </div>
+
+    <!-- ── Beat 2: Four Queries, Four Decisions ── -->
+    <div class="text-center mb-8">
+      <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2">
+        Same agent. Same memories. Four different retrievals.
+      </h3>
+      <p class="text-sm text-muted">Each card is one query. Watch the parameters change.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-5 mb-16 md:mb-20">
+      {scenarios.map((s) => (
+        <div class={`rounded-xl border ${s.borderColor} ${s.bgColor} p-5 md:p-6 flex flex-col`}>
+          <!-- Situation -->
+          <p class={`text-sm font-semibold ${s.color} mb-1.5`}>{s.situation}</p>
+          <!-- Agent thought -->
+          <p class="text-sm text-muted italic mb-5 leading-relaxed">"{s.thought}"</p>
+          <!-- Parameter chips -->
+          <div class="mt-auto flex flex-wrap gap-2">
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">strategy</span>
+              <span class={`font-semibold ${s.color}`}>{s.strategy}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">weight</span>
+              <span class={`font-semibold ${s.color}`}>{s.weight}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">scope</span>
+              <span class="text-text-secondary">{s.scope}</span>
+            </span>
+            <span class={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-mono border ${s.borderColor} bg-bg/40`}>
+              <span class="text-muted">kinds</span>
+              <span class="text-text-secondary">{s.kinds}</span>
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- ── The Result ── -->
+    <div class="rounded-xl border border-accent/20 bg-accent/[0.03] p-6 md:p-8 mb-16 md:mb-20">
+      <div class="flex flex-col md:flex-row md:items-center gap-6 md:gap-10">
+        <!-- Before/After -->
+        <div class="flex items-center gap-4 md:gap-6">
+          <div class="text-center">
+            <p class="text-xs font-mono text-muted uppercase tracking-wider mb-1">Before</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-red">75%</p>
+            <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
+          </div>
+          <svg class="w-6 h-6 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+          <div class="text-center">
+            <p class="text-xs font-mono text-green uppercase tracking-wider mb-1">After</p>
+            <p class="text-3xl md:text-4xl font-bold font-mono text-green">94%</p>
+            <p class="text-[10px] text-muted mt-0.5">recall accuracy</p>
+          </div>
+        </div>
+        <!-- Story -->
+        <div class="flex-1 border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-8">
+          <p class="text-sm text-text leading-relaxed mb-2">
+            Strict keyword matching against top-5 results. No fuzzy matching, no semantic similarity, no partial credit. A keyword is either present in the returned content or it's missed.
+          </p>
+          <p class="text-sm text-text leading-relaxed mb-2">
+            52 legal documents indexed. One command. The agent generated domain-specific evals, diagnosed retrieval failures, tuned strategy and weights per query type, and stored the learned configuration.
+          </p>
+          <p class="text-sm text-text font-medium leading-relaxed">
+            <strong class="text-green">75% to 94% recall accuracy. 60 seconds. Ships with enterprise HEBBS.</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Beat 3: Full Parameter Surface (reference, not pitch) ── -->
+    <div class="rounded-xl border border-border bg-surface/40 overflow-hidden">
+      <div class="px-6 py-4 border-b border-border/60">
+        <p class="text-sm font-medium text-text">Every parameter the agent used above. All exposed.</p>
+        <p class="text-xs text-muted mt-0.5">CLI, Python SDK, TypeScript SDK, gRPC, and REST.</p>
+      </div>
+      <div class="grid sm:grid-cols-2 divide-y sm:divide-y-0 divide-border/40">
+        <div class="divide-y divide-border/40">
+          {parameters.slice(0, 4).map((p) => (
+            <div class="px-6 py-3 flex flex-col gap-0.5">
+              <div class="flex items-baseline gap-2">
+                <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
+                <span class="text-[11px] text-muted/60">{p.values}</span>
+              </div>
+              <p class="text-xs text-muted">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div class="divide-y divide-border/40 sm:border-l sm:border-border/40">
+          {parameters.slice(4).map((p) => (
+            <div class="px-6 py-3 flex flex-col gap-0.5">
+              <div class="flex items-baseline gap-2">
+                <code class="font-mono text-sm text-cyan font-medium">{p.name}</code>
+                <span class="text-[11px] text-muted/60">{p.values}</span>
+              </div>
+              <p class="text-xs text-muted">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>

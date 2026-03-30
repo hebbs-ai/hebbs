@@ -1,18 +1,18 @@
 ---
 const modes = [
   {
-    label: "Standalone Server",
-    analogy: "The Redis model",
-    desc: "One binary. Instant startup. gRPC + HTTP. Deploy anywhere.",
-    code: `hebbs-server --port 6380 --data ./hebbs-data`,
+    label: "Local Vault",
+    analogy: "The Git model",
+    desc: "One binary. Initialize in any directory. Your markdown files become searchable memories. A background daemon shares the model across all vaults.",
+    code: `hebbs init\nhebbs index\nhebbs recall "auth token rotation"\nhebbs panel    # open Memory Palace`,
     lang: "bash",
   },
   {
-    label: "Embedded Library",
-    analogy: "The SQLite model",
-    desc: "No separate process. Link directly into your application.",
-    code: `from hebbs import Hebbs\n\ne = Hebbs.open("./agent-memory")\ne.remember(...)`,
-    lang: "python",
+    label: "Standalone Server",
+    analogy: "The Redis model",
+    desc: "Multi-tenant gRPC + HTTP server for production agent fleets. Connect from Python, TypeScript, or the CLI.",
+    code: `hebbs-server --port 6380 --data ./hebbs-data`,
+    lang: "bash",
   },
   {
     label: "Edge Mode",
@@ -22,32 +22,20 @@ const modes = [
     lang: "toml",
   },
 ];
-
-const comparison = [
-  { dimension: "Target", edge: "Robots, laptops, workstations", cloud: "Multi-tenant agent fleets" },
-  { dimension: "Storage", edge: "RocksDB (same engine)", cloud: "Sharded RocksDB" },
-  { dimension: "Vector Index", edge: "Full HNSW, memory-mapped", cloud: "Distributed HNSW, tiered storage" },
-  { dimension: "Embedding", edge: "ONNX on GPU / NPU / Neural Engine", cloud: "GPU-batched inference" },
-  { dimension: "Reflect", edge: "Local LLM (Phi-3, Gemma)", cloud: "Dedicated GPU fleet" },
-  { dimension: "Offline", edge: "Full autonomous operation", cloud: "N/A" },
-  { dimension: "Sync", edge: "Append-only push/pull with hub", cloud: "Central hub for fleet coordination" },
-  { dimension: "Memory Cap", edge: "1–10M (local NVMe)", cloud: "Unlimited (tiered HOT/WARM/COLD)" },
-];
 ---
 
 <section class="py-20 md:py-32 border-t border-border/50">
   <div class="mx-auto max-w-6xl px-6">
     <div class="text-center mb-16">
       <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-        Same API. Server, embedded, or edge.
+        Same engine. Local, server, or edge.
       </h2>
       <p class="text-muted text-lg">
-        One engine. Three deployment modes. Fleet sync built in.
+        One binary. Three deployment modes. The cognitive engine is identical everywhere.
       </p>
     </div>
 
-    <!-- Three deployment mode cards -->
-    <div class="grid md:grid-cols-3 gap-6 mb-16">
+    <div class="grid md:grid-cols-3 gap-6">
       {modes.map((mode) => (
         <div class="rounded-xl border border-border bg-surface/40 p-6 flex flex-col">
           <div class="mb-4">
@@ -60,54 +48,6 @@ const comparison = [
           </div>
         </div>
       ))}
-    </div>
-
-    <!-- Fleet sync callout -->
-    <div class="rounded-xl border border-accent/20 bg-accent/[0.03] p-6 md:p-8 mb-16">
-      <div class="flex flex-col md:flex-row md:items-start gap-6">
-        <div class="flex-1">
-          <h3 class="font-mono text-xs uppercase tracking-wider text-accent mb-3">Fleet Sync</h3>
-          <p class="text-text font-medium mb-3">
-            Edge nodes sync with a cloud hub. Memories are append-only. Insights propagate across the fleet.
-          </p>
-          <p class="text-sm text-muted leading-relaxed">
-            Every edge device runs the full engine autonomously. Offline-first, no degradation.
-            When connectivity returns, memories sync via append-only replication.
-            Conflict resolution for revise and forget is deterministic. The fleet learns together.
-          </p>
-        </div>
-        <div class="md:w-80 rounded-lg bg-bg border border-border p-4 font-mono text-xs text-muted leading-relaxed overflow-x-auto shrink-0">
-          <pre class="whitespace-pre"><span class="text-accent">Edge A</span>  ──push──▶  <span class="text-cyan">Cloud Hub</span>  ◀──push──  <span class="text-accent">Edge B</span>
-                       │
-                  ◀──pull──┘
-                       │
-                  ◀──pull──┘
-
-<span class="text-muted">Append-only memories + deterministic conflict resolution</span></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- Edge vs Cloud comparison table -->
-    <div class="rounded-xl border border-border bg-surface/40 overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-border">
-            <th class="text-left text-muted font-normal py-4 px-6 min-w-[140px]"></th>
-            <th class="text-left font-mono text-xs text-accent font-medium py-4 px-6 min-w-[200px]">HEBBS Edge</th>
-            <th class="text-left font-mono text-xs text-cyan font-medium py-4 px-6 min-w-[200px]">HEBBS Cloud</th>
-          </tr>
-        </thead>
-        <tbody>
-          {comparison.map((row) => (
-            <tr class="border-b border-border/50">
-              <td class="py-3 px-6 text-muted text-sm">{row.dimension}</td>
-              <td class="py-3 px-6 text-text text-sm">{row.edge}</td>
-              <td class="py-3 px-6 text-text text-sm">{row.cloud}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   </div>
 </section>

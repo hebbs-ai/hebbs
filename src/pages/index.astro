@@ -2,18 +2,23 @@
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/Nav.astro";
 import Hero from "../components/Hero.astro";
-import WeightClass from "../components/WeightClass.astro";
 import Problem from "../components/Problem.astro";
 import OutOfTheBox from "../components/OutOfTheBox.astro";
+import AgentControl from "../components/AgentControl.astro";
+import Vault from "../components/Vault.astro";
+import MemoryPalaceDemo from "../components/MemoryPalaceDemo.astro";
 import RecallStrategies from "../components/RecallStrategies.astro";
 import Consolidation from "../components/Consolidation.astro";
 import ScoringWeights from "../components/ScoringWeights.astro";
 import Operations from "../components/Operations.astro";
 import Benchmarks from "../components/Benchmarks.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import BrainAnalogy from "../components/BrainAnalogy.astro";
 import Architecture from "../components/Architecture.astro";
 import Comparison from "../components/Comparison.astro";
 import CodeExample from "../components/CodeExample.astro";
 import Deployment from "../components/Deployment.astro";
+import BlogSlider from "../components/BlogSlider.astro";
 import Cta from "../components/Cta.astro";
 import Footer from "../components/Footer.astro";
 ---
@@ -21,20 +26,61 @@ import Footer from "../components/Footer.astro";
 <Layout title="HEBBS - The memory engine for AI agents">
   <Nav />
   <main>
+    <!-- Warm parchment base -->
     <Hero />
-    <WeightClass />
+
+    <!-- Amber band: how it works pipeline -->
+    <div class="band-amber">
+      <div class="section-divider"></div>
+      <HowItWorks />
+      <BrainAnalogy />
+      <OutOfTheBox />
+    </div>
+
+    <!-- Base: agent control + vault -->
+    <div class="section-divider"></div>
+    <AgentControl />
+    <Vault />
+
+    <!-- Dark band: memory palace + recall + blog -->
+    <div class="band-dark">
+      <MemoryPalaceDemo />
+      <BlogSlider />
+      <RecallStrategies />
+    </div>
+
+    <!-- Amber band: consolidation + scoring -->
+    <div class="band-amber">
+      <Consolidation />
+      <ScoringWeights />
+    </div>
+
+    <!-- Dark band: operations + benchmarks -->
+    <div class="band-dark">
+      <Operations />
+      <Benchmarks />
+    </div>
+
+    <!-- Base: problem + comparison -->
+    <div class="section-divider"></div>
     <Problem />
-    <OutOfTheBox />
-    <RecallStrategies />
-    <Consolidation />
-    <ScoringWeights />
-    <Operations />
-    <Benchmarks />
+
+    <!-- Base: architecture + comparison -->
+    <div class="section-divider"></div>
     <Architecture />
     <Comparison />
-    <CodeExample />
-    <Deployment />
-    <Cta />
+
+    <!-- Amber band: code examples + deployment -->
+    <div class="band-amber">
+      <div class="section-divider"></div>
+      <CodeExample />
+      <Deployment />
+    </div>
+
+    <!-- Dark band: CTA -->
+    <div class="band-dark">
+      <Cta />
+    </div>
   </main>
   <Footer />
 </Layout>
