@@ -1,0 +1,81 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base
+  title="HEBBS Research"
+  description="Research at HEBBS: building memory that learns for AI agents."
+>
+  <!-- Hero -->
+  <section class="border-b border-themed">
+    <div class="max-w-5xl mx-auto px-6 py-20 md:py-28">
+      <p class="text-xs font-mono tracking-widest uppercase text-accent mb-6">HEBBS Research</p>
+      <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 max-w-3xl">
+        Building memory that learns.
+      </h1>
+      <p class="text-lg md:text-xl text-themed-muted max-w-2xl">
+        We study how AI agents should store, maintain, and retrieve knowledge over time. Our work draws from neuroscience, information retrieval, and systems engineering.
+      </p>
+    </div>
+  </section>
+
+  <!-- Publications -->
+  <section class="max-w-5xl mx-auto px-6 py-16">
+    <h2 class="text-xs font-mono tracking-widest uppercase text-themed-muted mb-8">Publications</h2>
+
+    <a href="/self-tuning-memory" class="block group">
+      <div class="border border-themed rounded-xl p-6 md:p-8 hover:border-accent transition-colors">
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+          <div>
+            <h3 class="text-xl md:text-2xl font-semibold group-hover:text-accent transition-colors">
+              HEBBS: A Self-Tuning Memory Engine for AI Agents
+            </h3>
+            <p class="text-sm text-themed-muted mt-2">Parag Arora</p>
+          </div>
+          <span class="text-xs font-mono text-themed-muted whitespace-nowrap">March 2026</span>
+        </div>
+        <p class="text-themed-muted text-sm leading-relaxed max-w-3xl">
+          The first memory engine where agents evaluate their own retrieval, tune it per domain, and store strategies as memories. Six neuroscience-grounded maintenance mechanisms. 59% to 88% keyword recall via agent-driven tuning.
+        </p>
+        <div class="flex items-center gap-3 mt-4">
+          <span class="text-xs font-mono px-2 py-1 rounded border border-themed text-themed-muted">Agent Memory</span>
+          <span class="text-xs font-mono px-2 py-1 rounded border border-themed text-themed-muted">Self-Tuning</span>
+          <span class="text-xs font-mono px-2 py-1 rounded border border-themed text-themed-muted">Neuroscience</span>
+        </div>
+      </div>
+    </a>
+  </section>
+
+  <!-- Research Areas -->
+  <section class="border-t border-themed">
+    <div class="max-w-5xl mx-auto px-6 py-16">
+      <h2 class="text-xs font-mono tracking-widest uppercase text-themed-muted mb-8">Research Areas</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <h3 class="font-semibold mb-2">Self-Tuning Retrieval</h3>
+          <p class="text-sm text-themed-muted">Agents evaluate their own recall, tune parameters per domain, and store strategies as memories that strengthen through use.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Contradiction Detection</h3>
+          <p class="text-sm text-themed-muted">LLM-based structured classification into contradiction, revision, or dismiss categories with two-phase commit semantics.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Hebbian Associative Learning</h3>
+          <p class="text-sm text-themed-muted">Dual embeddings per memory with per-edge-type offset vectors enabling temporal, causal, and analogical reasoning.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Portable Cognition</h3>
+          <p class="text-sm text-themed-muted">File-first architecture separating source content from a rebuildable cognition layer. Build once, share everywhere.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Adaptive Decay</h3>
+          <p class="text-sm text-themed-muted">Ebbinghaus-curve forgetting with reinforcement capping. Recalled memories strengthen. Unreinforced memories fade.</p>
+        </div>
+        <div>
+          <h3 class="font-semibold mb-2">Insight Consolidation</h3>
+          <p class="text-sm text-themed-muted">Sleep-like periodic clustering of episodes into scored semantic knowledge with full lineage tracking.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

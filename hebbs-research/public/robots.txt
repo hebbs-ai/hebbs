@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://research.hebbs.ai/sitemap-index.xml
