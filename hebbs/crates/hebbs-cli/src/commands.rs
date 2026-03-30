@@ -254,6 +254,21 @@ pub async fn execute(
             .ok();
             Ok(())
         }
+
+        // These commands are REST-only; if we reach here in gRPC mode, hint the user.
+        Commands::Login { .. }
+        | Commands::Push { .. }
+        | Commands::Workspaces(_)
+        | Commands::Keys(_)
+        | Commands::Dashboard => {
+            writeln!(
+                stdout,
+                "This command requires a remote server connection."
+            )
+            .ok();
+            writeln!(stdout, "Run: hebbs login --endpoint <url>").ok();
+            Ok(())
+        }
     };
 
     let elapsed = start.elapsed();

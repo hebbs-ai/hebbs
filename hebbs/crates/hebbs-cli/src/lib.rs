@@ -1,8 +1,14 @@
 pub mod cli;
+#[cfg(feature = "grpc")]
 pub mod commands;
 pub mod config;
+#[cfg(feature = "grpc")]
 pub mod connection;
 pub mod error;
+#[cfg(feature = "grpc")]
 pub mod format;
+#[cfg(feature = "grpc")]
 pub mod repl;
+#[cfg(feature = "rest")]
+pub mod rest;
 pub mod tokenizer;

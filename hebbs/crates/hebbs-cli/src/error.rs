@@ -32,6 +32,7 @@ impl CliError {
         }
     }
 
+    #[cfg(feature = "grpc")]
     pub fn from_status(status: tonic::Status, endpoint: &str) -> Self {
         match status.code() {
             tonic::Code::Unavailable => Self::ServerUnavailable {

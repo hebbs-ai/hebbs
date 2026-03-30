@@ -321,6 +321,67 @@ pub enum Commands {
 
     /// Print version
     Version,
+
+    /// Login to a remote HEBBS server
+    Login {
+        /// Server endpoint URL
+        #[arg(long)]
+        endpoint: String,
+
+        /// API key (if not provided, prompts or uses HEBBS_API_KEY)
+        #[arg(long, visible_alias = "key")]
+        api_key: Option<String>,
+    },
+
+    /// Upload files to the remote server
+    Push {
+        /// Directory path containing files to upload
+        path: String,
+    },
+
+    /// Manage workspaces on the remote server
+    #[command(subcommand)]
+    Workspaces(WorkspaceCommands),
+
+    /// Manage API keys on the remote server
+    #[command(subcommand)]
+    Keys(KeyCommands),
+
+    /// Open the dashboard in a browser
+    Dashboard,
+}
+
+#[derive(Subcommand)]
+pub enum WorkspaceCommands {
+    /// List all workspaces
+    List,
+    /// Create a new workspace
+    Create {
+        /// Workspace name
+        name: String,
+    },
+    /// Switch active workspace
+    Switch {
+        /// Workspace slug
+        slug: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum KeyCommands {
+    /// List API keys
+    List,
+    /// Create a new API key
+    Create {
+        /// Key label
+        #[arg(default_value = "cli-key")]
+        label: String,
+    },
+    /// Revoke an API key
+    Revoke {
+        /// Key ID
+        id: String,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
