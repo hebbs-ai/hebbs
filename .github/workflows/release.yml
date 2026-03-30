@@ -56,6 +56,7 @@ jobs:
             FEATURES_FLAG="--no-default-features"
           fi
           cargo build --release --target ${{ matrix.target }} -p hebbs-vault $FEATURES_FLAG
+          cargo build --release --target ${{ matrix.target }} -p hebbs-cli
           cargo build --release --target ${{ matrix.target }} -p hebbs-bench $FEATURES_FLAG 2>/dev/null || true
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -63,14 +64,22 @@ jobs:
           CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
       - name: Package
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/hebbs dist/ 2>/dev/null || true
-          cp target/${{ matrix.target }}/release/hebbs-bench dist/ 2>/dev/null || true
-          tar czf ${{ matrix.artifact }}.tar.gz -C dist .
+          # Default tarball: CLI-only (hebbs-cli renamed to hebbs)
+          mkdir -p dist-cli
+          cp target/${{ matrix.target }}/release/hebbs-cli dist-cli/hebbs
+          tar czf ${{ matrix.artifact }}.tar.gz -C dist-cli .
+
+          # Full tarball: engine + bench (for local/standalone use)
+          mkdir -p dist-full
+          cp target/${{ matrix.target }}/release/hebbs dist-full/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/release/hebbs-bench dist-full/ 2>/dev/null || true
+          tar czf ${{ matrix.artifact }}-full.tar.gz -C dist-full .
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}-full.tar.gz
 
   build-docker:
     name: Build & Push Docker Image
