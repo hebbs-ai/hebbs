@@ -529,7 +529,7 @@ async fn exec_push(client: &RestClient, dir_path: &str, w: &mut dyn Write) -> Re
             for entry in entries.flatten() {
                 let p = entry.path();
                 if p.file_name()
-                    .map_or(false, |n| n.to_string_lossy().starts_with('.'))
+                    .is_some_and(|n| n.to_string_lossy().starts_with('.'))
                 {
                     continue;
                 }
