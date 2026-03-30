@@ -3,6 +3,7 @@
 # Usage: curl -sSf https://hebbs.ai/install | sh
 #
 # Flags:
+#   --full              - Install full engine binary (default: CLI-only)
 #   --with-systemd      - Install systemd unit file (Linux only, requires root)
 #
 # Environment variables:
@@ -16,9 +17,11 @@ set -eu
 REPO="${HEBBS_REPO:-hebbs-ai/hebbs}"
 BASE_URL="https://github.com/${REPO}/releases"
 WITH_SYSTEMD=0
+FULL_INSTALL=0
 
 for arg in "$@"; do
     case "$arg" in
+        --full) FULL_INSTALL=1 ;;
         --with-systemd) WITH_SYSTEMD=1 ;;
     esac
 done
@@ -62,11 +65,18 @@ detect_platform() {
     esac
 
     # Map to tarball naming convention from release.yml
+    # Default: CLI-only build. --full: full engine build.
+    if [ "$FULL_INSTALL" = "1" ]; then
+        PREFIX="hebbs"
+    else
+        PREFIX="hebbs-cli"
+    fi
+
     case "${OS_NAME}-${ARCH_NAME}" in
-        linux-x86_64)   ARTIFACT="hebbs-linux-x86_64"   ;;
-        linux-aarch64)  ARTIFACT="hebbs-linux-aarch64"   ;;
-        macos-aarch64)  ARTIFACT="hebbs-macos-arm64"     ;;
-        macos-x86_64)   ARTIFACT="hebbs-macos-x86_64" ;;
+        linux-x86_64)   ARTIFACT="${PREFIX}-linux-x86_64"   ;;
+        linux-aarch64)  ARTIFACT="${PREFIX}-linux-aarch64"   ;;
+        macos-aarch64)  ARTIFACT="${PREFIX}-macos-arm64"     ;;
+        macos-x86_64)   ARTIFACT="${PREFIX}-macos-x86_64" ;;
         *)              die "Unsupported platform: ${OS_NAME}-${ARCH_NAME}" ;;
     esac
 

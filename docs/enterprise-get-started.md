@@ -123,8 +123,11 @@ print(results.text)
 Each developer on your team can install the HEBBS CLI on their laptop:
 
 ```sh
-# macOS / Linux
+# macOS / Linux (CLI only, ~5MB)
 curl -sSf https://hebbs.ai/install | sh
+
+# Or full engine binary (~10MB, includes local mode)
+curl -sSf https://hebbs.ai/install | sh -s -- --full
 ```
 
 Then connect to your server:
@@ -151,7 +154,7 @@ hebbs prime customer-42                # Load all context for an entity
 ## Step 9: Integrate the Python SDK (for your AI agents)
 
 ```sh
-pip install hebbs aiohttp
+pip install hebbs[rest]
 ```
 
 ```python
@@ -179,6 +182,36 @@ async def main():
         print(context.text)
 
 asyncio.run(main())
+```
+
+## Step 9b: Integrate the TypeScript SDK (alternative)
+
+```sh
+npm install @hebbs/sdk
+```
+
+```typescript
+import { HebbsRestClient } from '@hebbs/sdk';
+
+const hb = new HebbsRestClient("http://your-server-ip:8080", {
+  apiKey: "hb_live_sk_your-key-here"
+});
+
+// Store a memory
+await hb.remember("Customer prefers email over phone", {
+  entityId: "customer-42",
+  importance: 0.8
+});
+
+// Search
+const results = await hb.recall("customer contact preference");
+console.log(results.text);
+
+// Load all context for an entity
+const context = await hb.prime("customer-42");
+console.log(context.text);
+
+await hb.close();
 ```
 
 ## Step 10: Add team members
