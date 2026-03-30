@@ -13,6 +13,9 @@ declare -A REMOTES=(
   [hebbs-skill]="git@github.com:hebbs-ai/hebbs-skill.git"
   [hebbs-blog]="git@github.com:hebbs-ai/hebbs-blog.git"
   [homebrew-tap]="git@github.com:hebbs-ai/homebrew-tap.git"
+  [hebbs-enterprise]="git@github.com:hebbs-ai/hebbs-enterprise.git"
+  [hebbs-platform]="git@github.com:hebbs-ai/hebbs-platform.git"
+  [hebbs-dashboard]="git@github.com:hebbs-ai/hebbs-dashboard.git"
 )
 
 for remote in "${!REMOTES[@]}"; do

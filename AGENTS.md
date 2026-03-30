@@ -24,6 +24,9 @@ hebbs-repos/
   hebbs-typescript/            ← TypeScript SDK (public repo, Node.js gRPC client)
   hebbs-website/               ← landing page (public repo, Astro + Tailwind)
   hebbs-blog/                  ← blog (public repo, Astro + Tailwind, GitHub Pages)
+  hebbs-enterprise/            ← enterprise deployment (private repo, Docker)
+  hebbs-platform/              ← platform service (private repo, Node.js)
+  hebbs-dashboard/             ← dashboard UI (private repo, Next.js)
   legal/                       ← IP ownership templates (never committed publicly)
 ```
 
@@ -125,7 +128,7 @@ Every change must propagate across all affected layers: proto → server (gRPC +
 Run the subtree diff check script from `MANAGING_GIT.md` after every push to origin:
 
 ```bash
-for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap; do
+for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap hebbs-enterprise hebbs-platform hebbs-dashboard; do
   t="last-push/$p"
   if git rev-parse "$t" >/dev/null 2>&1; then
     s=$(git diff --shortstat "$t" -- "$p/")

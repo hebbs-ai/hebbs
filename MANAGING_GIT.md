@@ -18,6 +18,9 @@ This repo is your private unified workspace. Daily development happens here, and
 | `hebbs-deploy/` | `hebbs-deploy` | `git@github.com:hebbs-ai/hebbs-deploy.git` |
 | `hebbs-skill/` | `hebbs-skill` | `git@github.com:hebbs-ai/hebbs-skill.git` |
 | `homebrew-tap/` | `homebrew-tap` | `git@github.com:hebbs-ai/homebrew-tap.git` |
+| `hebbs-enterprise/` | `hebbs-enterprise` | `git@github.com:hebbs-ai/hebbs-enterprise.git` |
+| `hebbs-platform/` | `hebbs-platform` | `git@github.com:hebbs-ai/hebbs-platform.git` |
+| `hebbs-dashboard/` | `hebbs-dashboard` | `git@github.com:hebbs-ai/hebbs-dashboard.git` |
 
 `experience-demo/` has no upstream remote and is maintained only in this unified repo unless you add one later.
 
@@ -59,7 +62,7 @@ If the original repo advanced independently:
 ## One-command check: which subtrees changed?
 
 ```bash
-for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap; do
+for p in hebbs hebbs-typescript hebbs-python hebbs-website hebbs-blog hebbs-docs hebbs-deploy hebbs-skill homebrew-tap hebbs-enterprise hebbs-platform hebbs-dashboard; do
   t="last-push/$p"
   if git rev-parse "$t" >/dev/null 2>&1; then
     s=$(git diff --shortstat "$t" -- "$p/")
