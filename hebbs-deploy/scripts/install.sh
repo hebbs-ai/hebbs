@@ -3,6 +3,7 @@
 # Usage: curl -sSf https://hebbs.ai/install | sh
 #
 # Flags:
+#   --full              - Install full engine binary (default: CLI-only for remote server use)
 #   --with-systemd      - Install systemd unit file (Linux only, requires root)
 #
 # Environment variables:
@@ -16,10 +17,12 @@ set -eu
 REPO="${HEBBS_REPO:-hebbs-ai/hebbs}"
 BASE_URL="https://github.com/${REPO}/releases"
 WITH_SYSTEMD=0
+FULL_INSTALL=0
 
 for arg in "$@"; do
     case "$arg" in
         --with-systemd) WITH_SYSTEMD=1 ;;
+        --full) FULL_INSTALL=1 ;;
     esac
 done
 
@@ -69,6 +72,10 @@ detect_platform() {
         macos-x86_64)   ARTIFACT="hebbs-macos-x86_64" ;;
         *)              die "Unsupported platform: ${OS_NAME}-${ARCH_NAME}" ;;
     esac
+
+    if [ "$FULL_INSTALL" = "1" ]; then
+        ARTIFACT="${ARTIFACT}-full"
+    fi
 
     info "Detected platform: ${OS} ${ARCH} → ${ARTIFACT}"
 }
@@ -233,12 +240,23 @@ post_install() {
             ;;
     esac
 
-    echo "  Get started:"
-    echo ""
-    echo "    hebbs init .                            # initialize a vault"
-    echo "    hebbs remember \"hello world\"             # store a memory"
-    echo "    hebbs recall \"hello\"                     # recall it"
-    echo "    hebbs panel                              # open the Memory Palace"
+    if [ "$FULL_INSTALL" = "1" ]; then
+        echo "  Get started (local mode):"
+        echo ""
+        echo "    hebbs init .                            # initialize a vault"
+        echo "    hebbs remember \"hello world\"             # store a memory"
+        echo "    hebbs recall \"hello\"                     # recall it"
+        echo "    hebbs panel                              # open the Memory Palace"
+    else
+        echo "  Get started:"
+        echo ""
+        echo "    hebbs login --endpoint http://server:8080 --api-key <key>"
+        echo "    hebbs recall \"your query\"                # search memories"
+        echo "    hebbs push ./docs                        # upload documents"
+        echo ""
+        echo "  Need the full engine for local mode?"
+        echo "    curl -sSf https://hebbs.ai/install | sh -s -- --full"
+    fi
     echo ""
 }
 

@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hebbs-ai/hebbs
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
           path: hebbs
 
       - name: Set up Docker Buildx
@@ -78,12 +79,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hebbs-ai/hebbs-platform
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
           path: hebbs-platform
 
       - name: Checkout hebbs-dashboard source
         uses: actions/checkout@v4
         with:
           repository: hebbs-ai/hebbs-dashboard
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
           path: hebbs-dashboard
 
       - name: Set up Docker Buildx
