@@ -15,14 +15,14 @@ This is the enterprise version. It works against a remote HEBBS server via the R
 ## Prerequisites
 
 The customer must have:
-1. HEBBS server running (`http://server:8080`)
-2. CLI connected: `hebbs login --endpoint http://server:8080 --api-key hb_live_sk_...`
+1. HEBBS server running (`https://hebbs.customer.com`)
+2. CLI connected: `hebbs login --endpoint https://hebbs.customer.com --api-key hb_live_sk_...`
 3. Documents uploaded and indexed (via dashboard or `hebbs push ./docs`)
 
 Or using the Python SDK:
 ```python
 from hebbs.rest_client import HebbsRestClient
-hb = HebbsRestClient("http://server:8080", api_key="hb_live_sk_...")
+hb = HebbsRestClient("https://hebbs.customer.com", api_key="hb_live_sk_...")
 ```
 
 ---
