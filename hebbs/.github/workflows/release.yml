@@ -234,10 +234,20 @@ jobs:
           curl -sSfL "${BASE_URL}/hebbs-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
           curl -sSfL "${BASE_URL}/hebbs-linux-aarch64.tar.gz" -o linux-aarch64.tar.gz
 
+          curl -sSfL "${BASE_URL}/hebbs-macos-arm64-full.tar.gz" -o macos-arm64-full.tar.gz
+          curl -sSfL "${BASE_URL}/hebbs-macos-x86_64-full.tar.gz" -o macos-x86_64-full.tar.gz
+          curl -sSfL "${BASE_URL}/hebbs-linux-x86_64-full.tar.gz" -o linux-x86_64-full.tar.gz
+          curl -sSfL "${BASE_URL}/hebbs-linux-aarch64-full.tar.gz" -o linux-aarch64-full.tar.gz
+
           echo "sha_macos_arm64=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_macos_x86_64=$(sha256sum macos-x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_linux_x86_64=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "sha_linux_aarch64=$(sha256sum linux-aarch64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+          echo "sha_macos_arm64_full=$(sha256sum macos-arm64-full.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_macos_x86_64_full=$(sha256sum macos-x86_64-full.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_linux_x86_64_full=$(sha256sum linux-x86_64-full.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sha_linux_aarch64_full=$(sha256sum linux-aarch64-full.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
@@ -297,11 +307,56 @@ jobs:
           sed -i "s|SHA_LINUX_X86_64_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_x86_64 }}|g" homebrew-tap/Formula/hebbs.rb
           sed -i "s|SHA_LINUX_AARCH64_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_aarch64 }}|g" homebrew-tap/Formula/hebbs.rb
 
+          cat > homebrew-tap/Formula/hebbs-full.rb << 'FORMULA'
+          class HebbsFull < Formula
+            desc "Cognitive memory engine (full): local vaults, indexing, serve, reflect"
+            homepage "https://hebbs.dev"
+            version "VERSION_PLACEHOLDER"
+            license "BSL-1.1"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "BASE_URL_PLACEHOLDER/hebbs-macos-arm64-full.tar.gz"
+                sha256 "SHA_MACOS_ARM64_FULL_PLACEHOLDER"
+              elsif Hardware::CPU.intel?
+                url "BASE_URL_PLACEHOLDER/hebbs-macos-x86_64-full.tar.gz"
+                sha256 "SHA_MACOS_X86_64_FULL_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.intel?
+                url "BASE_URL_PLACEHOLDER/hebbs-linux-x86_64-full.tar.gz"
+                sha256 "SHA_LINUX_X86_64_FULL_PLACEHOLDER"
+              elsif Hardware::CPU.arm?
+                url "BASE_URL_PLACEHOLDER/hebbs-linux-aarch64-full.tar.gz"
+                sha256 "SHA_LINUX_AARCH64_FULL_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install "hebbs"
+              bin.install "hebbs-bench" if File.exist?("hebbs-bench")
+            end
+
+            test do
+              assert_match "hebbs", shell_output("#{bin}/hebbs --version")
+            end
+          end
+          FORMULA
+
+          sed -i "s|VERSION_PLACEHOLDER|${VERSION}|g" homebrew-tap/Formula/hebbs-full.rb
+          sed -i "s|BASE_URL_PLACEHOLDER|${BASE_URL}|g" homebrew-tap/Formula/hebbs-full.rb
+          sed -i "s|SHA_MACOS_ARM64_FULL_PLACEHOLDER|${{ steps.checksums.outputs.sha_macos_arm64_full }}|g" homebrew-tap/Formula/hebbs-full.rb
+          sed -i "s|SHA_MACOS_X86_64_FULL_PLACEHOLDER|${{ steps.checksums.outputs.sha_macos_x86_64_full }}|g" homebrew-tap/Formula/hebbs-full.rb
+          sed -i "s|SHA_LINUX_X86_64_FULL_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_x86_64_full }}|g" homebrew-tap/Formula/hebbs-full.rb
+          sed -i "s|SHA_LINUX_AARCH64_FULL_PLACEHOLDER|${{ steps.checksums.outputs.sha_linux_aarch64_full }}|g" homebrew-tap/Formula/hebbs-full.rb
+
       - name: Commit and push formula
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/hebbs.rb
+          git add Formula/hebbs.rb Formula/hebbs-full.rb
           git commit -m "hebbs ${{ steps.version.outputs.version }}"
           git push
