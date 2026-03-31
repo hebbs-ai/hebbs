@@ -184,7 +184,7 @@ hebbs-demo interactive --config local
 hebbs-demo interactive --mock-llm
 
 # Custom entity name
-hebbs-demo interactive --config gemini-vertex --entity acme_corp
+hebbs-demo interactive --config gemini-vertex --entity-id acme_corp
 ```
 
 ### In-Session Commands

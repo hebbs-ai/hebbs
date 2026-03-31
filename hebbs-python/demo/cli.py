@@ -110,16 +110,18 @@ def main():
     default="verbose", help="Display verbosity level",
 )
 @click.option("--mock-llm", is_flag=True, help="Use mock LLM (no API keys needed)")
-@click.option("--entity", default="prospect", help="Entity ID for the conversation")
-def interactive(config_path: str | None, verbosity: str, mock_llm: bool, entity: str):
+@click.option("--entity-id", default="prospect", help="Entity ID for the conversation")
+def interactive(config_path: str | None, verbosity: str, mock_llm: bool, entity_id: str):
     """Start an interactive conversation with the AI sales agent."""
-    asyncio.run(_interactive_async(config_path, verbosity, mock_llm, entity))
+    asyncio.run(_interactive_async(config_path, verbosity, mock_llm, entity_id))
 
 
 async def _interactive_async(
-    config_path: str | None, verbosity: str, mock_llm: bool, entity: str,
+    config_path: str | None, verbosity: str, mock_llm: bool, entity_id: str,
 ):
     from demo.agent import SalesAgent
+
+    entity = entity_id  # short alias for internal use
 
     cfg = _resolve_config(config_path)
     warnings = cfg.validate()

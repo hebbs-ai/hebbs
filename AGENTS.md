@@ -95,6 +95,15 @@ Every code change must comply with the guiding principles. The most commonly rel
 - **No band-aid fixes.** If a design is structurally flawed, fix the design. Do not add workarounds that rely on every call site remembering to do the right thing. Make the wrong thing impossible, not just unlikely.
 - **Every resource with a system lock must have a clear, single owner.** If multiple components need access, the owner lends via Arc (for request-scoped access) or Weak (for background workers). The owner's Drop must release the lock.
 
+### Naming Consistency
+
+- **Before introducing any new variable, field, flag, or parameter, search the codebase to verify it does not already exist under a different name.** Reuse the existing name exactly. Inconsistent naming across CLI, SDK, REST API, and frontmatter is a bug.
+- **Canonical naming by surface:**
+  - Rust / Python / REST API / YAML frontmatter: `snake_case` (e.g., `entity_id`)
+  - CLI flags: `kebab-case` (e.g., `--entity-id`). Clap auto-converts from the Rust field name.
+  - TypeScript / JavaScript: `camelCase` (e.g., `entityId`)
+- **All surfaces must refer to the same concept with the same root name.** `entity_id` in Rust, `--entity-id` in CLI, `entityId` in TypeScript, `entity_id` in frontmatter. Never `--entity` when the field is `entity_id`.
+
 ### Rust Conventions
 
 - All I/O-bound operations are `async`.

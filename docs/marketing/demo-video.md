@@ -9,7 +9,7 @@ Screen recording with voiceover. Dark terminal, large font. Let every panel rend
 **TYPE:**
 
 ```
-hebbs-demo interactive --config gemini-vertex --entity acme_corp --verbosity verbose
+hebbs-demo interactive --config gemini-vertex --entity-id acme_corp --verbosity verbose
 ```
 
 **SPEAK (while it loads):**

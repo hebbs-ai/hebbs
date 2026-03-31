@@ -241,7 +241,7 @@ hebbs-demo interactive --mock-llm              # Mock LLM (no API key)
 Switch entities mid-session to demonstrate multitenancy:
 
 ```bash
-hebbs-demo interactive --entity acme_corp
+hebbs-demo interactive --entity-id acme_corp
 # In-session: /session techflow_inc
 ```
 
