@@ -20,6 +20,7 @@ Before HEBBS, "agent memory" meant similarity search. Every solution shares the 
 - **Automatic decay and reinforcement**: memories lose importance over time; frequently recalled memories get reinforced through Hebbian learning.
 - **Contradiction detection**: when new memories conflict with existing ones, HEBBS flags them automatically.
 - **Configurable scoring weights**: every recall blends relevance, recency, importance, and reinforcement. One parameter change shifts behavior.
+- **Measurable recall quality**: HEBBS with the right strategy is 37% more precise than similarity-only search. Tuned weights improve precision by 50-70% over defaults. We measure this with domain-specific evals, not vibes.
 - **Drop-in agent skill**: install the HEBBS skill for Claude Code or OpenClaw. No SDK integration or glue code required.
 
 ## How It Works

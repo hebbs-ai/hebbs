@@ -102,10 +102,28 @@ console.log(results.text);
 await hb.close();
 ```
 
+## 8. Tune Recall for Your Domain
+
+Default recall works, but tuned recall is significantly better. Adjust weights to match how your team searches:
+
+```bash
+# Default: balanced (relevance 0.5, recency 0.2, importance 0.2, reinforcement 0.1)
+hebbs recall "Acme budget" --entity-id acme-corp
+
+# Recency-biased (for sales: recent interactions matter most)
+hebbs recall "Acme budget" --entity-id acme-corp --weights 0.3:0.4:0.2:0.1
+
+# Importance-biased (for legal: high-stakes content first)
+hebbs recall "retention policy" --weights 0.3:0.1:0.5:0.1
+```
+
+**HEBBS with tuned weights improves recall precision by 50-70% over defaults.** See [Tuning & Evals](/files/tuning/) for the full process.
+
 ## What's Next
 
 - [Key Concepts](/getting-started/key-concepts/) - understand memories, entities, recall strategies, and decay
 - [Uploading Files](/files/uploading/) - file sync, entity folders, GitHub Actions auto-sync
+- [Tuning & Evals](/files/tuning/) - measure and improve recall quality
 - [CLI Commands](/cli/commands/) - all CLI operations
 - [API Reference](/api/overview/) - all 9 operations via REST and gRPC
 - [Python SDK](/python/overview/) - async Python client

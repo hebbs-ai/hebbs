@@ -67,6 +67,10 @@ localStorage.setItem('starlight-theme', 'dark');`,
               label: "Uploading Files",
               slug: "files/uploading",
             },
+            {
+              label: "Tuning & Evals",
+              slug: "files/tuning",
+            },
           ],
         },
         {

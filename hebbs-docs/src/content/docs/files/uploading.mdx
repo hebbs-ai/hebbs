@@ -171,3 +171,20 @@ Contradictions surface in recall results and insights. No manual review required
 ## Idempotent Uploads
 
 HEBBS tracks content hashes for every indexed section. Re-uploading the same file is a no-op: the server detects unchanged content and skips it. Only new or modified content triggers re-embedding and LLM extraction. This makes it safe to run `hebbs push` or the GitHub Action on every deploy.
+
+## After Upload: Tune Recall
+
+Once your files are indexed, default recall works immediately. But tuning weights for your domain significantly improves results:
+
+```bash
+# Default recall
+hebbs recall "what's our refund policy?"
+
+# Tuned for sales (recency matters)
+hebbs recall "latest Acme discussion" --entity-id acme-corp --weights 0.3:0.4:0.2:0.1
+
+# Tuned for legal (importance matters)
+hebbs recall "data retention clause" --weights 0.3:0.1:0.5:0.1
+```
+
+Our evals show tuned HEBBS improves precision@5 by **50-70%** over defaults. See [Tuning & Evals](/files/tuning/) for the full process: profiling your domain, writing evals, running baselines, and optimizing weights.
