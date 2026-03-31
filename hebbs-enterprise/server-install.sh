@@ -172,7 +172,7 @@ docker compose up -d
 
 info "Waiting for HEBBS to become healthy..."
 
-HEALTH_URL="http://localhost:${PORT}/health"
+HEALTH_URL="http://localhost:${PORT}/v1/system/health"
 TIMEOUT=120
 elapsed=0
 
