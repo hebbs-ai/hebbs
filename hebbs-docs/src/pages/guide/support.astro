@@ -1,0 +1,389 @@
+---
+// Customer Support vertical guide — docs.hebbs.ai/guide/support
+---
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Support Memory Engine &mdash; HEBBS Guide</title>
+  <meta name="description" content="Give your support team real memory. Ticket history, KB articles, runbooks, and self-improving resolution patterns in one engine." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+    body { background: #0a0a0b; color: #d4d4d8; font-family: "Inter", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    ::selection { background: rgba(245, 158, 11, 0.3); }
+    .stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 80px 24px; scroll-snap-align: start; position: relative; overflow: hidden; }
+    .stage-inner { max-width: 900px; width: 100%; }
+    .stage-num { font-family: "JetBrains Mono", monospace; font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 12px; opacity: 0.7; }
+    h2 { font-family: "Space Grotesk", sans-serif; font-size: clamp(28px, 5vw, 44px); font-weight: 700; color: #ededef; letter-spacing: -0.5px; line-height: 1.15; margin-bottom: 16px; }
+    .subtitle { font-size: 17px; color: #8a8a8e; line-height: 1.6; max-width: 600px; margin-bottom: 32px; }
+    .terminal { background: #141415; border: 1px solid #1e1e20; border-radius: 12px; overflow: hidden; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.7; }
+    .terminal-bar { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid #1e1e20; }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.r { background: rgba(239,68,68,0.5); }
+    .terminal-dot.y { background: rgba(245,158,11,0.5); }
+    .terminal-dot.g { background: rgba(34,197,94,0.4); }
+    .terminal-title { margin-left: 8px; font-size: 11px; color: #3f3f46; }
+    .terminal-body { padding: 20px 24px; overflow-x: auto; }
+    .terminal-body pre { white-space: pre; }
+    .t-prompt { color: #f59e0b; } .t-cmd { color: #ededef; } .t-flag { color: #67e8f9; }
+    .t-str { color: #34d399; } .t-out { color: #8a8a8e; } .t-num { color: #f59e0b; }
+    .t-dim { color: #3f3f46; } .t-pass { color: #34d399; } .t-fail { color: #f87171; } .t-warn { color: #fbbf24; }
+    .folder-tree { background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.8; }
+    .folder-tree .dir { color: #67e8f9; } .folder-tree .file { color: #8a8a8e; } .folder-tree .comment { color: #3f3f46; } .folder-tree .entity-tag { color: #f59e0b; }
+    .copy-btn { position: absolute; top: 12px; right: 12px; background: #1e1e20; border: 1px solid #3f3f46; border-radius: 6px; padding: 4px 10px; font-family: "JetBrains Mono", monospace; font-size: 10px; color: #8a8a8e; cursor: pointer; transition: all 0.2s; }
+    .copy-btn:hover { color: #ededef; border-color: #8a8a8e; }
+    .guide-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; display: flex; align-items: center; gap: 4px; padding: 12px 24px; background: rgba(10, 10, 11, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e20; }
+    .guide-nav a { font-family: "JetBrains Mono", monospace; font-size: 12px; color: #8a8a8e; text-decoration: none; padding: 6px 14px; border-radius: 6px; transition: all 0.2s; }
+    .guide-nav a:hover { color: #d4d4d8; background: rgba(255,255,255,0.04); }
+    .guide-nav a.active { color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .guide-nav .nav-back { color: #3f3f46; margin-right: 12px; padding-right: 16px; border-right: 1px solid #1e1e20; }
+    .guide-nav .nav-back:hover { color: #8a8a8e; }
+    .nav-dots { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 100; }
+    .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: #1e1e20; border: none; cursor: pointer; transition: all 0.3s; padding: 0; }
+    .nav-dot.active { background: #f59e0b; transform: scale(1.3); }
+    .nav-dot:hover { background: #3f3f46; }
+    .cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+    .cta-primary { background: #f59e0b; color: #0a0a0b; } .cta-primary:hover { background: #fbbf24; }
+    .cta-secondary { border: 1px solid #1e1e20; color: #8a8a8e; } .cta-secondary:hover { border-color: #3f3f46; color: #d4d4d8; }
+    .fade-up { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+    .workflow-step { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
+    .workflow-num { font-family: "JetBrains Mono", monospace; font-size: 14px; color: #f59e0b; min-width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(245,158,11,0.3); border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+    .workflow-content { flex: 1; }
+    .workflow-content strong { color: #ededef; font-weight: 600; }
+    .workflow-content p { color: #8a8a8e; font-size: 14px; line-height: 1.5; margin-top: 4px; }
+    @media (max-width: 640px) { .stage { padding: 80px 16px 60px; } .terminal-body { padding: 16px; font-size: 11px; } .nav-dots { display: none; } .guide-nav { overflow-x: auto; } }
+  </style>
+</head>
+<body>
+
+  <nav class="guide-nav">
+    <a href="/" class="nav-back">&larr; docs</a>
+    <a href="/guide/">Guide</a>
+    <a href="/guide/crm">CRM</a>
+    <a href="/guide/legal">Legal</a>
+    <a href="/guide/finance">Finance</a>
+    <a href="/guide/support" class="active">Support</a>
+    <a href="/guide/coding">Coding</a>
+  </nav>
+
+  <nav class="nav-dots" id="nav-dots">
+    <button class="nav-dot active" data-stage="0" title="Setup"></button>
+    <button class="nav-dot" data-stage="1" title="Workflow"></button>
+    <button class="nav-dot" data-stage="2" title="Intelligence"></button>
+    <button class="nav-dot" data-stage="3" title="Start"></button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 1: Your Support Workspace                                 -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-0">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Your Workspace</div>
+      <h2>Support Memory Engine</h2>
+      <p class="subtitle">One workspace for the support org. Entities per customer or ticket. Shared knowledge: KB articles, runbooks, product docs.</p>
+
+      <div class="folder-tree">
+        <pre><span class="dir">workspace/</span>
+<span class="dir">  entities/</span>                          <span class="comment">&larr; one folder per customer or ticket</span>
+<span class="dir">    customer-acme/</span>
+<span class="file">      ticket-4821-api-timeout.md</span>    <span class="entity-tag">&rarr; entity_id: "customer-acme"</span>
+<span class="file">      ticket-4956-auth-failure.md</span>   <span class="entity-tag">&rarr; entity_id: "customer-acme"</span>
+<span class="file">      escalation-notes.md</span>           <span class="entity-tag">&rarr; entity_id: "customer-acme"</span>
+<span class="dir">    customer-initech/</span>
+<span class="file">      ticket-5102-data-sync.md</span>     <span class="entity-tag">&rarr; entity_id: "customer-initech"</span>
+<span class="dir">  kb-articles/</span>                        <span class="comment">&larr; shared knowledge</span>
+<span class="file">    api-rate-limits.md</span>
+<span class="file">    authentication-guide.md</span>
+<span class="file">    migration-checklist.md</span>
+<span class="dir">  runbooks/</span>
+<span class="file">    escalation-procedures.md</span>
+<span class="file">    database-recovery.md</span>
+<span class="dir">  product-docs/</span>
+<span class="file">    api-reference.md</span>
+<span class="file">    changelog.md</span>
+<span class="dir">  past-resolutions/</span>
+<span class="file">    timeout-patterns.md</span>
+<span class="file">    auth-failure-common-causes.md</span></pre>
+      </div>
+
+      <p style="margin-top: 20px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        <strong style="color: #ededef;">Why one workspace?</strong> When an agent asks "brief me on Acme," prime needs to search ticket history AND KB articles AND runbooks AND past resolutions in a single query. Separate workspaces can't cross-reference. Entities give you per-customer isolation while keeping everything queryable together.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 2: Daily Workflow                                         -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-1">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Daily Workflow</div>
+      <h2>From ticket to resolution</h2>
+      <p class="subtitle">Save tickets, log via CLI, or wire up SDK webhooks. Every interaction becomes memory.</p>
+
+      <div class="workflow-step">
+        <div class="workflow-num">1</div>
+        <div class="workflow-content">
+          <strong>New ticket comes in</strong>
+          <p>Save to the entity folder or log via CLI/SDK.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">new ticket</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">mkdir entities/customer-acme</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vim entities/customer-acme/ticket-4821-api-timeout.md</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+<span class="t-pass">  &#10003; 1 new file &middot; entity: customer-acme</span></pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">2</div>
+        <div class="workflow-content">
+          <strong>Prep with prime</strong>
+          <p>Prime loads this customer's full ticket history, similar resolved tickets, and relevant KB articles in one shot.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">customer briefing</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs prime</span> <span class="t-flag">--entity-id</span> <span class="t-str">customer-acme</span>
+
+<span class="t-out">Entity memory:</span>
+<span class="t-dim">  2026-03-10</span>  Ticket #4821: API timeout during batch import, 50K records
+<span class="t-dim">  2026-03-14</span>  Ticket #4956: Auth failure after password rotation
+<span class="t-dim">  2026-03-22</span>  Escalation: Acme threatened churn over recurring timeouts
+
+<span class="t-out">Similar resolved tickets:</span>
+<span class="t-str">  past-resolutions/timeout-patterns.md</span>     80% caused by missing retry jitter
+<span class="t-str">  past-resolutions/auth-failure-common-causes.md</span>  Token cache invalidation fix
+
+<span class="t-out">Relevant KB articles:</span>
+<span class="t-str">  kb-articles/api-rate-limits.md</span>           Rate limit tiers and batch guidance
+<span class="t-str">  kb-articles/authentication-guide.md</span>      Token refresh and rotation procedures
+<span class="t-str">  runbooks/escalation-procedures.md</span>        Churn-risk escalation path</pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">3</div>
+        <div class="workflow-content">
+          <strong>Log resolution steps</strong>
+          <p>CLI for quick notes during troubleshooting. SDK for automated integrations.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">troubleshooting</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-dim"># Log findings during investigation</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Customer hitting 429 rate limits during batch \
+  import. Increased rate limit to 1000/min temporarily."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">customer-acme</span> <span class="t-flag">--importance</span> <span class="t-num">0.7</span>
+
+<span class="t-pass">  &#10003; Stored</span>
+
+<span class="t-dim"># Log root cause</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Root cause: client SDK retry logic was \
+  exponential without jitter, causing thundering herd."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">customer-acme</span> <span class="t-flag">--importance</span> <span class="t-num">0.9</span>
+
+<span class="t-pass">  &#10003; Stored</span>
+<span class="t-warn">  &#9888; Similar pattern found in 12 other resolved tickets</span></pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">4</div>
+        <div class="workflow-content">
+          <strong>Ask strategic questions anytime</strong>
+          <p>Similarity, temporal, causal, analogical &mdash; different strategies for different questions.</p>
+        </div>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">strategic recall</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-dim"># "Find KB articles about rate limiting"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"KB articles about rate limiting and batch imports"</span> <span class="t-flag">-k</span> <span class="t-num">5</span>
+
+<span class="t-dim"># "What's Acme's full support history?"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"customer-acme full support history"</span> <span class="t-flag">--strategy</span> <span class="t-str">temporal</span> <span class="t-flag">--entity-id</span> <span class="t-str">customer-acme</span>
+
+<span class="t-dim"># "What caused the auth failures last month?"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"what caused authentication failures last month"</span> \
+  <span class="t-flag">--strategy</span> <span class="t-str">causal</span> <span class="t-flag">--entity-id</span> <span class="t-str">customer-acme</span>
+
+<span class="t-dim"># "How were similar timeout issues resolved for other customers?"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"timeout issues during batch import, resolution steps"</span> \
+  <span class="t-flag">--strategy</span> <span class="t-str">analogical</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 3: Support Intelligence                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-2">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Support Intelligence</div>
+      <h2>Runbooks that write themselves</h2>
+      <p class="subtitle">Reflect auto-generates runbooks from resolved tickets. Contradictions flag stale docs. Insights compound across every customer.</p>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">reflect &mdash; auto-generated runbook</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs reflect</span>
+
+<span class="t-out">New insight consolidated from 20 timeout tickets:</span>
+
+<span class="t-pass">  "API timeouts during batch import: 80% caused by missing</span>
+<span class="t-pass">   retry jitter. Fix: add jitter to SDK retry config."</span>
+<span class="t-dim">   Sources: ticket-4821, ticket-3912, ticket-3087 ... (+17 more)</span></pre>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">support insights</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs insights</span> <span class="t-flag">--min-confidence</span> <span class="t-num">0.7</span>
+
+<span class="t-num">1</span>  <span class="t-pass">0.94</span>  Customers on SDK v2.1 have 3x more auth failures
+              than v2.2 &mdash; known bug, upgrade path documented.
+
+<span class="t-num">2</span>  <span class="t-pass">0.89</span>  Escalations drop 60% when first-response includes
+              relevant KB link.
+
+<span class="t-num">3</span>  <span class="t-pass">0.83</span>  Data sync issues correlate with timezone-related
+              cron misconfiguration.</pre>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">contradiction &mdash; auto-detected</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-warn">&#9888; Documentation contradiction detected:</span>
+
+<span class="t-warn">  kb-articles/api-rate-limits.md:</span>
+<span class="t-out">    "Maximum batch size is 1,000 records"</span>
+<span class="t-out">     vs</span>
+<span class="t-warn">  product-docs/api-reference.md:</span>
+<span class="t-out">    "Maximum batch size is 5,000 records"</span>
+<span class="t-dim">     Flagged for docs team. Confidence: 0.96</span></pre>
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px;">
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Tuning Profile: Support</p>
+        <p style="font-size: 13px; color: #8a8a8e; line-height: 1.6;">
+          When you <a href="/guide/#stage-6" style="color: #f59e0b; text-decoration: none;">tune retrieval</a>, the Support profile prioritizes recency-weighted queries (30% &mdash; latest ticket state), entity-scoped recall (25% &mdash; this customer's history), factual lookup (25% &mdash; KB articles and product docs), and cross-entity pattern matching (20% &mdash; similar tickets from other customers).
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 4: CTA                                                    -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-3">
+    <div class="stage-inner fade-up" style="text-align: center;">
+      <h2>Your support team deserves<br/>memory, not ticket surfing.</h2>
+
+      <div class="terminal" style="max-width: 580px; margin: 32px auto; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+        </div>
+        <div class="terminal-body" style="text-align: left;">
+          <pre><span class="t-dim"># Create a customer entity</span>
+<span class="t-prompt">$</span> <span class="t-cmd">mkdir entities/customer-name</span>
+
+<span class="t-dim"># Index your KB and runbooks</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-dim"># Brief yourself on the customer</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs prime --entity-id customer-name</span>
+<span class="t-pass">  &#10003; Your support memory is ready.</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('mkdir entities/customer-name && hebbs index && hebbs prime --entity-id customer-name')">copy</button>
+      </div>
+
+      <div style="display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap;">
+        <a href="/guide/" class="cta-btn cta-primary">Back to full guide</a>
+        <a href="/getting-started/quickstart/" class="cta-btn cta-secondary">Full docs</a>
+      </div>
+
+      <p style="margin-top: 40px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3f3f46;">
+        No re-reading ticket threads &middot; No missing KB articles &middot; No repeating investigations &middot; Just memory
+      </p>
+    </div>
+  </section>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    const stages = document.querySelectorAll('.stage');
+    const dots = document.querySelectorAll('.nav-dot');
+    const stageObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const idx = [...stages].indexOf(e.target);
+          dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+        }
+      });
+    }, { threshold: 0.4 });
+    stages.forEach(s => stageObs.observe(s));
+    dots.forEach(d => d.addEventListener('click', () => {
+      stages[parseInt(d.dataset.stage)].scrollIntoView({ behavior: 'smooth' });
+    }));
+  </script>
+</body>
+</html>

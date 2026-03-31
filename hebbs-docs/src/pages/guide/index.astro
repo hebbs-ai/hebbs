@@ -1,0 +1,1365 @@
+---
+// Interactive onboarding guide - standalone page, no sidebar
+// docs.hebbs.ai/guide/
+---
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Get Started with HEBBS</title>
+  <meta name="description" content="Index, remember, recall, tune. A step-by-step guide to giving any agent real memory." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+    body {
+      background: #0a0a0b;
+      color: #d4d4d8;
+      font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: rgba(245, 158, 11, 0.3); }
+
+    /* ── Stage layout ── */
+    .stage {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px;
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+    }
+    .stage-inner {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    /* ── Typography ── */
+    .stage-num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #f59e0b;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+    h2 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 700;
+      color: #ededef;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .subtitle {
+      font-size: 17px;
+      color: #8a8a8e;
+      line-height: 1.6;
+      max-width: 600px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Terminal ── */
+    .terminal {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #1e1e20;
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.r { background: rgba(239,68,68,0.5); }
+    .terminal-dot.y { background: rgba(245,158,11,0.5); }
+    .terminal-dot.g { background: rgba(34,197,94,0.4); }
+    .terminal-title { margin-left: 8px; font-size: 11px; color: #3f3f46; }
+    .terminal-body { padding: 20px 24px; overflow-x: auto; }
+    .terminal-body pre { white-space: pre; }
+
+    /* Terminal colors */
+    .t-prompt { color: #f59e0b; }
+    .t-cmd { color: #ededef; }
+    .t-flag { color: #67e8f9; }
+    .t-str { color: #34d399; }
+    .t-out { color: #8a8a8e; }
+    .t-num { color: #f59e0b; }
+    .t-dim { color: #3f3f46; }
+    .t-pass { color: #34d399; }
+    .t-fail { color: #f87171; }
+    .t-warn { color: #fbbf24; }
+
+    /* ── Recall strategy cards ── */
+    .recall-cards { display: flex; flex-direction: column; gap: 12px; }
+    .recall-card {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      padding: 20px 24px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .recall-card:hover { border-color: #3f3f46; }
+    .recall-card.active { border-color: #f59e0b; background: rgba(245,158,11,0.03); }
+    .recall-card .query-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .recall-card .query-text {
+      font-size: 15px;
+      color: #ededef;
+      margin-bottom: 4px;
+    }
+    .recall-card .query-flags {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #3f3f46;
+    }
+    .recall-card .query-flags .flag { color: #67e8f9; }
+    .recall-result {
+      margin-top: 16px;
+      display: none;
+    }
+    .recall-card.active .recall-result { display: block; }
+
+    /* ── Input path tabs ── */
+    .path-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .path-tab {
+      padding: 6px 16px;
+      border-radius: 8px;
+      border: 1px solid #1e1e20;
+      background: transparent;
+      color: #8a8a8e;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .path-tab:hover { border-color: #3f3f46; color: #d4d4d8; }
+    .path-tab.active { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.06); }
+    .path-content { display: none; }
+    .path-content.active { display: block; }
+
+    /* ── Scorecard ── */
+    .scorecard {
+      display: grid;
+      gap: 4px;
+    }
+    .score-row {
+      display: grid;
+      grid-template-columns: 32px 1fr 60px 60px;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      align-items: center;
+    }
+    .score-row.header {
+      color: #3f3f46;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .score-row.pass { background: rgba(34,197,94,0.05); }
+    .score-row.fail { background: rgba(248,113,113,0.05); }
+    .score-row .qnum { color: #3f3f46; }
+    .score-row .qtext { color: #8a8a8e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .score-row .before { text-align: right; }
+    .score-row .after { text-align: right; }
+
+    /* ── Result banner ── */
+    .result-banner {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 24px 32px;
+      background: rgba(245,158,11,0.04);
+      border: 1px solid rgba(245,158,11,0.15);
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    .result-num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .result-label {
+      font-size: 12px;
+      color: #8a8a8e;
+      font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .result-arrow { color: #f59e0b; font-size: 24px; }
+    .result-desc { flex: 1; font-size: 14px; color: #8a8a8e; line-height: 1.6; }
+
+    /* ── Vertical cards ── */
+    .vertical-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .vertical-card {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+    .vertical-card:hover { border-color: #f59e0b; background: rgba(245,158,11,0.03); }
+    .vertical-card .v-icon { font-size: 28px; margin-bottom: 12px; }
+    .vertical-card .v-title {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #ededef;
+      margin-bottom: 8px;
+    }
+    .vertical-card .v-desc {
+      font-size: 13px;
+      color: #8a8a8e;
+      line-height: 1.5;
+    }
+
+    /* ── Use-case callouts ── */
+    .callouts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .callout {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #8a8a8e;
+      line-height: 1.5;
+    }
+    .callout strong { color: #d4d4d8; font-weight: 600; }
+
+    /* ── Navigation bar ── */
+    .guide-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 24px;
+      background: rgba(10, 10, 11, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e1e20;
+    }
+    .guide-nav a {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #8a8a8e;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .guide-nav a:hover { color: #d4d4d8; background: rgba(255,255,255,0.04); }
+    .guide-nav a.active { color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .guide-nav .nav-back {
+      color: #3f3f46;
+      margin-right: 12px;
+      padding-right: 16px;
+      border-right: 1px solid #1e1e20;
+    }
+    .guide-nav .nav-back:hover { color: #8a8a8e; }
+
+    /* ── Navigation dots ── */
+    .nav-dots {
+      position: fixed;
+      right: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #1e1e20;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      padding: 0;
+    }
+    .nav-dot.active { background: #f59e0b; transform: scale(1.3); }
+    .nav-dot:hover { background: #3f3f46; }
+
+    /* ── Copy button ── */
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #1e1e20;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      color: #8a8a8e;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { color: #ededef; border-color: #8a8a8e; }
+
+    /* ── Folder tree ── */
+    .folder-tree {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .folder-tree .dir { color: #67e8f9; }
+    .folder-tree .file { color: #8a8a8e; }
+    .folder-tree .comment { color: #3f3f46; }
+    .folder-tree .entity-tag { color: #f59e0b; }
+
+    /* ── Rules file preview ── */
+    .rules-file {
+      background: #141415;
+      border: 1px solid #1e1e20;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .rules-file-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #1e1e20;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #3f3f46;
+    }
+    .rules-file-body {
+      padding: 20px 24px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      line-height: 1.8;
+      color: #8a8a8e;
+    }
+    .rules-file-body .heading { color: #f59e0b; font-weight: 600; }
+    .rules-file-body .rule { color: #d4d4d8; }
+
+    /* ── Hero section ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      scroll-snap-align: start;
+    }
+    .hero canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 0 24px;
+    }
+    .hero h1 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(36px, 7vw, 64px);
+      font-weight: 700;
+      color: #ededef;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 .accent { color: #f59e0b; }
+    .hero .hero-sub {
+      font-size: 18px;
+      color: #8a8a8e;
+      max-width: 560px;
+      margin: 0 auto 36px;
+      line-height: 1.6;
+    }
+    .hero .scroll-hint {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #3f3f46;
+      animation: pulse-down 2s ease-in-out infinite;
+    }
+    @keyframes pulse-down {
+      0%, 100% { opacity: 0.4; transform: translateX(-50%) translateY(0); }
+      50% { opacity: 0.8; transform: translateX(-50%) translateY(6px); }
+    }
+
+    /* ── Horizontal timeline ── */
+    .timeline {
+      display: flex;
+      gap: 0;
+      margin-top: 28px;
+      position: relative;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: 24px;
+      right: 24px;
+      height: 2px;
+      background: linear-gradient(90deg, #f59e0b 0%, #67e8f9 50%, #34d399 100%);
+      opacity: 0.25;
+    }
+    .timeline-item {
+      flex: 1;
+      min-width: 160px;
+      text-align: center;
+      position: relative;
+      padding: 0 8px;
+    }
+    .timeline-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #f59e0b;
+      margin: 14px auto 14px;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+    .timeline-item:nth-child(2) .timeline-dot { background: #67e8f9; box-shadow: 0 0 12px rgba(103, 232, 249, 0.4); }
+    .timeline-item:nth-child(3) .timeline-dot { background: #34d399; box-shadow: 0 0 12px rgba(52, 211, 153, 0.4); }
+    .timeline-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: #8a8a8e;
+      line-height: 1.5;
+    }
+    .timeline-label strong { color: #ededef; display: block; margin-bottom: 2px; }
+
+    /* ── Terminal typing animation ── */
+    .terminal.typing .terminal-body pre {
+      visibility: hidden;
+    }
+    .terminal.typing .terminal-body pre.typed {
+      visibility: visible;
+    }
+    .terminal .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #f59e0b;
+      margin-left: 2px;
+      animation: blink-cursor 0.8s step-end infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes blink-cursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── Fade-in animation ── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── CTA ── */
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .cta-primary { background: #f59e0b; color: #0a0a0b; }
+    .cta-primary:hover { background: #fbbf24; }
+    .cta-secondary { border: 1px solid #1e1e20; color: #8a8a8e; }
+    .cta-secondary:hover { border-color: #3f3f46; color: #d4d4d8; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .stage { padding: 80px 16px 60px; }
+      .terminal-body { padding: 16px; font-size: 11px; }
+      .result-banner { flex-direction: column; gap: 16px; text-align: center; }
+      .nav-dots { display: none; }
+      .score-row { grid-template-columns: 28px 1fr 48px 48px; font-size: 10px; }
+      .vertical-grid { grid-template-columns: 1fr; }
+      .callouts { grid-template-columns: 1fr; }
+      .guide-nav { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Top navigation ── -->
+  <nav class="guide-nav">
+    <a href="/" class="nav-back">&larr; docs</a>
+    <a href="/guide/" class="active">Guide</a>
+    <a href="/guide/crm">CRM</a>
+    <a href="/guide/legal">Legal</a>
+    <a href="/guide/finance">Finance</a>
+    <a href="/guide/support">Support</a>
+    <a href="/guide/coding">Coding</a>
+  </nav>
+
+  <nav class="nav-dots" id="nav-dots">
+    <button class="nav-dot active" data-stage="hero" title="Home"></button>
+    <button class="nav-dot" data-stage="0" title="Index"></button>
+    <button class="nav-dot" data-stage="1" title="Remember"></button>
+    <button class="nav-dot" data-stage="2" title="Prime"></button>
+    <button class="nav-dot" data-stage="3" title="Recall"></button>
+    <button class="nav-dot" data-stage="4" title="Contradictions"></button>
+    <button class="nav-dot" data-stage="5" title="Insights"></button>
+    <button class="nav-dot" data-stage="6" title="Tune"></button>
+    <button class="nav-dot" data-stage="7" title="Start"></button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- HERO: Bioluminescent graph                                      -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="hero" id="hero">
+    <canvas id="hero-graph"></canvas>
+    <div class="hero-content fade-up">
+      <h1>Give your agent<br/><span class="accent">real memory.</span></h1>
+      <p class="hero-sub">Not vector search. Not RAG. Temporal reasoning, causal chains, and insights that compound &mdash; in one binary.</p>
+      <a href="#stage-0" class="cta-btn cta-primary" style="margin-right: 12px;">Start the guide</a>
+      <a href="#stage-7" class="cta-btn cta-secondary">Pick a use case</a>
+    </div>
+    <div class="scroll-hint">&darr; scroll</div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 1: Index Your Knowledge                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-0">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 1</div>
+      <h2>Index your knowledge</h2>
+      <p class="subtitle">Organize your workspace. Files inside <code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9;">entities/</code> are automatically scoped. Everything else is shared knowledge any query can surface.</p>
+
+      <div class="folder-tree">
+        <pre><span class="dir">workspace/</span>
+<span class="dir">  entities/</span>                      <span class="comment">&larr; auto-tagged by subfolder</span>
+<span class="dir">    acme-corp/</span>
+<span class="file">      call-2026-03-15.md</span>        <span class="entity-tag">&rarr; entity_id: "acme-corp"</span>
+<span class="file">      call-2026-03-22.md</span>        <span class="entity-tag">&rarr; entity_id: "acme-corp"</span>
+<span class="dir">    project-alpha/</span>
+<span class="file">      status-update.md</span>          <span class="entity-tag">&rarr; entity_id: "project-alpha"</span>
+<span class="dir">  docs/</span>                          <span class="comment">&larr; shared knowledge, no entity</span>
+<span class="dir">  case-studies/</span>
+<span class="dir">  playbooks/</span></pre>
+      </div>
+
+      <div class="terminal" data-typing style="margin-top: 20px; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">terminal</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-out">  Scanning 74 files...</span>
+<span class="t-out">  Extracting propositions (10 parallel)...</span>
+<span class="t-out">  Detected 3 entities: acme-corp, project-alpha, case-smith-v-jones</span>
+<span class="t-out">  Embedded 1,284 memories (4.1s)</span>
+<span class="t-pass">  &#10003; 74 files &middot; 612 sections &middot; 672 propositions &middot; 3 entities</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('hebbs index')">copy</button>
+      </div>
+
+      <div class="callouts">
+        <div class="callout"><strong>CRM:</strong> Product docs, case studies, blogs as shared. Deal folders per account in entities/.</div>
+        <div class="callout"><strong>Legal:</strong> Statutes, precedents as shared. Case folders per client in entities/.</div>
+        <div class="callout"><strong>Coding:</strong> Architecture docs, ADRs as shared. Project folders in entities/.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 2: Remember Everything                                    -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-1">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 2</div>
+      <h2>Remember everything</h2>
+      <p class="subtitle">Three ways to get data in. All produce the same memories. Pick what fits your workflow.</p>
+
+      <div class="path-tabs" id="path-tabs">
+        <button class="path-tab active" data-path="files">Files</button>
+        <button class="path-tab" data-path="cli">CLI</button>
+        <button class="path-tab" data-path="sdk">SDK</button>
+      </div>
+
+      <div class="path-content active" data-path="files">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dot r"></span>
+            <span class="terminal-dot y"></span>
+            <span class="terminal-dot g"></span>
+            <span class="terminal-title">drop files &rarr; auto-indexed</span>
+          </div>
+          <div class="terminal-body">
+            <pre><span class="t-dim"># Save call notes to the right folder</span>
+<span class="t-prompt">$</span> <span class="t-cmd">cat > entities/acme-corp/call-2026-03-22.md</span> <span class="t-flag">&lt;&lt;EOF</span>
+<span class="t-str">Spoke with Sarah. Budget revised to $50K.</span>
+<span class="t-str">SOC2 review in progress, expect 2 weeks.</span>
+<span class="t-str">Timeline slipped to Q3.</span>
+<span class="t-flag">EOF</span>
+
+<span class="t-dim"># Index picks it up with entity_id: "acme-corp"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+<span class="t-pass">  &#10003; 1 new file &middot; 3 propositions &middot; entity: acme-corp</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="path-content" data-path="cli">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dot r"></span>
+            <span class="terminal-dot y"></span>
+            <span class="terminal-dot g"></span>
+            <span class="terminal-title">quick logging via CLI</span>
+          </div>
+          <div class="terminal-body">
+            <pre><span class="t-dim"># After a call</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Sarah confirmed budget approved at $100K. \
+  Needs SOC2 before procurement. Timeline Q2."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span> <span class="t-flag">--importance</span> <span class="t-num">0.8</span>
+
+<span class="t-pass">  &#10003; Stored (entity: acme-corp, importance: 0.8)</span>
+
+<span class="t-dim"># Quick note from Slack</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Sarah mentioned in Slack they're also \
+  evaluating Vendor X on price."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span> <span class="t-flag">--importance</span> <span class="t-num">0.7</span>
+
+<span class="t-pass">  &#10003; Stored (entity: acme-corp, importance: 0.7)</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="path-content" data-path="sdk">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dot r"></span>
+            <span class="terminal-dot y"></span>
+            <span class="terminal-dot g"></span>
+            <span class="terminal-title">automated via SDK</span>
+          </div>
+          <div class="terminal-body">
+            <pre><span class="t-dim"># Python — webhook from call recording tool</span>
+<span class="t-cmd">from</span> <span class="t-str">hebbs</span> <span class="t-cmd">import</span> HEBBS
+
+engine = HEBBS.connect(<span class="t-str">"https://server:6381"</span>, api_key=<span class="t-str">"hb_live_sk_..."</span>)
+
+<span class="t-cmd">await</span> engine.remember(
+    content=<span class="t-str">"Discovery call with Bob at Initech. Migrating off Salesforce. \
+              30 reps, budget $200K, decision Q3."</span>,
+    entity_id=<span class="t-str">"initech"</span>,
+    importance=<span class="t-num">0.8</span>
+)</pre>
+          </div>
+        </div>
+      </div>
+
+      <p style="margin-top: 16px; font-size: 13px; color: #3f3f46; line-height: 1.6;">
+        Files in <code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9;">entities/</code> get auto-tagged. You can also override with frontmatter: <code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9;">entity_id: acme-corp</code> at the top of any file.
+      </p>
+
+      <div class="callouts">
+        <div class="callout"><strong>CRM:</strong> Call notes, emails, Slack messages. CLI after calls, SDK for Gong webhooks.</div>
+        <div class="callout"><strong>Legal:</strong> Deposition summaries, case memos, research notes.</div>
+        <div class="callout"><strong>Support:</strong> Ticket threads, resolution notes, customer feedback.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 3: Prep with Prime                                        -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-2">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 3</div>
+      <h2>Prep with one command</h2>
+      <p class="subtitle"><code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9; font-size: 14px;">hebbs prime</code> crosses both layers &mdash; entity-scoped memory and shared knowledge &mdash; in a single call.</p>
+
+      <div class="terminal" data-typing style="position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">briefing</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs prime</span> <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span>
+
+<span class="t-out">Entity memory (recent):</span>
+<span class="t-dim">  2026-03-15</span>  Budget approved at $100K. Needs SOC2. Timeline Q2.
+<span class="t-dim">  2026-03-22</span>  Budget revised to $50K. SOC2 in review. Slipped to Q3.
+<span class="t-dim">  2026-03-22</span>  Also evaluating Vendor X on price.
+
+<span class="t-out">Related knowledge:</span>
+<span class="t-str">  case-studies/initech.md</span>       Initech cut data entry 80% &mdash; similar profile
+<span class="t-str">  blogs/soc2-compliance.md</span>      Why SOC2 matters for AI infrastructure
+<span class="t-str">  competitive/vendor-x.md</span>       We win on reasoning, they win on price
+
+<span class="t-dim">  Loaded 6 memories in 5ms</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('hebbs prime --entity-id acme-corp')">copy</button>
+      </div>
+
+      <p style="margin-top: 16px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        Entity history comes from <code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9;">entities/acme-corp/</code>. Related knowledge comes from everywhere else in the workspace. Your agent walks in armed with context and ammunition.
+      </p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-label"><strong>Entity Memory</strong>Recent interactions, decisions, timeline shifts</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-label"><strong>Related Docs</strong>Case studies, competitive intel, product specs</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-label"><strong>Agent Context</strong>Everything loaded in one call, &lt;5ms</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 4: Ask Strategic Questions                                -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-3">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 4</div>
+      <h2>Four strategies, one engine</h2>
+      <p class="subtitle">Same memories. Different questions. Click a strategy to see it in action.</p>
+
+      <div class="recall-cards" id="recall-cards">
+        <div class="recall-card active" data-query="0">
+          <div class="query-label" style="color: #f59e0b;">Similarity</div>
+          <div class="query-text">"Find case studies about reducing manual data entry"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> similarity <span class="flag">-k</span> 5</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">#  Score   Source                              Content</span>
+<span class="t-num">1</span>  <span class="t-pass">0.91</span>   <span class="t-str">case-studies/initech.md</span>         30 reps saved 2 hrs/day on entry
+<span class="t-num">2</span>  <span class="t-pass">0.84</span>   <span class="t-str">blogs/crm-automation.md</span>        Why manual CRM entry kills deals
+<span class="t-num">3</span>  <span class="t-warn">0.72</span>   <span class="t-str">training/objection-handling.md</span>  Reframe cost as time saved
+<span class="t-dim">   3 results in 4ms</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recall-card" data-query="1">
+          <div class="query-label" style="color: #67e8f9;">Temporal</div>
+          <div class="query-text">"What happened with Acme Corp?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> temporal <span class="flag">--entity-id</span> acme-corp</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">#  Date         Source                           Content</span>
+<span class="t-num">1</span>  <span class="t-dim">2026-03-15</span>  <span class="t-str">entities/acme-corp/call-1.md</span>   Budget approved $100K, needs SOC2
+<span class="t-num">2</span>  <span class="t-dim">2026-03-18</span>  <span class="t-str">CLI</span>                            Sent SOC2 report to Sarah
+<span class="t-num">3</span>  <span class="t-dim">2026-03-22</span>  <span class="t-str">entities/acme-corp/call-2.md</span>   Budget cut to $50K, slipped to Q3
+<span class="t-num">4</span>  <span class="t-dim">2026-03-22</span>  <span class="t-str">CLI</span>                            Also evaluating Vendor X
+<span class="t-dim">   4 results in 2ms (timeline order)</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recall-card" data-query="2">
+          <div class="query-label" style="color: #34d399;">Causal</div>
+          <div class="query-text">"Why did the Acme budget get cut?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> causal <span class="flag">--max-depth</span> 3</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">Causal chain (3 hops):</span>
+
+<span class="t-str">entities/acme-corp/call-1.md</span>   Budget approved at $100K
+  <span class="t-dim">&#8595; caused_by</span>
+<span class="t-str">entities/acme-corp/call-2.md</span>   CFO pushed back on scope
+  <span class="t-dim">&#8595; caused_by</span>
+<span class="t-str">entities/acme-corp/call-2.md</span>   Budget revised to $50K, Q3
+<span class="t-dim">   3 hops in 5ms</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="recall-card" data-query="3">
+          <div class="query-label" style="color: #a78bfa;">Analogical</div>
+          <div class="query-text">"What worked with companies similar to Acme?"</div>
+          <div class="query-flags"><span class="flag">--strategy</span> analogical <span class="flag">--analogical-alpha</span> 0.5</div>
+          <div class="recall-result">
+            <div class="terminal" style="margin-top: 12px;">
+              <div class="terminal-body" style="padding: 14px 18px;">
+                <pre><span class="t-out">Structurally similar patterns:</span>
+
+<span class="t-num">1</span>  <span class="t-pass">0.87</span>   <span class="t-str">entities/initech/close.md</span>      Annual discount closed similar deal
+<span class="t-num">2</span>  <span class="t-pass">0.81</span>   <span class="t-str">entities/globex/notes.md</span>       Technical champion drove budget approval
+<span class="t-num">3</span>  <span class="t-warn">0.74</span>   <span class="t-str">training/pricing-plays.md</span>      Reframe as cost-per-rep-per-day
+<span class="t-dim">   3 results in 7ms</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 5: Catch Contradictions                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-4">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 5</div>
+      <h2>Contradictions surface automatically</h2>
+      <p class="subtitle">When new memories conflict with existing ones, HEBBS flags it. No rules to configure. No queries to write.</p>
+
+      <div class="terminal" data-typing>
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">auto-detected</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Budget revised to $50K"</span> <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span>
+
+<span class="t-pass">  &#10003; Stored</span>
+<span class="t-warn">  &#9888; Contradiction detected:</span>
+<span class="t-warn">    "Budget approved at $100K" (2026-03-15)</span>
+<span class="t-warn">     vs</span>
+<span class="t-warn">    "Budget revised to $50K" (2026-03-22)</span>
+<span class="t-warn">    confidence: 0.89</span></pre>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
+        <div class="callout" style="border-left: 3px solid #fbbf24;">
+          <strong>Revision, not error.</strong> Some contradictions are just updates &mdash; budgets change, timelines shift. HEBBS tracks lineage so you can see what changed and when.
+        </div>
+        <div class="callout" style="border-left: 3px solid #f87171;">
+          <strong>Real conflicts.</strong> A policy says "never discount &gt;20%" but a past proposal had 30%. A contract says coverage is $2M but a sublimit overrides to $500K. These are the ones that matter.
+        </div>
+      </div>
+
+      <div class="callouts">
+        <div class="callout"><strong>CRM:</strong> Forecast says "Commit" but no meeting in 3 weeks.</div>
+        <div class="callout"><strong>Legal:</strong> Clause A says X but Clause B says Y in the same contract.</div>
+        <div class="callout"><strong>Finance:</strong> Policy says one threshold, practice shows another.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 6: Learn Over Time                                        -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-5">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 6</div>
+      <h2>It gets smarter over time</h2>
+      <p class="subtitle"><code style="font-family: 'JetBrains Mono', monospace; color: #67e8f9; font-size: 14px;">hebbs reflect</code> consolidates memories across entities into org-wide insights. Patterns that no single interaction reveals.</p>
+
+      <div class="terminal" data-typing style="position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">consolidation</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs reflect</span>
+
+<span class="t-out">  Analyzing 1,284 memories across 3 entities...</span>
+<span class="t-out">  Clustered into 7 groups</span>
+<span class="t-out">  Generated 4 insights</span>
+<span class="t-pass">  &#10003; Consolidation complete</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs insights</span> <span class="t-flag">--min-confidence</span> <span class="t-num">0.7</span>
+
+<span class="t-num">1</span>  <span class="t-pass">0.91</span>  Deals that close in &lt;60 days always had a technical
+              champion identified by week 2.
+<span class="t-num">2</span>  <span class="t-pass">0.85</span>  Pricing objections after demo correlate with missing
+              ROI framing in discovery call.
+<span class="t-num">3</span>  <span class="t-pass">0.78</span>  Sending a case study within 48 hours of discovery
+              increased response rate across all closed-won deals.
+<span class="t-num">4</span>  <span class="t-warn">0.72</span>  Security review delays drop 50% when SOC2 report
+              is shared proactively in first meeting.</pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('hebbs reflect && hebbs insights --min-confidence 0.7')">copy</button>
+      </div>
+
+      <p style="margin-top: 16px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        Pipe insights into a weekly digest. Email it before the Monday team meeting. The system learns what works across every entity, every interaction, every outcome.
+      </p>
+
+      <div class="callouts">
+        <div class="callout"><strong>CRM:</strong> "What do all our closed-won deals have in common?"</div>
+        <div class="callout"><strong>Support:</strong> Auto-generates runbooks from repeated resolution patterns.</div>
+        <div class="callout"><strong>Coding:</strong> "Lessons learned" that compound across projects.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 7: Tune Retrieval                                         -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-6" style="min-height: auto; padding-top: 100px; padding-bottom: 40px;">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Step 7</div>
+      <h2>Tune retrieval in 60 seconds</h2>
+      <p class="subtitle">The agent profiles your domain, generates evals, runs a baseline, diagnoses failures, and stores what works. One command.</p>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">agent tuning session</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-out">Domain: Sales/Revenue</span>
+<span class="t-out">Vault: 74 files, 1284 memories, 3 entities</span>
+<span class="t-out">Generated 20 evals across 5 query types</span>
+<span class="t-out">Running baseline (similarity, k=5)...</span>
+
+<span class="t-out">Baseline: </span><span class="t-warn">58%</span><span class="t-out"> keyword recall (strict match, top-5)</span>
+<span class="t-out">Perfect queries: 3/20</span>
+<span class="t-out">Diagnosing 17 failures...</span>
+
+<span class="t-out">Failure patterns found:</span>
+<span class="t-out">  k too low:          7 queries (fix: k=10)</span>
+<span class="t-out">  Cue too generic:    5 queries (fix: expand with entity names)</span>
+<span class="t-out">  Wrong strategy:     3 queries (fix: temporal/analogical)</span>
+<span class="t-out">  Missing recency:    2 queries (fix: recency weights)</span>
+
+<span class="t-out">Re-running with tuned parameters...</span>
+<span class="t-out">Tuned: </span><span class="t-pass">91%</span><span class="t-out"> keyword recall </span><span class="t-pass">(+33pp)</span>
+<span class="t-out">Perfect queries: 16/20</span>
+<span class="t-pass">&#10003; Stored 14 retrieval strategies</span></pre>
+        </div>
+      </div>
+
+      <!-- Scorecard -->
+      <div style="background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px;">
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Sample evals (5 of 20)</p>
+        <div class="scorecard">
+          <div class="score-row header">
+            <span></span><span>Query</span><span class="before">Before</span><span class="after">After</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q1</span>
+            <span class="qtext">What's the Acme deal timeline?</span>
+            <span class="before t-pass">4/4</span>
+            <span class="after t-pass">4/4</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q5</span>
+            <span class="qtext">Find case studies for fintech companies</span>
+            <span class="before t-fail">1/5</span>
+            <span class="after t-pass">5/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q9</span>
+            <span class="qtext">What patterns close enterprise deals?</span>
+            <span class="before t-fail">0/5</span>
+            <span class="after t-pass">4/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q14</span>
+            <span class="qtext">Compare Acme and Initech objections</span>
+            <span class="before t-fail">0/5</span>
+            <span class="after t-warn">3/5</span>
+          </div>
+          <div class="score-row pass">
+            <span class="qnum">Q18</span>
+            <span class="qtext">Latest status on all active deals</span>
+            <span class="before t-fail">2/5</span>
+            <span class="after t-pass">5/5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-banner">
+        <div>
+          <div class="result-num" style="color: #f87171;">58%</div>
+          <div class="result-label">before</div>
+        </div>
+        <div class="result-arrow">&rarr;</div>
+        <div>
+          <div class="result-num" style="color: #34d399;">91%</div>
+          <div class="result-label">after</div>
+        </div>
+        <div class="result-desc">
+          Strict keyword matching against top-5 results. No fuzzy matching, no partial credit. Agent-tuned in 60 seconds.
+        </div>
+      </div>
+
+      <!-- Compiled rules file -->
+      <div class="rules-file" style="margin-top: 24px;">
+        <div class="rules-file-header">
+          <span style="color: #f59e0b;">&#128196;</span>
+          .hebbs/retrieval-rules.md
+        </div>
+        <div class="rules-file-body">
+          <pre><span class="heading"># Retrieval Rules</span>
+<span class="t-dim"># Learned through eval-tune cycles on this vault.</span>
+
+<span class="heading">## Cue Construction</span>
+<span class="rule">- Always include entity names in cues</span>
+<span class="rule">- For broad queries, list 2-3 specific subtopics</span>
+<span class="rule">- Expand acronyms: "SOC2" &rarr; "SOC 2 Type II"</span>
+
+<span class="heading">## k Sizing</span>
+<span class="rule">- Default: k=10</span>
+<span class="rule">- Simple factual with unique entity: k=5</span>
+<span class="rule">- Broad sweep or cross-entity: k=15</span>
+
+<span class="heading">## Strategy Selection</span>
+<span class="rule">- Factual lookup: similarity (default)</span>
+<span class="rule">- Timeline/change: temporal + entity-id</span>
+<span class="rule">- Cross-entity comparison: analogical, alpha=0.5</span>
+<span class="rule">- Cause-effect: causal + seed ID + max-depth 3</span></pre>
+        </div>
+      </div>
+
+      <p style="margin-top: 20px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        This file loads into agent context before every conversation. Strategies that work strengthen. The memory system learns how to be used.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 8: CTA — Pick Your Vertical                              -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-7">
+    <div class="stage-inner fade-up" style="text-align: center;">
+      <h2>Your agent deserves real memory.</h2>
+      <p class="subtitle" style="margin: 0 auto 40px;">Pick your use case. Same engine, your domain.</p>
+
+      <div class="vertical-grid">
+        <a href="/guide/crm" class="vertical-card">
+          <div class="v-icon">&#128188;</div>
+          <div class="v-title">CRM</div>
+          <div class="v-desc">Deal memory + company knowledge. Prime before calls. Catch pipeline contradictions. Learn what closes deals.</div>
+        </a>
+        <a href="/guide/legal" class="vertical-card">
+          <div class="v-icon">&#9878;</div>
+          <div class="v-title">Legal</div>
+          <div class="v-desc">Causal chains through case law. Trace precedents. Detect conflicting clauses. Consolidate case strategy.</div>
+        </a>
+        <a href="/guide/finance" class="vertical-card">
+          <div class="v-icon">&#128200;</div>
+          <div class="v-title">Finance</div>
+          <div class="v-desc">Policy vs practice contradictions. Compliance cross-referencing. Audit trail reconstruction.</div>
+        </a>
+        <a href="/guide/support" class="vertical-card">
+          <div class="v-icon">&#127899;</div>
+          <div class="v-title">Support</div>
+          <div class="v-desc">Ticket history + similar resolutions. Auto-generated runbooks. Org gets smarter with every ticket.</div>
+        </a>
+        <a href="/guide/coding" class="vertical-card">
+          <div class="v-icon">&#128187;</div>
+          <div class="v-title">Coding</div>
+          <div class="v-desc">Remember what was tried. Recall why it failed. Avoid repeating mistakes across projects.</div>
+        </a>
+      </div>
+
+      <div style="margin-top: 48px;">
+        <div class="terminal" style="max-width: 540px; margin: 0 auto; position: relative;">
+          <div class="terminal-bar">
+            <span class="terminal-dot r"></span>
+            <span class="terminal-dot y"></span>
+            <span class="terminal-dot g"></span>
+          </div>
+          <div class="terminal-body" style="text-align: left;">
+            <pre><span class="t-prompt">$</span> <span class="t-cmd">mkdir entities/my-first-entity</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs prime --entity-id my-first-entity</span>
+<span class="t-pass">  &#10003; Memory is ready.</span></pre>
+          </div>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('mkdir entities/my-first-entity && hebbs index && hebbs prime --entity-id my-first-entity')">copy all</button>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap;">
+        <a href="/getting-started/quickstart/" class="cta-btn cta-primary">Read the full docs</a>
+        <a href="https://github.com/hebbs-ai/hebbs" target="_blank" rel="noopener" class="cta-btn cta-secondary">GitHub</a>
+      </div>
+
+      <p style="margin-top: 40px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3f3f46;">
+        4 recall strategies &middot; Auto entity scoping &middot; Contradiction detection &middot; Self-tuning retrieval &middot; 1 binary
+      </p>
+    </div>
+  </section>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════
+    // HERO: Bioluminescent particle graph
+    // ═══════════════════════════════════════════════════════════════════
+    (function() {
+      const canvas = document.getElementById('hero-graph');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      let W, H, nodes = [], raf;
+
+      const COLORS = [
+        [245, 158, 11],   // amber
+        [103, 232, 249],  // cyan
+        [52, 211, 153],   // green
+        [167, 139, 250],  // purple
+        [248, 113, 113],  // red (contradiction)
+      ];
+
+      function resize() {
+        const r = canvas.getBoundingClientRect();
+        W = r.width; H = r.height;
+        canvas.width = W * dpr; canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function createNodes() {
+        nodes = [];
+        const count = Math.min(60, Math.floor(W * H / 12000));
+        for (let i = 0; i < count; i++) {
+          const col = COLORS[Math.floor(Math.random() * COLORS.length)];
+          nodes.push({
+            x: Math.random() * W, y: Math.random() * H,
+            vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
+            r: 2 + Math.random() * 4,
+            col, pulse: Math.random() * Math.PI * 2,
+            importance: 0.3 + Math.random() * 0.7,
+          });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        const t = performance.now() * 0.001;
+
+        // Edges
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j];
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 140) {
+              const alpha = (1 - dist / 140) * 0.15;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `rgba(${a.col[0]},${a.col[1]},${a.col[2]},${alpha})`;
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Nodes
+        for (const n of nodes) {
+          n.x += n.vx; n.y += n.vy;
+          if (n.x < 0 || n.x > W) n.vx *= -1;
+          if (n.y < 0 || n.y > H) n.vy *= -1;
+
+          const glow = 0.5 + 0.5 * Math.sin(t * 1.5 + n.pulse);
+          const r = n.r * (0.8 + 0.4 * glow);
+
+          // Outer glow
+          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 4);
+          grad.addColorStop(0, `rgba(${n.col[0]},${n.col[1]},${n.col[2]},${0.15 * n.importance})`);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.beginPath(); ctx.arc(n.x, n.y, r * 4, 0, Math.PI * 2);
+          ctx.fillStyle = grad; ctx.fill();
+
+          // Core
+          ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${n.col[0]},${n.col[1]},${n.col[2]},${0.6 + 0.3 * glow})`;
+          ctx.fill();
+        }
+
+        raf = requestAnimationFrame(draw);
+      }
+
+      resize(); createNodes(); draw();
+      window.addEventListener('resize', () => { resize(); createNodes(); });
+    })();
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TYPING ANIMATION for terminal blocks
+    // ═══════════════════════════════════════════════════════════════════
+    (function() {
+      const terminals = document.querySelectorAll('.terminal[data-typing]');
+      const typedSet = new Set();
+
+      function typeTerminal(terminal) {
+        if (typedSet.has(terminal)) return;
+        typedSet.add(terminal);
+
+        const pre = terminal.querySelector('.terminal-body pre');
+        if (!pre) return;
+
+        const fullHTML = pre.innerHTML;
+        const lines = fullHTML.split('\n');
+        pre.innerHTML = '';
+        pre.style.visibility = 'visible';
+
+        let lineIdx = 0;
+        const cursor = document.createElement('span');
+        cursor.className = 'cursor';
+
+        function addLine() {
+          if (lineIdx >= lines.length) {
+            cursor.remove();
+            return;
+          }
+          if (lineIdx > 0) pre.innerHTML = pre.innerHTML.replace(/<span class="cursor"><\/span>$/, '') + '\n';
+
+          const line = lines[lineIdx];
+          const isCommand = line.includes('t-prompt') || line.includes('t-cmd');
+          lineIdx++;
+
+          if (isCommand) {
+            // Type command lines character by character (visual effect)
+            pre.insertAdjacentHTML('beforeend', line);
+            pre.appendChild(cursor);
+            setTimeout(addLine, 80 + Math.random() * 60);
+          } else {
+            // Output lines appear instantly
+            pre.insertAdjacentHTML('beforeend', line);
+            pre.appendChild(cursor);
+            setTimeout(addLine, 30);
+          }
+        }
+
+        addLine();
+      }
+
+      const tObs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) typeTerminal(e.target);
+        });
+      }, { threshold: 0.5 });
+
+      terminals.forEach(t => {
+        const pre = t.querySelector('.terminal-body pre');
+        if (pre) pre.style.visibility = 'hidden';
+        tObs.observe(t);
+      });
+    })();
+
+    // ═══════════════════════════════════════════════════════════════════
+    // FADE-IN on scroll
+    // ═══════════════════════════════════════════════════════════════════
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    // ═══════════════════════════════════════════════════════════════════
+    // NAV DOTS (includes hero)
+    // ═══════════════════════════════════════════════════════════════════
+    const allSections = document.querySelectorAll('.hero, .stage');
+    const dots = document.querySelectorAll('.nav-dot');
+    const stageObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const idx = [...allSections].indexOf(e.target);
+          dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+        }
+      });
+    }, { threshold: 0.4 });
+    allSections.forEach(s => stageObs.observe(s));
+    dots.forEach(d => d.addEventListener('click', () => {
+      const id = d.dataset.stage;
+      const target = id === 'hero' ? document.getElementById('hero') : document.getElementById('stage-' + id);
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    }));
+
+    // ═══════════════════════════════════════════════════════════════════
+    // INPUT PATH TABS
+    // ═══════════════════════════════════════════════════════════════════
+    document.querySelectorAll('.path-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const p = tab.dataset.path;
+        document.querySelectorAll('.path-tab').forEach(t => t.classList.toggle('active', t.dataset.path === p));
+        document.querySelectorAll('.path-content').forEach(c => c.classList.toggle('active', c.dataset.path === p));
+      });
+    });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // RECALL CARDS
+    // ═══════════════════════════════════════════════════════════════════
+    document.querySelectorAll('.recall-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.recall-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

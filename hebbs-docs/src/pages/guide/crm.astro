@@ -1,0 +1,378 @@
+---
+// CRM vertical guide — docs.hebbs.ai/guide/crm
+---
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memory-First CRM &mdash; HEBBS Guide</title>
+  <meta name="description" content="Give your sales agent real memory. Deal history, company knowledge, and self-improving playbooks in one engine." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-snap-type: y proximity; }
+    body { background: #0a0a0b; color: #d4d4d8; font-family: "Inter", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    ::selection { background: rgba(245, 158, 11, 0.3); }
+    .stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 80px 24px; scroll-snap-align: start; position: relative; overflow: hidden; }
+    .stage-inner { max-width: 900px; width: 100%; }
+    .stage-num { font-family: "JetBrains Mono", monospace; font-size: 12px; color: #f59e0b; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 12px; opacity: 0.7; }
+    h2 { font-family: "Space Grotesk", sans-serif; font-size: clamp(28px, 5vw, 44px); font-weight: 700; color: #ededef; letter-spacing: -0.5px; line-height: 1.15; margin-bottom: 16px; }
+    .subtitle { font-size: 17px; color: #8a8a8e; line-height: 1.6; max-width: 600px; margin-bottom: 32px; }
+    .terminal { background: #141415; border: 1px solid #1e1e20; border-radius: 12px; overflow: hidden; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.7; }
+    .terminal-bar { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid #1e1e20; }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.r { background: rgba(239,68,68,0.5); }
+    .terminal-dot.y { background: rgba(245,158,11,0.5); }
+    .terminal-dot.g { background: rgba(34,197,94,0.4); }
+    .terminal-title { margin-left: 8px; font-size: 11px; color: #3f3f46; }
+    .terminal-body { padding: 20px 24px; overflow-x: auto; }
+    .terminal-body pre { white-space: pre; }
+    .t-prompt { color: #f59e0b; } .t-cmd { color: #ededef; } .t-flag { color: #67e8f9; }
+    .t-str { color: #34d399; } .t-out { color: #8a8a8e; } .t-num { color: #f59e0b; }
+    .t-dim { color: #3f3f46; } .t-pass { color: #34d399; } .t-fail { color: #f87171; } .t-warn { color: #fbbf24; }
+    .folder-tree { background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.8; }
+    .folder-tree .dir { color: #67e8f9; } .folder-tree .file { color: #8a8a8e; } .folder-tree .comment { color: #3f3f46; } .folder-tree .entity-tag { color: #f59e0b; }
+    .copy-btn { position: absolute; top: 12px; right: 12px; background: #1e1e20; border: 1px solid #3f3f46; border-radius: 6px; padding: 4px 10px; font-family: "JetBrains Mono", monospace; font-size: 10px; color: #8a8a8e; cursor: pointer; transition: all 0.2s; }
+    .copy-btn:hover { color: #ededef; border-color: #8a8a8e; }
+    .guide-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; display: flex; align-items: center; gap: 4px; padding: 12px 24px; background: rgba(10, 10, 11, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid #1e1e20; }
+    .guide-nav a { font-family: "JetBrains Mono", monospace; font-size: 12px; color: #8a8a8e; text-decoration: none; padding: 6px 14px; border-radius: 6px; transition: all 0.2s; }
+    .guide-nav a:hover { color: #d4d4d8; background: rgba(255,255,255,0.04); }
+    .guide-nav a.active { color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .guide-nav .nav-back { color: #3f3f46; margin-right: 12px; padding-right: 16px; border-right: 1px solid #1e1e20; }
+    .guide-nav .nav-back:hover { color: #8a8a8e; }
+    .nav-dots { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 100; }
+    .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: #1e1e20; border: none; cursor: pointer; transition: all 0.3s; padding: 0; }
+    .nav-dot.active { background: #f59e0b; transform: scale(1.3); }
+    .nav-dot:hover { background: #3f3f46; }
+    .cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+    .cta-primary { background: #f59e0b; color: #0a0a0b; } .cta-primary:hover { background: #fbbf24; }
+    .cta-secondary { border: 1px solid #1e1e20; color: #8a8a8e; } .cta-secondary:hover { border-color: #3f3f46; color: #d4d4d8; }
+    .fade-up { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+    .workflow-step { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
+    .workflow-num { font-family: "JetBrains Mono", monospace; font-size: 14px; color: #f59e0b; min-width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(245,158,11,0.3); border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+    .workflow-content { flex: 1; }
+    .workflow-content strong { color: #ededef; font-weight: 600; }
+    .workflow-content p { color: #8a8a8e; font-size: 14px; line-height: 1.5; margin-top: 4px; }
+    @media (max-width: 640px) { .stage { padding: 80px 16px 60px; } .terminal-body { padding: 16px; font-size: 11px; } .nav-dots { display: none; } .guide-nav { overflow-x: auto; } }
+  </style>
+</head>
+<body>
+
+  <nav class="guide-nav">
+    <a href="/" class="nav-back">&larr; docs</a>
+    <a href="/guide/">Guide</a>
+    <a href="/guide/crm" class="active">CRM</a>
+    <a href="/guide/legal">Legal</a>
+    <a href="/guide/finance">Finance</a>
+    <a href="/guide/support">Support</a>
+    <a href="/guide/coding">Coding</a>
+  </nav>
+
+  <nav class="nav-dots" id="nav-dots">
+    <button class="nav-dot active" data-stage="0" title="Setup"></button>
+    <button class="nav-dot" data-stage="1" title="Workflow"></button>
+    <button class="nav-dot" data-stage="2" title="Intelligence"></button>
+    <button class="nav-dot" data-stage="3" title="Start"></button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 1: Your Sales Workspace                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-0">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Your Workspace</div>
+      <h2>Memory-First CRM</h2>
+      <p class="subtitle">One workspace for the whole sales org. Entities per account. Shared knowledge every rep can draw from.</p>
+
+      <div class="folder-tree">
+        <pre><span class="dir">workspace/</span>
+<span class="dir">  entities/</span>                          <span class="comment">&larr; one folder per account</span>
+<span class="dir">    acme-corp/</span>
+<span class="file">      call-2026-03-15.md</span>            <span class="entity-tag">&rarr; entity_id: "acme-corp"</span>
+<span class="file">      call-2026-03-22.md</span>            <span class="entity-tag">&rarr; entity_id: "acme-corp"</span>
+<span class="file">      proposal-v2.md</span>               <span class="entity-tag">&rarr; entity_id: "acme-corp"</span>
+<span class="dir">    initech/</span>
+<span class="file">      discovery-notes.md</span>            <span class="entity-tag">&rarr; entity_id: "initech"</span>
+<span class="dir">    globex/</span>
+<span class="file">      inbound-lead.md</span>              <span class="entity-tag">&rarr; entity_id: "globex"</span>
+<span class="dir">  products/</span>                          <span class="comment">&larr; shared knowledge</span>
+<span class="file">    features.md</span>
+<span class="file">    pricing.md</span>
+<span class="dir">  case-studies/</span>
+<span class="file">    initech-migration.md</span>
+<span class="dir">  competitive-intel/</span>
+<span class="file">    vendor-x-comparison.md</span>
+<span class="dir">  blogs/</span>
+<span class="file">    soc2-compliance.md</span>
+<span class="dir">  training/</span>
+<span class="file">    objection-handling.md</span></pre>
+      </div>
+
+      <p style="margin-top: 20px; font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        <strong style="color: #ededef;">Why one workspace?</strong> When a rep asks "brief me on Acme," prime needs to search deal memory AND product docs AND case studies in a single query. Separate workspaces can't cross-reference. Entities give you per-account isolation while keeping everything queryable together.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 2: Day-in-the-Life Workflow                               -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-1">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Daily Workflow</div>
+      <h2>From first call to close</h2>
+      <p class="subtitle">Drop files, log via CLI, or wire up SDK webhooks. Every interaction becomes memory.</p>
+
+      <div class="workflow-step">
+        <div class="workflow-num">1</div>
+        <div class="workflow-content">
+          <strong>New deal comes in</strong>
+          <p>Create the entity folder. Drop your discovery notes.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">new deal</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">mkdir entities/acme-corp</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vim entities/acme-corp/discovery-2026-03-15.md</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+<span class="t-pass">  &#10003; 1 new file &middot; entity: acme-corp</span></pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">2</div>
+        <div class="workflow-content">
+          <strong>Prep before every call</strong>
+          <p>Prime loads deal history AND relevant company knowledge in one shot.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">pre-call briefing</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs prime</span> <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span>
+
+<span class="t-out">Entity memory:</span>
+<span class="t-dim">  2026-03-15</span>  Discovery: 50-person sales team, Salesforce, $100K budget
+<span class="t-dim">  2026-03-18</span>  Sarah asked for SOC2 report. Sent same day.
+<span class="t-dim">  2026-03-22</span>  Budget cut to $50K. CFO pushed back. Q3 timeline.
+
+<span class="t-out">Company knowledge surfaced:</span>
+<span class="t-str">  case-studies/initech-migration.md</span>   Similar profile, ROI in 6 weeks
+<span class="t-str">  competitive/vendor-x.md</span>             We win on reasoning, they win on price
+<span class="t-str">  blogs/soc2-compliance.md</span>            Send to Sarah before security review
+<span class="t-str">  training/objection-handling.md</span>      Reframe cost as time saved per rep</pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">3</div>
+        <div class="workflow-content">
+          <strong>Log interactions as they happen</strong>
+          <p>CLI for quick notes. SDK for automated integrations.</p>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">ongoing</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-dim"># Quick note after a Slack exchange</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Sarah mentioned they're also evaluating \
+  Vendor X. Price is their main concern."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span> <span class="t-flag">--importance</span> <span class="t-num">0.8</span>
+
+<span class="t-pass">  &#10003; Stored</span>
+<span class="t-warn">  &#9888; Contradiction: budget was $100K, now $50K (confidence: 0.89)</span>
+
+<span class="t-dim"># Revise timeline</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs remember</span> <span class="t-str">"Timeline officially moved to Q3. \
+  Sarah confirmed via email."</span> \
+  <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span> <span class="t-flag">--importance</span> <span class="t-num">0.7</span></pre>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="workflow-num">4</div>
+        <div class="workflow-content">
+          <strong>Ask strategic questions anytime</strong>
+          <p>Temporal, causal, analogical &mdash; different strategies for different questions.</p>
+        </div>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">strategic recall</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-dim"># "Catch me up on this deal"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"acme-corp deal history"</span> <span class="t-flag">--strategy</span> <span class="t-str">temporal</span> <span class="t-flag">--entity-id</span> <span class="t-str">acme-corp</span>
+
+<span class="t-dim"># "What closed deals that looked like this?"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"50-person team, budget objection, competing with Vendor X"</span> \
+  <span class="t-flag">--strategy</span> <span class="t-str">analogical</span>
+
+<span class="t-dim"># "Find a case study to send them"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs recall</span> <span class="t-str">"case study reducing manual data entry for sales teams"</span> <span class="t-flag">-k</span> <span class="t-num">5</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 3: Deal Intelligence                                      -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-2">
+    <div class="stage-inner fade-up">
+      <div class="stage-num">Deal Intelligence</div>
+      <h2>Patterns no dashboard can show</h2>
+      <p class="subtitle">Contradictions catch pipeline risks. Insights reveal what actually wins deals. Both happen automatically.</p>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">contradiction &mdash; auto-detected</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-warn">&#9888; Contradictions across your pipeline:</span>
+
+<span class="t-warn">  acme-corp:</span>
+<span class="t-out">    "Budget approved at $100K" (Mar 15)</span>
+<span class="t-out">     vs "Budget revised to $50K" (Mar 22)</span>
+<span class="t-dim">     This is a revision, not an error &mdash; but the forecast hasn't been updated.</span>
+
+<span class="t-warn">  globex:</span>
+<span class="t-out">    Deal marked "Commit Q2" in forecast</span>
+<span class="t-out">     but no meeting scheduled in 21 days.</span>
+<span class="t-dim">     Matches stall pattern from 73% of Q3 losses.</span></pre>
+        </div>
+      </div>
+
+      <div class="terminal" style="margin-bottom: 24px;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">weekly team insights</span>
+        </div>
+        <div class="terminal-body">
+          <pre><span class="t-prompt">$</span> <span class="t-cmd">hebbs reflect</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs insights</span> <span class="t-flag">--min-confidence</span> <span class="t-num">0.7</span>
+
+<span class="t-num">1</span>  <span class="t-pass">0.93</span>  Deals that close &lt;60 days always had a technical
+              champion identified by week 2. Acme has one (Sarah).
+              Globex does not.
+
+<span class="t-num">2</span>  <span class="t-pass">0.87</span>  Pricing objections after demo correlate with missing
+              ROI framing in discovery. Acme's discovery had ROI.
+              Check Globex discovery notes.
+
+<span class="t-num">3</span>  <span class="t-pass">0.82</span>  Sending the Initech case study within 48 hours of
+              discovery increased response rate in 4 of 5
+              closed-won deals.
+
+<span class="t-num">4</span>  <span class="t-warn">0.74</span>  Deals where SOC2 report was shared proactively
+              in first meeting had 50% shorter security reviews.</pre>
+        </div>
+      </div>
+
+      <p style="font-size: 14px; color: #8a8a8e; line-height: 1.6;">
+        Email this before Monday's pipeline review. The system learns what wins deals across every rep, every account, every quarter. Insights compound.
+      </p>
+
+      <div style="margin-top: 24px; background: #141415; border: 1px solid #1e1e20; border-radius: 12px; padding: 20px 24px;">
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3f3f46; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Tuning Profile: Sales/Revenue</p>
+        <p style="font-size: 13px; color: #8a8a8e; line-height: 1.6;">
+          When you <a href="/guide/#stage-6" style="color: #f59e0b; text-decoration: none;">tune retrieval</a>, the CRM profile prioritizes recency-weighted queries (30%), entity-scoped recall (25%), and cross-entity pattern matching (15%). The compiled rules optimize for "find the latest on this account" and "what worked with similar companies."
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- STAGE 4: CTA                                                    -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="stage" id="stage-3">
+    <div class="stage-inner fade-up" style="text-align: center;">
+      <h2>Your sales team deserves<br/>memory, not data entry.</h2>
+
+      <div class="terminal" style="max-width: 580px; margin: 32px auto; position: relative;">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+        </div>
+        <div class="terminal-body" style="text-align: left;">
+          <pre><span class="t-dim"># Index your playbook</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-dim"># Start your first deal</span>
+<span class="t-prompt">$</span> <span class="t-cmd">mkdir entities/first-prospect</span>
+<span class="t-prompt">$</span> <span class="t-cmd">vim entities/first-prospect/discovery.md</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs index</span>
+
+<span class="t-dim"># Prep for the next call</span>
+<span class="t-prompt">$</span> <span class="t-cmd">hebbs prime --entity-id first-prospect</span>
+<span class="t-pass">  &#10003; Your CRM is ready.</span></pre>
+        </div>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('hebbs index && mkdir entities/first-prospect && hebbs prime --entity-id first-prospect')">copy</button>
+      </div>
+
+      <div style="display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap;">
+        <a href="/guide/" class="cta-btn cta-primary">Back to full guide</a>
+        <a href="/getting-started/quickstart/" class="cta-btn cta-secondary">Full docs</a>
+      </div>
+
+      <p style="margin-top: 40px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3f3f46;">
+        No forms &middot; No manual entry &middot; No training &middot; Just memory
+      </p>
+    </div>
+  </section>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    const stages = document.querySelectorAll('.stage');
+    const dots = document.querySelectorAll('.nav-dot');
+    const stageObs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const idx = [...stages].indexOf(e.target);
+          dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+        }
+      });
+    }, { threshold: 0.4 });
+    stages.forEach(s => stageObs.observe(s));
+    dots.forEach(d => d.addEventListener('click', () => {
+      stages[parseInt(d.dataset.stage)].scrollIntoView({ behavior: 'smooth' });
+    }));
+  </script>
+</body>
+</html>
