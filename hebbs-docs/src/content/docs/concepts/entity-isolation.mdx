@@ -17,6 +17,28 @@ An entity is a logical scope. It could represent:
 
 The choice is application-defined. HEBBS does not prescribe what an entity "means"; it only enforces that recall and other operations are scoped by `entity_id` unless you opt into cross-entity behavior.
 
+## Assigning entity_id
+
+There are four ways to assign an entity_id, in priority order:
+
+1. **Frontmatter**: Add `entity_id: acme-corp` to a file's YAML frontmatter. Works on any file.
+2. **Folder convention**: Place files under `entities/{name}/` at the workspace root. The subfolder name becomes the entity_id automatically.
+3. **Explicit parameter**: Pass `--entity-id` (CLI), `entity_id=` (Python SDK), or `entityId` (TypeScript SDK) when calling `remember`.
+4. **LLM extraction**: During file indexing, the engine identifies the primary entity from the content.
+
+The folder convention requires no configuration. Drop files into `entities/acme-corp/` and every memory from those files is scoped to `acme-corp`:
+
+```
+entities/
+├── acme-corp/
+│   ├── call-2026-03-15.md    → entity_id: "acme-corp"
+│   └── emails/sarah.md      → entity_id: "acme-corp"
+└── initech/
+    └── discovery.md           → entity_id: "initech"
+```
+
+Files outside `entities/` with no frontmatter become shared knowledge (no entity_id), accessible to all entities during recall.
+
 ## Tenant vs Entity
 
 | | Entity (`entity_id`) | Tenant (`tenant_id`) |

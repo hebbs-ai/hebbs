@@ -107,6 +107,71 @@ hebbs list --sections
 
 This shows every indexed file, its sections, their memory IDs, and current states (active, revised, forgotten).
 
+## Entity ID from Folder Convention
+
+Files inside an `entities/` directory at the workspace root are automatically scoped to the entity matching the subfolder name:
+
+```
+workspace/
+├── entities/
+│   ├── acme-corp/
+│   │   ├── call-notes.md        → entity_id: "acme-corp"
+│   │   └── emails/sarah.md     → entity_id: "acme-corp"
+│   └── initech/
+│       └── discovery.md         → entity_id: "initech"
+├── products/                    → no entity_id (shared knowledge)
+└── case-studies/
+```
+
+**Resolution order** (first match wins):
+
+1. **Frontmatter**: `entity_id: acme-corp` in YAML frontmatter overrides everything.
+2. **Folder convention**: File is under `entities/{name}/` at the workspace root.
+3. **LLM extraction**: The engine identifies the primary entity from the content.
+4. **None**: Memory is shared knowledge, accessible to all entities.
+
+Both Document memories (Layer 1) and Proposition memories (Layer 2) inherit the resolved entity_id.
+
+Frontmatter works on any file, not just those inside `entities/`:
+
+```markdown
+---
+entity_id: initech
+---
+# How Initech Cut CRM Data Entry by 80%
+```
+
+## Auto-Sync from GitHub
+
+If your team keeps documents in a GitHub repository, you can auto-sync them to HEBBS on every push to main. Add a GitHub Actions workflow to your repo:
+
+```yaml
+name: Sync to HEBBS
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload files to HEBBS
+        run: |
+          find . -type f \( -name "*.md" -o -name "*.txt" -o -name "*.pdf" \) \
+            ! -path "./.git/*" ! -path "*/node_modules/*" | while IFS= read -r f; do
+            curl -sf -X POST "${{ secrets.HEBBS_ENDPOINT }}/v1/upload" \
+              -H "Authorization: Bearer ${{ secrets.HEBBS_API_KEY }}" \
+              -F "files=@${f}"
+          done
+```
+
+Add two secrets to your GitHub repo settings:
+- `HEBBS_ENDPOINT`: your HEBBS server URL (e.g. `https://hebbs.company.com:8080`)
+- `HEBBS_API_KEY`: your workspace API key
+
+Unchanged files are skipped on the server via checksum comparison, so repeated syncs are fast and safe.
+
 ## Obsidian Compatibility
 
 HEBBS Vault works alongside Obsidian. The default ignore patterns exclude `.obsidian/` metadata. Your markdown files are indexed as-is, including wiki-links and frontmatter.

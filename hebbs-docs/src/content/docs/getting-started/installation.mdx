@@ -3,15 +3,34 @@ title: Installation
 description: "All ways to install HEBBS: Homebrew, curl installer, Docker, from source."
 ---
 
-## Homebrew (macOS)
+## Quick Install (curl)
 
-The fastest way to install on macOS:
+Install with a single command:
 
 ```bash
-brew install hebbs-ai/tap/hebbs
+curl -sSf https://hebbs.ai/install | sh
 ```
 
-This installs the unified `hebbs` binary (vault mode, daemon, panel, and all memory commands) plus `hebbs-server` and `hebbs-cli` for remote server mode.
+This installs the `hebbs` CLI, a lightweight client for connecting to an enterprise HEBBS server. It supports `login`, `recall`, `remember`, `push`, and workspace management over REST.
+
+For the full engine (local vault mode with indexing, daemon, and Memory Palace):
+
+```bash
+curl -sSf https://hebbs.ai/install | sh -s -- --full
+```
+
+Add the install directory to your PATH if prompted:
+
+```bash
+export PATH="$HOME/.hebbs/bin:$PATH"
+```
+
+## Homebrew (macOS & Linux)
+
+```bash
+brew install hebbs-ai/tap/hebbs        # CLI (connects to enterprise server)
+brew install hebbs-ai/tap/hebbs-full   # Full engine (local vault mode)
+```
 
 Verify:
 
@@ -19,42 +38,26 @@ Verify:
 hebbs --version
 ```
 
-## Quick Install (curl)
+## Which Install Do I Need?
 
-Install the latest release with a single command:
+| Install | What you get | Use case |
+|---|---|---|
+| **Default** (`hebbs`) | REST client CLI: login, recall, remember, push, workspaces | Enterprise developers connecting to a shared server |
+| **Full** (`hebbs --full`) | Complete engine: init, index, watch, serve, panel, reflect | Local mode, standalone use, self-hosted server |
 
-```bash
-curl -sSf https://hebbs.ai/install | sh
-```
+## Enterprise Server
 
-This downloads `hebbs`, `hebbs-server`, `hebbs-cli`, and `hebbs-bench` to `~/.hebbs/bin`.
-
-Add the install directory to your PATH:
-
-```bash
-export PATH="$HOME/.hebbs/bin:$PATH"
-```
-
-To make this permanent, add that line to your `~/.zshrc`, `~/.bashrc`, or `~/.profile`.
-
-Verify the install:
+Deploy the HEBBS server on your infrastructure in one line:
 
 ```bash
-hebbs --version
-hebbs-server --version
-hebbs-cli --version
+curl -sSf https://hebbs.ai/server | OPENAI_API_KEY=sk-... sh
 ```
 
-## Which Binary Do I Need?
+Then connect your CLI:
 
-| Binary | Purpose |
-|---|---|
-| **`hebbs`** | Unified binary for local vault mode. Includes init, index, watch, recall, daemon, and panel. This is what most users want. |
-| `hebbs-server` | Standalone gRPC/REST server for multi-tenant production deployments. |
-| `hebbs-cli` | Client CLI that connects to a remote `hebbs-server`. |
-| `hebbs-bench` | Benchmark runner for performance testing. |
-
-For personal use, coding agents, and local knowledge management, you only need `hebbs`.
+```bash
+hebbs login --endpoint https://hebbs.company.com:8080 --api-key hb_live_sk_...
+```
 
 ### Install Options
 

@@ -17,6 +17,32 @@ An "entity" in HEBBS is a namespace that isolates memories. Common entity scheme
 | Agent ID | `agent-support-1` | Agent-specific knowledge |
 | Composite | `org-acme:user-bob` | Multi-level isolation |
 
+## Zero-Config Scoping with Folders
+
+The simplest way to scope memories is the `entities/` folder convention. Place files under `entities/{name}/` at the workspace root, and every memory from those files is automatically scoped:
+
+```
+workspace/
+├── entities/
+│   ├── acme-corp/
+│   │   ├── call-2026-03-15.md    → entity_id: "acme-corp"
+│   │   └── call-2026-03-22.md    → entity_id: "acme-corp"
+│   └── initech/
+│       └── discovery.md           → entity_id: "initech"
+├── products/                      → shared knowledge (no entity)
+└── training/                      → shared knowledge (no entity)
+```
+
+Files outside `entities/` are shared knowledge, accessible during recall for all entities. Use frontmatter to override when needed:
+
+```markdown
+---
+entity_id: initech
+---
+# How Initech Cut Data Entry by 80%
+This case study is shared content but also relevant to the Initech entity.
+```
+
 ## Create Memories for Multiple Entities
 
 ```python
