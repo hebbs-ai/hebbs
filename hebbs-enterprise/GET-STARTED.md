@@ -155,7 +155,30 @@ hebbs push ./docs                      # Upload documents
 hebbs prime customer-42                # Load all context for an entity
 ```
 
-## Step 9: Integrate the Python SDK (for your AI agents)
+## Step 9: Auto-sync from GitHub (optional)
+
+If your team keeps documents in a GitHub repo, you can auto-sync them to HEBBS on every push to main.
+
+### 1. Add secrets to your GitHub repo
+
+Go to your repo > Settings > Secrets and variables > Actions > New repository secret:
+
+- **`HEBBS_ENDPOINT`**: your HEBBS server URL (e.g. `http://your-server-ip:8080`)
+- **`HEBBS_API_KEY`**: your workspace API key (e.g. `hb_live_sk_...`)
+
+### 2. Copy the workflow file
+
+Copy [`github-action/hebbs-sync.yml`](github-action/hebbs-sync.yml) to `.github/workflows/hebbs-sync.yml` in your repo.
+
+To sync only a specific directory, edit the `SYNC_PATH` variable in the workflow (default: entire repo).
+
+### 3. Push to main
+
+Every push to main will now automatically upload all `.md`, `.txt`, and `.pdf` files to your HEBBS server. Indexing starts immediately.
+
+Unchanged files are skipped automatically (checksum-based), so repeated syncs are safe and fast.
+
+## Step 10: Integrate the Python SDK (for your AI agents)
 
 ```sh
 pip install hebbs[rest]
@@ -188,7 +211,7 @@ async def main():
 asyncio.run(main())
 ```
 
-## Step 9b: Integrate the TypeScript SDK (alternative)
+## Step 10b: Integrate the TypeScript SDK (alternative)
 
 ```sh
 npm install @hebbs/sdk
@@ -218,7 +241,7 @@ console.log(context.text);
 await hb.close();
 ```
 
-## Step 10: Add team members
+## Step 11: Add team members
 
 From the dashboard:
 
@@ -230,7 +253,7 @@ From the dashboard:
 
 Developers can see their assigned workspaces, upload files, and search. They cannot access Settings or manage other team members.
 
-## Step 11: Create additional workspaces (optional)
+## Step 12: Create additional workspaces (optional)
 
 Each workspace is an isolated memory vault. Use separate workspaces for different teams or use cases:
 

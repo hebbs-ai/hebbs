@@ -1,0 +1,57 @@
+# HEBBS Auto-Sync
+# Copy this file to .github/workflows/hebbs-sync.yml in your repo.
+#
+# Required GitHub secrets:
+#   HEBBS_ENDPOINT  - Your HEBBS server URL (e.g. https://hebbs.company.com:8080)
+#   HEBBS_API_KEY   - Workspace API key (e.g. hb_live_sk_...)
+#
+# Optional:
+#   Set SYNC_PATH below to limit which directory is synced (default: entire repo).
+
+name: Sync to HEBBS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      SYNC_PATH: "."
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload files to HEBBS
+        run: |
+          ENDPOINT="${{ secrets.HEBBS_ENDPOINT }}"
+          API_KEY="${{ secrets.HEBBS_API_KEY }}"
+
+          if [ -z "$ENDPOINT" ] || [ -z "$API_KEY" ]; then
+            echo "Error: HEBBS_ENDPOINT and HEBBS_API_KEY secrets are required."
+            exit 1
+          fi
+
+          FILES=$(find "$SYNC_PATH" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.pdf" \) \
+            ! -path "./.git/*" ! -path "*/node_modules/*" ! -path "*/.hebbs/*")
+
+          COUNT=$(echo "$FILES" | grep -c . || true)
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No .md, .txt, or .pdf files found in ${SYNC_PATH}"
+            exit 0
+          fi
+
+          echo "Uploading ${COUNT} file(s) to ${ENDPOINT}..."
+
+          CURL_ARGS=""
+          while IFS= read -r f; do
+            CURL_ARGS="$CURL_ARGS -F files=@${f}"
+          done <<< "$FILES"
+
+          RESPONSE=$(curl -sf -X POST "${ENDPOINT}/v1/upload" \
+            -H "Authorization: Bearer ${API_KEY}" \
+            $CURL_ARGS)
+
+          echo "$RESPONSE"
+          echo "Sync complete. Indexing triggered on server."
