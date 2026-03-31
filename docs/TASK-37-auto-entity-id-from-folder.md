@@ -1,6 +1,6 @@
 # TASK-37: Auto Entity ID from `entities/` Folder Convention
 
-**Status:** Planned  
+**Status:** Completed  
 **Priority:** High  
 **Scope:** `hebbs-vault` crate (extract.rs), CLI docs  
 
