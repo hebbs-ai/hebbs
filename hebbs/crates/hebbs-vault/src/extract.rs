@@ -84,6 +84,59 @@ fn estimate_tokens(content: &str) -> usize {
     content.len() / 4
 }
 
+/// Extract entity_id from YAML frontmatter if present.
+/// Looks for `entity_id: <value>` in --- delimited frontmatter block.
+fn parse_entity_from_frontmatter(content: &str) -> Option<String> {
+    let content = content.trim();
+    if !content.starts_with("---") {
+        return None;
+    }
+    let end = content[3..].find("---")?;
+    let frontmatter = &content[3..3 + end];
+    for line in frontmatter.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("entity_id:") {
+            let entity = value.trim().to_lowercase();
+            if !entity.is_empty() {
+                return Some(entity);
+            }
+        }
+    }
+    None
+}
+
+/// Extract entity_id from file path if it follows the entities/ convention.
+/// `entities/acme-corp/anything.md` -> Some("acme-corp")
+fn parse_entity_from_path(rel_path: &str) -> Option<String> {
+    let parts: Vec<&str> = rel_path.split('/').collect();
+    // Need at least 3 segments: entities / <entity-name> / <file>
+    if parts.len() >= 3 && parts[0] == "entities" && !parts[1].is_empty() {
+        Some(parts[1].to_lowercase())
+    } else {
+        None
+    }
+}
+
+/// Resolve entity_id for a file using the priority chain:
+/// frontmatter > folder convention > LLM extraction > None
+fn resolve_entity_id(
+    file_content: &str,
+    rel_path: &str,
+    llm_entities: &[extraction::ExtractedEntity],
+    proposition_content: Option<&str>,
+) -> Option<String> {
+    if let Some(entity) = parse_entity_from_frontmatter(file_content) {
+        return Some(entity);
+    }
+    if let Some(entity) = parse_entity_from_path(rel_path) {
+        return Some(entity);
+    }
+    if let Some(prop_content) = proposition_content {
+        return find_primary_entity(prop_content, llm_entities);
+    }
+    None
+}
+
 /// Find the primary entity mentioned in a proposition's content.
 ///
 /// Returns the entity name with the earliest occurrence in the text (case-insensitive).
@@ -199,7 +252,7 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         content: doc_content,
         importance: Some(0.6),
         context: Some(doc_context),
-        entity_id: None,
+        entity_id: resolve_entity_id(file_content, rel_path, &[], None),
         edges: Vec::new(),
         kind: Some(MemoryKind::Document),
     };
@@ -325,7 +378,13 @@ pub fn extract_and_store_file(params: ExtractFileParams<'_>) -> FileExtractionRe
         };
 
         // Layer 3: determine primary entity for this proposition
-        let primary_entity = find_primary_entity(&prop.content, &extraction_output.entities);
+        // Priority: frontmatter > folder convention > LLM extraction
+        let primary_entity = resolve_entity_id(
+            file_content,
+            rel_path,
+            &extraction_output.entities,
+            Some(&prop.content),
+        );
 
         let prop_input = RememberInput {
             content: prop.content.clone(),
@@ -610,5 +669,99 @@ mod tests {
         let h1 = proposition_hash("Hello world");
         let h2 = proposition_hash("Goodbye world");
         assert_ne!(h1, h2);
+    }
+
+    // ── entity_id resolution tests ──────────────────────────────────
+
+    #[test]
+    fn test_frontmatter_entity_id() {
+        let content = "---\ntitle: Test\nentity_id: acme-corp\n---\n# Hello";
+        assert_eq!(parse_entity_from_frontmatter(content), Some("acme-corp".to_string()));
+    }
+
+    #[test]
+    fn test_frontmatter_entity_id_lowercased() {
+        let content = "---\nentity_id: ACME-Corp\n---\n# Hello";
+        assert_eq!(parse_entity_from_frontmatter(content), Some("acme-corp".to_string()));
+    }
+
+    #[test]
+    fn test_frontmatter_no_entity() {
+        let content = "---\ntitle: Test\n---\n# Hello";
+        assert_eq!(parse_entity_from_frontmatter(content), None);
+    }
+
+    #[test]
+    fn test_frontmatter_no_frontmatter() {
+        let content = "# Just a heading\nSome content";
+        assert_eq!(parse_entity_from_frontmatter(content), None);
+    }
+
+    #[test]
+    fn test_frontmatter_empty_entity() {
+        let content = "---\nentity_id: \n---\n# Hello";
+        assert_eq!(parse_entity_from_frontmatter(content), None);
+    }
+
+    #[test]
+    fn test_path_entities_folder() {
+        assert_eq!(parse_entity_from_path("entities/acme-corp/call.md"), Some("acme-corp".to_string()));
+    }
+
+    #[test]
+    fn test_path_entities_nested() {
+        assert_eq!(parse_entity_from_path("entities/acme-corp/deep/nested/file.md"), Some("acme-corp".to_string()));
+    }
+
+    #[test]
+    fn test_path_entities_case_normalized() {
+        assert_eq!(parse_entity_from_path("entities/GLOBEX-Corp/notes.md"), Some("globex-corp".to_string()));
+    }
+
+    #[test]
+    fn test_path_not_entities_folder() {
+        assert_eq!(parse_entity_from_path("docs/acme-corp/notes.md"), None);
+    }
+
+    #[test]
+    fn test_path_entities_not_at_root() {
+        assert_eq!(parse_entity_from_path("docs/entities/acme-corp/notes.md"), None);
+    }
+
+    #[test]
+    fn test_path_file_at_entities_root() {
+        assert_eq!(parse_entity_from_path("entities/file.md"), None);
+    }
+
+    #[test]
+    fn test_path_empty_entity_name() {
+        assert_eq!(parse_entity_from_path("entities//file.md"), None);
+    }
+
+    #[test]
+    fn test_resolve_frontmatter_wins_over_folder() {
+        let content = "---\nentity_id: override\n---\n# Hello";
+        assert_eq!(
+            resolve_entity_id(content, "entities/original/file.md", &[], None),
+            Some("override".to_string()),
+        );
+    }
+
+    #[test]
+    fn test_resolve_folder_wins_over_llm() {
+        let content = "# No frontmatter";
+        assert_eq!(
+            resolve_entity_id(content, "entities/folder-entity/file.md", &[], Some("some content")),
+            Some("folder-entity".to_string()),
+        );
+    }
+
+    #[test]
+    fn test_resolve_none_when_no_signals() {
+        let content = "# No frontmatter";
+        assert_eq!(
+            resolve_entity_id(content, "docs/random.md", &[], None),
+            None,
+        );
     }
 }
