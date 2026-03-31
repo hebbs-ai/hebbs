@@ -22,9 +22,9 @@ The test script creates a temp workspace, indexes it, and verifies entity_id ass
 
 | # | File Path | Frontmatter | Expected entity_id | Why |
 |---|-----------|-------------|-------------------|-----|
-| 6 | `entities/acme-corp/special.md` | `entity: big-deal-q2` | `big-deal-q2` | Frontmatter overrides folder |
-| 7 | `blogs/initech-migration.md` | `entity: initech` | `initech` | Frontmatter on file outside entities/ |
-| 8 | `docs/random.md` | `entity: secret-project` | `secret-project` | Frontmatter works anywhere |
+| 6 | `entities/acme-corp/special.md` | `entity_id: big-deal-q2` | `big-deal-q2` | Frontmatter overrides folder |
+| 7 | `blogs/initech-migration.md` | `entity_id: initech` | `initech` | Frontmatter on file outside entities/ |
+| 8 | `docs/random.md` | `entity_id: secret-project` | `secret-project` | Frontmatter works anywhere |
 
 ### Group 3: No Entity (Shared Knowledge)
 
@@ -141,7 +141,7 @@ EOF
 # Group 2: Frontmatter override
 cat > "$WORK/entities/acme-corp/special.md" << 'EOF'
 ---
-entity: big-deal-q2
+entity_id: big-deal-q2
 ---
 # Special override file
 This file is in acme-corp folder but should be scoped to big-deal-q2 entity.
@@ -150,7 +150,7 @@ EOF
 mkdir -p "$WORK/blogs"
 cat > "$WORK/blogs/initech-migration.md" << 'EOF'
 ---
-entity: initech
+entity_id: initech
 ---
 # How Initech Cut CRM Data Entry by 80%
 
@@ -161,7 +161,7 @@ EOF
 mkdir -p "$WORK/docs"
 cat > "$WORK/docs/random.md" << 'EOF'
 ---
-entity: secret-project
+entity_id: secret-project
 ---
 # Secret Project Notes
 Internal planning document for secret project.

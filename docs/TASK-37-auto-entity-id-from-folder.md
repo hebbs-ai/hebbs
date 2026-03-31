@@ -42,7 +42,7 @@ workspace/
 
 ### Resolution order (first match wins)
 
-1. **Frontmatter override:** File contains `entity: acme-corp` in YAML frontmatter -> use it.
+1. **Frontmatter override:** File contains `entity_id: acme-corp` in YAML frontmatter -> use it. Matches the CLI (`--entity-id`), REST API, and SDK naming.
 2. **Folder convention:** File path starts with `entities/{name}/` -> `entity_id = name` (second path segment, always).
 3. **LLM extraction:** Current behavior — `find_primary_entity()` from extracted entities.
 4. **None:** Shared knowledge, no entity scoping.
@@ -52,7 +52,7 @@ workspace/
 - `entities/` must be at the workspace root. `docs/entities/` does not trigger the convention.
 - Entity ID is always the **second path segment**: `entities/acme-corp/deep/nested/file.md` -> `entity_id: "acme-corp"`.
 - Entity ID is lowercased and slugified (alphanumeric + hyphens).
-- Frontmatter `entity:` can be used on ANY file, not just those in `entities/`. This allows scoping a case study to a specific account: `case-studies/initech-migration.md` with `entity: initech`.
+- Frontmatter `entity_id:` can be used on ANY file, not just those in `entities/`. This allows scoping a case study to a specific account: `case-studies/initech-migration.md` with `entity_id: initech`.
 - Both Document memories (Layer 1) and Proposition memories (Layer 2) inherit the resolved entity_id.
 
 ## Implementation
@@ -63,7 +63,7 @@ workspace/
 
 ```rust
 /// Extract entity_id from YAML frontmatter if present.
-/// Looks for `entity: <value>` in --- delimited frontmatter block.
+/// Looks for `entity_id: <value>` in --- delimited frontmatter block.
 fn parse_entity_from_frontmatter(content: &str) -> Option<String> {
     let content = content.trim();
     if !content.starts_with("---") {
@@ -73,7 +73,7 @@ fn parse_entity_from_frontmatter(content: &str) -> Option<String> {
     let frontmatter = &content[3..3 + end];
     for line in frontmatter.lines() {
         let line = line.trim();
-        if let Some(value) = line.strip_prefix("entity:") {
+        if let Some(value) = line.strip_prefix("entity_id:") {
             let entity = value.trim().to_lowercase();
             if !entity.is_empty() {
                 return Some(entity);
@@ -154,7 +154,7 @@ entity_id: primary_entity,
 
 - Document the `entities/` convention in `hebbs init` output hint.
 - Add `entities/` to default scaffold when `hebbs init` creates a workspace.
-- Document frontmatter `entity:` field in API docs.
+- Document frontmatter `entity_id:` field in API docs.
 
 ## Use Cases Enabled
 
@@ -172,7 +172,7 @@ entity_id: primary_entity,
 1. **Unit tests** for `parse_entity_from_frontmatter` (with/without frontmatter, edge cases).
 2. **Unit tests** for `parse_entity_from_path` (valid paths, nested paths, non-entities paths).
 3. **Integration test:** Index a workspace with `entities/test-entity/doc.md` and verify memories have `entity_id: "test-entity"`.
-4. **Integration test:** File with frontmatter `entity: override` inside `entities/original/` uses "override" not "original".
+4. **Integration test:** File with frontmatter `entity_id: override` inside `entities/original/` uses "override" not "original".
 5. **Integration test:** File outside `entities/` with no frontmatter falls back to LLM extraction.
 
 ## Estimated Effort
