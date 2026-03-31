@@ -1,0 +1,173 @@
+---
+title: "Uploading Files"
+description: "How to get files into HEBBS: CLI push, REST API upload, GitHub Actions auto-sync, and entity scoping via folders."
+---
+
+HEBBS accepts `.md`, `.txt`, and `.pdf` files. Each file is processed through a triple-layer pipeline: document memory, proposition extraction (via LLM), and entity/relation graph edges. Unchanged files are skipped automatically via checksum comparison.
+
+## CLI Push
+
+Upload a directory of files:
+
+```bash
+hebbs push ./your-docs
+```
+
+This recursively finds all `.md`, `.txt`, and `.pdf` files (skipping hidden files) and uploads them to the server. Indexing starts immediately.
+
+Upload a single file:
+
+```bash
+hebbs push ./notes/meeting-2026-03-15.md
+```
+
+## REST API Upload
+
+Upload files directly via the REST API:
+
+```bash
+curl -X POST http://your-server:8080/v1/upload \
+  -H "Authorization: Bearer hb_live_sk_..." \
+  -F "files=@doc1.md" \
+  -F "files=@doc2.txt"
+```
+
+Response:
+
+```json
+{
+  "uploaded": 2,
+  "files": ["doc1.md", "doc2.txt"],
+  "message": "Files uploaded. Indexing triggered. Check status for progress."
+}
+```
+
+For workspace-scoped uploads:
+
+```bash
+curl -X POST http://your-server:8080/v1/workspaces/my-workspace/upload \
+  -H "Authorization: Bearer hb_live_sk_..." \
+  -F "files=@doc.md"
+```
+
+## GitHub Actions Auto-Sync
+
+If your team keeps documents in a GitHub repo, auto-sync them to HEBBS on every push to main.
+
+### Setup
+
+1. Add two secrets to your GitHub repo (Settings > Secrets > Actions):
+   - `HEBBS_ENDPOINT`: your HEBBS server URL (e.g. `https://hebbs.company.com:8080`)
+   - `HEBBS_API_KEY`: your workspace API key
+
+2. Create `.github/workflows/hebbs-sync.yml`:
+
+```yaml
+name: Sync to HEBBS
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload files to HEBBS
+        run: |
+          FILES=$(find . -type f \( -name "*.md" -o -name "*.txt" -o -name "*.pdf" \) \
+            ! -path "./.git/*" ! -path "*/node_modules/*" ! -path "*/.hebbs/*")
+          COUNT=$(echo "$FILES" | grep -c . || true)
+          echo "Uploading ${COUNT} file(s)..."
+          CURL_ARGS=""
+          while IFS= read -r f; do
+            CURL_ARGS="$CURL_ARGS -F files=@${f}"
+          done <<< "$FILES"
+          curl -sf -X POST "${{ secrets.HEBBS_ENDPOINT }}/v1/upload" \
+            -H "Authorization: Bearer ${{ secrets.HEBBS_API_KEY }}" \
+            $CURL_ARGS
+          echo "Sync complete."
+```
+
+Every push to main now uploads all matching files. Unchanged files are skipped on the server (checksum-based dedup), so repeated syncs are fast and safe.
+
+## How Indexing Works
+
+When files arrive on the server, HEBBS processes them through a two-phase pipeline:
+
+**Phase 1 (fast):**
+1. Scans for `.md` files
+2. Splits each file by heading (default: `##` headings)
+3. Hashes each section (SHA-256) and compares against the manifest to detect changes
+
+**Phase 2 (LLM + embedding):**
+For each changed file:
+4. **Document memory** (Layer 1): the full content is stored as a single memory
+5. **Proposition extraction** (Layer 2): the LLM extracts atomic facts. Each proposition becomes its own memory linked to the document
+6. **Entity & relation extraction** (Layer 3): the LLM identifies entities and relationships. Entities become `entity_id` values; relationships become graph edges
+7. **Embedding**: all memories are embedded for similarity search
+8. **Contradiction detection**: each document memory is checked against existing memories. Confirmed contradictions create `Contradicts` edges; revisions create `RevisedFrom` edges
+
+Extraction runs in parallel (10 concurrent by default). Unchanged sections are skipped. Deleted sections are forgotten.
+
+## Entity Scoping via Folders
+
+Files inside an `entities/` directory at the workspace root are automatically scoped to the entity matching the subfolder name:
+
+```
+workspace/
+├── entities/
+│   ├── acme-corp/
+│   │   ├── call-notes.md        → entity_id: "acme-corp"
+│   │   └── emails/sarah.md     → entity_id: "acme-corp"
+│   └── initech/
+│       └── discovery.md         → entity_id: "initech"
+├── products/                    → no entity_id (shared knowledge)
+└── case-studies/
+```
+
+**Resolution order** (first match wins):
+
+1. **Frontmatter**: `entity_id: acme-corp` in YAML frontmatter overrides everything
+2. **Folder convention**: file is under `entities/{name}/` at the workspace root
+3. **LLM extraction**: the engine identifies the primary entity from the content
+4. **None**: shared knowledge, accessible to all entities
+
+Frontmatter works on any file, not just those inside `entities/`:
+
+```markdown
+---
+entity_id: initech
+---
+# How Initech Cut CRM Data Entry by 80%
+```
+
+Both Document memories (Layer 1) and Proposition memories (Layer 2) inherit the resolved entity_id.
+
+## Contradiction Detection
+
+When new memories conflict with existing ones, HEBBS detects this automatically during indexing:
+
+1. Finds the nearest existing memories by similarity
+2. Sends candidate pairs to the LLM for classification
+3. Creates graph edges based on the verdict:
+
+| Verdict | Effect |
+|---|---|
+| `contradiction` | Bidirectional `CONTRADICTS` edges between the two memories |
+| `revision` | `REVISED_FROM` edge (new memory supersedes old) |
+| `dismiss` | No edges. The pair is not conflicting. |
+
+Contradictions surface in recall results and insights. No manual review required.
+
+## Supported File Types
+
+| Extension | Treatment |
+|---|---|
+| `.md` | Split by headings, proposition extraction, entity/relation graphs |
+| `.txt` | Treated as single section, proposition extraction |
+| `.pdf` | Text extracted, then treated like `.txt` |
+
+## Idempotent Uploads
+
+HEBBS tracks content hashes for every indexed section. Re-uploading the same file is a no-op: the server detects unchanged content and skips it. Only new or modified content triggers re-embedding and LLM extraction. This makes it safe to run `hebbs push` or the GitHub Action on every deploy.

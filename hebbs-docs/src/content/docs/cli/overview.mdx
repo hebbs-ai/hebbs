@@ -1,83 +1,59 @@
 ---
 title: "CLI Overview"
-description: "HEBBS command-line interfaces: the unified hebbs binary and the hebbs-cli remote client."
+description: "HEBBS command-line interface for connecting to your server, managing memories, and uploading files."
 ---
 
-HEBBS provides two CLIs depending on your deployment mode:
+The HEBBS CLI connects to your enterprise server over REST. Install it, log in, and you have full access to all memory operations from the command line.
 
-| Binary | Mode | Description |
-|---|---|---|
-| **`hebbs`** | Local (vault) | Unified binary: vault management, all memory operations, daemon, panel. No server required. |
-| **`hebbs-cli`** | Remote (server) | Client that connects to a running `hebbs-server` over gRPC. |
-
-Both CLIs share the same memory commands (`remember`, `recall`, `revise`, `forget`, `prime`, `reflect`, `insights`). The `hebbs` binary adds vault-specific commands (`init`, `index`, `watch`, `rebuild`, `list`, `serve`, `panel`).
-
-## Unified Binary (`hebbs`)
-
-The `hebbs` binary operates locally by default. It discovers the nearest `.hebbs/` directory (or uses `--global` for `~/.hebbs/`) and runs the full HEBBS engine in-process.
+## Install
 
 ```bash
-# Vault commands
-hebbs init                    # Create a vault
-hebbs index                   # Index all markdown files
-hebbs watch                   # Watch for file changes
-hebbs rebuild                 # Delete index and rebuild
-hebbs list --sections         # List indexed files and sections
-hebbs serve                   # Start the daemon
-hebbs panel                   # Open the Memory Palace
-
-# Memory commands (local)
-hebbs remember "some fact"
-hebbs recall "query"
-hebbs recall --all "query"    # Search project + global vaults
+curl -sSf https://hebbs.ai/install | sh
 ```
 
-### Global Flags
+Or via Homebrew:
+
+```bash
+brew install hebbs-ai/tap/hebbs
+```
+
+## Connect
+
+```bash
+hebbs login --endpoint http://your-server:8080 --api-key hb_live_sk_...
+```
+
+This saves the endpoint and API key to `~/.config/hebbs/cli.toml`. All subsequent commands use the saved connection.
+
+## Core Commands
+
+```bash
+hebbs recall "your query"                          # search memories
+hebbs remember "important fact" --entity-id acme   # store a memory
+hebbs push ./docs                                  # upload files
+hebbs status                                       # check server health
+```
+
+## Global Flags
 
 | Flag | Env Var | Description |
 |---|---|---|
-| `--vault PATH` | `HEBBS_VAULT` | Explicit vault path |
-| `--global` | | Use global brain (`~/.hebbs/`) |
-| `--endpoint URL` | `HEBBS_ENDPOINT` | Switch to remote mode (connect to server) |
+| `--endpoint URL` | `HEBBS_ENDPOINT` | Server URL |
+| `--api-key KEY` | `HEBBS_API_KEY` | API key for authentication |
 | `--format` | | Output format: `human`, `json`, `raw` |
 | `--color` | | Color: `always`, `never`, `auto` |
-| `-v` / `-vv` | | Verbose/trace logging |
-
-### Remote Mode
-
-When `--endpoint` is set, the `hebbs` binary acts as a remote client (like `hebbs-cli`):
-
-```bash
-hebbs --endpoint localhost:50051 --api-key "hb_..." recall "query"
-```
-
-## Remote Client (`hebbs-cli`)
-
-The `hebbs-cli` binary connects to a running `hebbs-server` over gRPC. It supports one-shot commands and an interactive REPL.
-
-```bash
-hebbs-cli remember --entity customer-42 "Prefers email communication"
-hebbs-cli recall --entity customer-42 "contact preferences"
-hebbs-cli repl    # Interactive session
-```
-
-### Authentication
-
-```bash
-export HEBBS_API_KEY="hb_..."
-hebbs-cli remember "hello world"
-```
+| `-v` / `-vv` | | Verbose / trace logging |
 
 ## Key Capabilities
 
-- **All 9 HEBBS operations** in both CLIs
+- **All memory operations**: remember, recall, revise, forget, prime, reflect, insights
+- **File upload**: push files and directories for server-side indexing
+- **Workspace management**: list, create, switch workspaces
+- **API key management**: list, create, revoke keys
 - **Multiple output formats**: human-readable tables (default), JSON for scripting, raw for piping
-- **Streaming support**: `subscribe` opens a live stream
-- **Multi-vault queries**: `--all` flag merges results from project and global vaults (unified binary only)
 
 ## Next Steps
 
-- [Commands Reference](/cli/commands/) - all available commands
-- [Vault Overview](/vault/overview/) - local vault mode
-- [REPL](/cli/repl/) - interactive mode guide
+- [Commands Reference](/cli/commands/) - all available commands with flags and examples
 - [Output Formats](/cli/output-formats/) - control output formatting
+- [REPL](/cli/repl/) - interactive mode

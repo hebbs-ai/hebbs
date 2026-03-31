@@ -3,451 +3,246 @@ title: "Commands Reference"
 description: "All HEBBS CLI commands with flags, defaults, and examples."
 ---
 
-This page covers commands for both the **unified `hebbs` binary** (local vault mode) and the **`hebbs-cli`** (remote server mode). Commands marked **(vault only)** are exclusive to the unified binary. All memory commands work in both modes.
-
 ## Global Flags
-
-### Unified binary (`hebbs`)
 
 | Flag | Env Var | Default | Description |
 |---|---|---|---|
-| `--vault PATH` | `HEBBS_VAULT` | auto-discover | Explicit vault path |
-| `--global` | | off | Use global brain (`~/.hebbs/`) |
-| `--endpoint` | `HEBBS_ENDPOINT` | | Switch to remote mode |
-| `--api-key` | `HEBBS_API_KEY` | | API key (remote mode) |
-| `--tenant` | `HEBBS_TENANT` | | Explicit tenant ID |
+| `--endpoint` | `HEBBS_ENDPOINT` | (from login) | Server URL |
+| `--api-key` | `HEBBS_API_KEY` | (from login) | API key for authentication |
 | `--format` | | `human` | Output format: `human`, `json`, `raw` |
 | `--color` | | `auto` | Color: `always`, `never`, `auto` |
 | `-v` / `-vv` | | off | Verbose / trace logging |
 
-### Remote client (`hebbs-cli`)
+---
 
-| Flag | Short | Env Var | Default | Description |
-|---|---|---|---|---|
-| `--endpoint` | | `HEBBS_ENDPOINT` | `localhost:50051` | Server gRPC endpoint |
-| `--http-port` | | `HEBBS_HTTP_PORT` | | Server HTTP port (for metrics) |
-| `--timeout` | | `HEBBS_TIMEOUT` | | Request timeout in milliseconds |
-| `--api-key` | | `HEBBS_API_KEY` | | API key for authentication |
-| `--tenant` | | `HEBBS_TENANT` | | Explicit tenant ID |
-| `--format` | | | `human` | Output format: `human`, `json`, `raw` |
-| `--color` | | | `auto` | Color output: `always`, `never`, `auto` |
-| `-v` / `-vv` | | | off | Verbose mode (debug / trace) |
+## Connection
+
+### login
+
+Connect to a HEBBS server. Saves endpoint and API key for subsequent commands.
+
+```bash
+hebbs login --endpoint http://your-server:8080 --api-key hb_live_sk_...
+```
+
+| Flag | Required | Description |
+|---|---|---|
+| `--endpoint` | Yes | Server URL |
+| `--api-key` | No | API key (can also use `HEBBS_API_KEY` env var) |
+
+### status
+
+Check server health.
+
+```bash
+hebbs status
+```
 
 ---
 
-## Vault Commands (vault only)
+## File Upload
 
-### init
+### push
 
-Initialize a new vault (`.hebbs/` directory). LLM configuration is required for new vaults and can be provided via flags or interactively.
-
-```bash
-hebbs init [PATH]
-hebbs init --provider openai --key $OPENAI_API_KEY
-hebbs init --provider anthropic --key $ANTHROPIC_API_KEY
-hebbs init --provider ollama
-hebbs init --force          # Reinitialize even if .hebbs/ exists
-```
-
-| Flag | Description |
-|---|---|
-| `PATH` (positional) | Vault directory (default: current directory) |
-| `--force` | Reinitialize even if `.hebbs/` already exists |
-| `--provider` | LLM provider: `anthropic`, `openai`, `gemini`, `ollama` |
-| `--model` | Model identifier. Optional; defaults per provider (`gpt-4o-mini`, `claude-haiku-4-5-20251001`, `gemini-2.0-flash`, `gemma3:1b`) |
-| `--key` / `--api-key` | API key passed directly. Saved to `~/.hebbs/config.toml`. |
-| `--api-key-env` | Environment variable name holding the API key (e.g. `ANTHROPIC_API_KEY`). Better for CI/pipelines. |
-| `--base-url` | Base URL override for self-hosted providers |
-| `--max-concurrent` | Max concurrent API requests (default: 10). Lower to 1-2 for low-tier API accounts that hit rate limits. |
-
-When `--provider openai` is used, embedding auto-configures to `text-embedding-3-small` with the same key. LLM and embedding config are saved globally; local config inherits.
-
-### index
-
-Index all markdown files in the vault.
+Upload files to the server for indexing.
 
 ```bash
-hebbs index [PATH]
+hebbs push ./your-docs              # upload a directory
+hebbs push ./notes/meeting.md       # upload a single file
 ```
 
-### watch
-
-Watch vault for file changes and sync in real-time.
-
-```bash
-hebbs watch [PATH]
-```
-
-### rebuild
-
-Delete `.hebbs/` and rebuild index from scratch.
-
-```bash
-hebbs rebuild [PATH]
-```
-
-### list
-
-List all indexed files and their sections.
-
-```bash
-hebbs list
-hebbs list --sections       # Show section details
-```
-
-| Flag | Description |
-|---|---|
-| `--sections` | Show section headings, memory IDs, and states |
-
-### serve
-
-Start the daemon (serves all vaults via Unix socket + panel HTTP).
-
-```bash
-hebbs serve
-hebbs serve --foreground
-hebbs serve --idle-timeout 600 --panel-port 8080
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--foreground` | off | Run in foreground (do not daemonize) |
-| `--idle-timeout` | `300` | Idle shutdown in seconds (0 to disable) |
-| `--panel-port` | `6381` | HTTP port for Memory Palace (0 to disable) |
-
-### panel
-
-Open the Memory Palace control panel in a browser.
-
-```bash
-hebbs panel
-hebbs panel --port 8080
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--port` | `6381` | HTTP port for the panel server |
+Finds all `.md`, `.txt`, and `.pdf` files recursively (skips hidden files). Unchanged files are skipped on the server via checksum comparison.
 
 ---
 
 ## Memory Commands
 
-These commands work in both vault mode (`hebbs`) and remote mode (`hebbs-cli`).
-
 ### remember
 
-Store a new memory. Content is a positional argument (or piped via stdin).
+Store a new memory.
 
 ```bash
-hebbs-cli remember "Customer prefers email over phone" \
+hebbs remember "Customer prefers email over phone" \
   --importance 0.8 \
   --entity-id customer-42
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `content` (positional) | — | Yes | — | Memory content text. Reads from stdin if omitted and stdin is a pipe. |
-| `--importance` | `-i` | No | `0.5` | Importance score (`0.0` to `1.0`) |
-| `--entity-id` | `-e` | No | — | Entity scope for grouping memories |
-| `--context` | `-c` | No | — | Arbitrary metadata as a JSON object (e.g. `'{"source":"email"}'`) |
-| `--edge` | — | No | — | Graph edge (repeatable). Format: `TARGET_ID:EDGE_TYPE[:CONFIDENCE]`. Types: `caused_by`, `related_to`, `followed_by`, `revised_from`, `insight_from`. |
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `content` (positional) | | | Memory content text |
+| `--importance` | `-i` | `0.5` | Importance score (`0.0` to `1.0`) |
+| `--entity-id` | `-e` | | Entity scope |
+| `--context` | `-c` | | Metadata as JSON (e.g. `'{"source":"email"}'`) |
+| `--edge` | | | Graph edge (repeatable). Format: `TARGET_ID:EDGE_TYPE[:CONFIDENCE]` |
 
-### JSON output and `--edge` workflow
+### recall
 
-When you need the memory ID (e.g. to reference it in a subsequent `--edge`), use `--format json`:
-
-```bash
-# Store a memory and capture its ID
-MEM_ID=$(hebbs-cli remember "Customer signed annual contract" \
-  --importance 0.9 \
-  --entity-id customer-42 \
-  --format json | jq -r '.memory_id')
-
-# Link a follow-up memory to the first one
-hebbs-cli remember "Contract includes premium support tier" \
-  --importance 0.7 \
-  --entity-id customer-42 \
-  --edge "$MEM_ID:followed_by"
-```
-
-Example JSON output from `remember --format json`:
-
-```json
-{
-  "memory_id": "01KK3S0KXYE22EFF489YRTH559",
-  "content": "Customer signed annual contract",
-  "importance": 0.9,
-  "kind": "episode",
-  "entity_id": "customer-42",
-  "created_at": 1705326720000000
-}
-```
-
-> **Note:** Always extract `memory_id` from `--format json` output before referencing it in `--edge`. Do not parse IDs from human-format output — the human format is for display only.
-
----
-
-## recall
-
-Query for relevant memories. The cue is a positional argument.
+Search for relevant memories.
 
 ```bash
-hebbs-cli recall "How does the customer prefer to be contacted?" \
+hebbs recall "How does the customer prefer to be contacted?" \
   --strategy similarity \
-  --top-k 5 \
-  --format json
+  --top-k 5
 ```
 
-### Core Flags
+#### Core Flags
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `cue` (positional) | — | Yes | — | Natural language query text |
-| `--strategy` | `-s` | No | `similarity` | Recall strategy: `similarity`, `temporal`, `causal`, `analogical` |
-| `--top-k` | `-k` | No | `10` | Maximum results to return |
-| `--entity-id` | `-e` | No | — | Entity scope (required for `temporal` strategy) |
-| `--weights` | `-w` | No | `0.5:0.2:0.2:0.1` | Composite scoring weights as `R:T:I:F` (see below) |
-| `--all` | — | No | off | Search both project and global vaults, merge by score (vault mode only) |
-| `--format` | — | No | `human` | Output format: `human`, `json`, `raw` |
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `cue` (positional) | | | Natural language query |
+| `--strategy` | `-s` | `similarity` | `similarity`, `temporal`, `causal`, `analogical` |
+| `--top-k` | `-k` | `10` | Maximum results |
+| `--entity-id` | `-e` | | Entity scope (required for `temporal`) |
+| `--weights` | `-w` | `0.5:0.2:0.2:0.1` | Composite scoring: `Relevance:Recency:Importance:Reinforcement` |
 
-Only `cue` and `--strategy` are required. All other flags use smart defaults suitable for most workloads.
-
-### Strategy-Specific Flags
-
-These flags fine-tune per-strategy behavior. Most users will not need them — the defaults are designed for broad, accurate recall.
+#### Strategy-Specific Flags
 
 | Flag | Strategy | Default | Description |
 |---|---|---|---|
-| `--ef-search` | `similarity` | `50` | HNSW candidate count. Higher values increase recall accuracy at the cost of latency. |
-| `--time-range` | `temporal` | unbounded | Temporal bounds as `START_US:END_US` (colon-separated microsecond timestamps). When omitted, returns all memories newest-first up to `top_k`. |
-| `--seed` | `causal` | auto-detect | Starting memory ID (ULID or hex) for graph traversal. When omitted, the engine embeds the cue and picks the closest memory as the seed. |
-| `--max-depth` | `causal` | `5` (max `10`) | Maximum hops from the seed memory. |
-| `--edge-types` | `causal` | all types | Comma-separated edge types to follow: `caused_by`, `followed_by`, `related_to`, `revised_from`, `insight_from`. |
-| `--analogical-alpha` | `analogical` | `0.5` | Blending weight: `0.0` = pure structural similarity, `1.0` = pure embedding similarity. |
+| `--ef-search` | `similarity` | `50` | HNSW candidate count |
+| `--time-range` | `temporal` | unbounded | Bounds as `START_US:END_US` (microsecond timestamps) |
+| `--seed` | `causal` | auto | Starting memory ID for graph traversal |
+| `--max-depth` | `causal` | `5` | Maximum hops from seed |
+| `--edge-types` | `causal` | all | Edge types to follow: `caused_by`, `followed_by`, `related_to`, `revised_from`, `insight_from` |
+| `--analogical-alpha` | `analogical` | `0.5` | `0.0` = structural, `1.0` = embedding similarity |
 
-### Composite Scoring and `--weights`
+#### Composite Scoring (`--weights`)
 
-Every recall result has a **composite score** — a weighted blend of four signals:
+Every result has a composite score blending four signals:
 
 | Signal | Position | What it measures |
 |---|---|---|
-| **R**elevance | 1st | Cosine similarity between query embedding and memory embedding |
-| **R**ecency (**T**ime) | 2nd | How recently the memory was created |
-| **I**mportance | 3rd | Memory's stored importance value |
-| **R**einforcement (**F**requency) | 4th | How often the memory has been recalled |
-
-The `--weights` flag takes four colon-separated floats that control how much each signal contributes. Results are sorted by the composite score.
-
-**Examples:**
+| **R**elevance | 1st | Cosine similarity between query and memory |
+| **R**ecency | 2nd | How recently the memory was created |
+| **I**mportance | 3rd | Memory's importance value |
+| **R**einforcement | 4th | How often the memory has been recalled |
 
 ```bash
-# Default composite scoring (relevance-heavy)
-hebbs-cli recall "Acme meeting"
-
-# Pure semantic relevance — ignore recency, importance, reinforcement
-hebbs-cli recall "Acme meeting" --weights 1:0:0:0
-
-# Recency-biased — prefer recent memories
-hebbs-cli recall "Acme meeting" --weights 0.2:0.6:0.1:0.1
-
-# Importance-biased — surface critical memories first
-hebbs-cli recall "contract renewal" --weights 0.3:0.1:0.5:0.1
-
-# Reinforcement-biased — find recurring patterns
-hebbs-cli recall "objection handling" --weights 0.2:0.1:0.2:0.5
+hebbs recall "Acme meeting" --weights 1:0:0:0       # pure semantic
+hebbs recall "Acme meeting" --weights 0.2:0.6:0.1:0.1  # recency-biased
+hebbs recall "contract" --weights 0.3:0.1:0.5:0.1      # importance-biased
 ```
 
-The output includes both columns:
+### get
 
-```
- # │ Score  │ Relevance │ Memory ID                  │ Kind    │ Content
-───┼────────┼───────────┼────────────────────────────┼─────────┼────────────────────
- 1 │ 0.6701 │ 0.8502    │ 01KK3S0KXYE22EFF489YR...  │ episode │ Met with the Acme...
-```
-
-- **Score** is the composite (what results are sorted by)
-- **Relevance** is the raw cosine similarity from the embedding model
-
-With `--weights 1:0:0:0`, Score and Relevance will be equal since the composite is 100% relevance.
-
-### Advanced Strategy Tuning Examples
+Retrieve a single memory by ID.
 
 ```bash
-# Causal recall from a specific seed, deeper traversal, only caused_by edges
-hebbs-cli recall "What led to the pricing pushback?" \
-  --strategy causal \
-  --seed 01KK3S0KXYE22EFF489YRTH559 \
-  --max-depth 8 \
-  --edge-types caused_by
-
-# Temporal recall within a time range (colon-separated microsecond timestamps)
-hebbs-cli recall "customer interactions" \
-  --strategy temporal \
-  --entity-id customer-42 \
-  --time-range 1709251200000000:1711929600000000
-
-# Analogical recall favoring structural similarity
-hebbs-cli recall "Have we seen similar pricing dynamics?" \
-  --strategy analogical \
-  --analogical-alpha 0.2
-
-# Similarity recall with higher HNSW quality for large datasets
-hebbs-cli recall "contract renewal" \
-  --strategy similarity \
-  --ef-search 200
-
-# Multi-signal: causal traversal scoped to caused_by and followed_by edges
-hebbs-cli recall "What events followed the outage?" \
-  --strategy causal \
-  --edge-types caused_by,followed_by \
-  --max-depth 6
+hebbs get 01KK3S0KXYE22EFF489YRTH559
 ```
 
----
+### revise
 
-## get
-
-Retrieve a single memory by ID. The ID is a positional argument (ULID or hex).
+Update an existing memory with lineage tracking.
 
 ```bash
-hebbs-cli get 01KK3S0KXYE22EFF489YRTH559
-```
-
----
-
-## revise
-
-Update an existing memory, creating a new revision linked to the original.
-
-```bash
-hebbs-cli revise 01KK3S0KXYE22EFF489YRTH559 \
+hebbs revise 01KK3S0KXYE22EFF489YRTH559 \
   --content "Customer now prefers Slack over email" \
   --importance 0.9
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `id` (positional) | — | Yes | — | Memory ID to revise (ULID or hex) |
-| `--content` | `-C` | No | — | Updated content text |
-| `--importance` | `-i` | No | — | Updated importance score |
-| `--context` | `-x` | No | — | Updated context as JSON object |
-| `--context-mode` | — | No | `merge` | How to apply context: `merge` (deep-merge with existing) or `replace` (overwrite) |
-| `--entity-id` | `-e` | No | — | Updated entity ID |
-| `--edge` | — | No | — | Graph edge (repeatable). Same format as `remember`. |
+| Flag | Short | Description |
+|---|---|---|
+| `id` (positional) | | Memory ID to revise |
+| `--content` | `-C` | Updated content |
+| `--importance` | `-i` | Updated importance |
+| `--entity-id` | `-e` | Updated entity ID |
 
----
-
-## forget
+### forget
 
 Remove memories matching criteria.
 
 ```bash
-# Forget specific memories by ID
-hebbs-cli forget --ids 01KK3S0KXYE22EFF489YRTH559 --ids 01KK3S0KXYE22EFF489YRTH560
-
-# Forget all memories for an entity
-hebbs-cli forget --entity-id customer-42
-
-# Forget memories older than 30 days
-hebbs-cli forget --staleness-us 2592000000000
-
-# Forget low-value decayed memories
-hebbs-cli forget --decay-floor 0.1
+hebbs forget --entity-id customer-42                # all memories for an entity
+hebbs forget --ids 01KK3S0KXYE22EFF489YRTH559      # specific memory
+hebbs forget --staleness-us 2592000000000           # older than 30 days
+hebbs forget --decay-floor 0.1                      # low-value memories
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--ids` | `-i` | No | — | Specific memory IDs to forget (repeatable) |
-| `--entity-id` | `-e` | No | — | Entity scope |
-| `--staleness-us` | — | No | — | Remove memories older than this many microseconds |
-| `--access-floor` | — | No | — | Remove memories with access count below this value |
-| `--kind` | — | No | — | Filter by memory kind: `episode`, `insight`, `revision` |
-| `--decay-floor` | — | No | — | Remove memories with decay score below this value |
+| Flag | Short | Description |
+|---|---|---|
+| `--ids` | `-i` | Specific memory IDs (repeatable) |
+| `--entity-id` | `-e` | Entity scope |
+| `--staleness-us` | | Remove memories older than N microseconds |
+| `--decay-floor` | | Remove memories with decay score below this |
 
 At least one filter must be provided.
 
----
+### prime
 
-## prime
-
-Pre-load context for an entity. Returns a blend of recent and relevant memories. The entity ID is a positional argument.
+Pre-load context for an entity.
 
 ```bash
-hebbs-cli prime customer-42 --max-memories 20 --similarity-cue "account history"
+hebbs prime acme-corp --max-memories 20
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `entity_id` (positional) | — | Yes | — | Entity ID to prime |
-| `--context` | `-c` | No | — | Additional context as JSON |
-| `--max-memories` | `-m` | No | — | Maximum memories to return |
-| `--recency-us` | — | No | — | Recency window in microseconds |
-| `--similarity-cue` | — | No | — | Text cue for similarity-based selection within the entity |
-| `--all` | — | No | off | Search both project and global vaults, merge by score (vault mode only) |
+| Flag | Short | Description |
+|---|---|---|
+| `entity_id` (positional) | | Entity ID to prime |
+| `--max-memories` | `-m` | Maximum memories to return |
+| `--similarity-cue` | | Text cue for similarity-based selection |
 
----
+### reflect
 
-## reflect
-
-Trigger a reflection cycle: clustering, LLM-driven insight generation, validation, and commit. This is the primary way to run reflection in both vault and server modes. Requires LLM configuration in the vault config or on the server.
+Trigger a reflection cycle: clustering, insight generation, validation.
 
 ```bash
 hebbs reflect --entity-id customer-42
-hebbs-cli reflect --entity-id customer-42
 ```
 
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--entity-id` | `-e` | No | — | Entity scope (omit for global) |
-| `--since-us` | — | No | — | Only process memories created after this timestamp (microseconds) |
+| Flag | Short | Description |
+|---|---|---|
+| `--entity-id` | `-e` | Entity scope (omit for global) |
+
+### insights
+
+Retrieve consolidated insights from reflection.
+
+```bash
+hebbs insights --entity-id customer-42 --max-results 5 --min-confidence 0.7
+```
+
+| Flag | Short | Description |
+|---|---|---|
+| `--entity-id` | `-e` | Filter by entity |
+| `--min-confidence` | `-c` | Minimum confidence threshold |
+| `--max-results` | `-k` | Maximum results |
 
 ---
 
-## config
+## Workspace Management
 
-View and modify vault configuration using dot-notation keys.
+### workspaces
+
+List, create, or switch workspaces.
 
 ```bash
-hebbs config show                          # Print full config
-hebbs config get llm.provider              # Get a single value
-hebbs config set llm.provider anthropic    # Set a single value
-hebbs config set llm.model claude-sonnet-4-20250514
-hebbs config set embedding.model embeddinggemma-300m
-hebbs config set embedding.dimensions 768
+hebbs workspaces list
+hebbs workspaces create --name "sales-team"
+hebbs workspaces switch sales-team
 ```
 
-Supported dot-notation keys include `llm.provider`, `llm.model`, `llm.api_key_env`, `llm.base_url`, `embedding.model`, `embedding.dimensions`, and any other field in `config.toml`. Changes take effect on the next command or watch cycle.
+### keys
+
+Manage API keys.
+
+```bash
+hebbs keys list
+hebbs keys create --label "ci-pipeline"
+hebbs keys revoke <key-id>
+```
 
 ---
 
-## insights
+## Real-time
 
-Retrieve insights generated by reflection.
+### subscribe
 
-```bash
-hebbs-cli insights --entity-id customer-42 --max-results 5 --min-confidence 0.7
-```
-
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--entity-id` | `-e` | No | — | Filter by entity |
-| `--min-confidence` | `-c` | No | — | Minimum confidence threshold |
-| `--max-results` | `-k` | No | — | Maximum results to return |
-
----
-
-## subscribe
-
-Open a real-time subscription stream. Prints memory pushes as they arrive.
+Open a real-time subscription stream.
 
 ```bash
-hebbs-cli subscribe --entity-id customer-42 --confidence 0.7
+hebbs subscribe --entity-id customer-42 --confidence 0.7
 ```
-
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--entity-id` | `-e` | No | — | Entity scope |
-| `--confidence` | `-c` | No | `0.5` | Confidence threshold (`0.0` to `1.0`) |
 
 Type text and press Enter to feed context. Press `Ctrl+C` to close.
 
@@ -456,69 +251,5 @@ Type text and press Enter to feed context. Press `Ctrl+C` to close.
 Feed text to an active subscription (from a separate terminal).
 
 ```bash
-hebbs-cli feed 1 "Customer asked about dark mode preferences."
-```
-
-| Argument | Required | Description |
-|---|---|---|
-| `subscription_id` (positional) | Yes | Subscription ID |
-| `text` (positional) | Yes | Text to feed |
-
----
-
-## status
-
-Check server health and statistics.
-
-```bash
-hebbs-cli status
-```
-
-Output includes server version, uptime, total memory count, and health status.
-
----
-
-## inspect
-
-Show detailed information about a memory, including graph edges and nearest neighbors. The ID is a positional argument.
-
-```bash
-hebbs-cli inspect 01KK3S0KXYE22EFF489YRTH559
-```
-
----
-
-## export
-
-Export memories as newline-delimited JSON.
-
-```bash
-hebbs-cli export --entity-id customer-42 --limit 500 > memories.ndjson
-```
-
-| Flag | Short | Required | Default | Description |
-|---|---|---|---|---|
-| `--entity-id` | `-e` | No | — | Entity scope |
-| `--limit` | `-l` | No | `1000` | Maximum memories to export (capped at 10000) |
-
----
-
-## metrics
-
-Display server-side performance metrics.
-
-```bash
-hebbs-cli metrics
-```
-
-Shows operation latencies (p50, p95, p99), throughput, memory usage, and index sizes.
-
----
-
-## version
-
-Print CLI version.
-
-```bash
-hebbs-cli version
+hebbs feed 1 "Customer asked about dark mode preferences."
 ```

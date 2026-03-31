@@ -1,223 +1,112 @@
 ---
 title: Quickstart
-description: Get HEBBS running and store your first memory in under 5 minutes.
+description: Deploy HEBBS and store your first memory in under 5 minutes.
 ---
 
-Get HEBBS running and store your first memory in under 5 minutes. Choose your path:
-
-import { Tabs, TabItem } from "@astrojs/starlight/components";
-
-<Tabs>
-<TabItem label="Vault (Local)">
-
-## 1. Install
+## 1. Deploy the Server
 
 ```bash
-brew install hebbs-ai/tap/hebbs
+curl -sSf https://hebbs.ai/server | OPENAI_API_KEY=sk-... sh
 ```
 
-Or via curl:
+This starts the HEBBS engine and platform on your server. Open `http://your-server:8080` to complete onboarding: create your admin account, name your first workspace, and save the generated API key.
+
+## 2. Install the CLI
+
+On your laptop (macOS or Linux):
 
 ```bash
 curl -sSf https://hebbs.ai/install | sh
 export PATH="$HOME/.hebbs/bin:$PATH"
 ```
 
-## 2. Initialize a Vault
+## 3. Connect to Your Server
 
 ```bash
-cd ~/projects/my-notes    # any directory with markdown files
-hebbs init --provider openai --key $OPENAI_API_KEY
-```
-
-One command. Model defaults to `gpt-4o-mini`. Embedding auto-configures to OpenAI `text-embedding-3-small` with the same key. No local model download needed.
-
-This creates a `.hebbs/` directory, validates LLM connectivity, saves config to `~/.hebbs/config.toml` (global), and starts the daemon. HEBBS uses the LLM for proposition extraction, entity detection, and contradiction resolution during indexing.
-
-Other providers:
-
-```bash
-# Anthropic
-hebbs init --provider anthropic --key $ANTHROPIC_API_KEY
-
-# Google Gemini
-hebbs init --provider gemini --key $GEMINI_API_KEY
-
-# Local (Ollama, no API key needed)
-hebbs init --provider ollama
-```
-
-For CI/pipelines, use `--api-key-env` to reference an env var name instead of passing the key directly.
-
-## 3. Index Your Files
-
-```bash
-hebbs index
-```
-
-HEBBS scans all `.md` files, extracts propositions and entities via the LLM, embeds everything, and stores triple-layer memories (document, propositions, entity/relation edges). Extraction runs in parallel (10 concurrent requests) for speed.
-
-## 4. Recall
-
-```bash
-hebbs recall "meeting notes from last week"
-```
-
-## 5. Watch for Changes
-
-```bash
-hebbs watch
-```
-
-Now any file you create or edit is automatically re-indexed.
-
-## 6. Open the Memory Palace
-
-```bash
-hebbs panel
-```
-
-A browser opens showing your memory graph with clusters, edges, and live updates.
-
-### What's Next (Vault)
-
-- [Vault Overview](/vault/overview/) - understand vault mode in depth
-- [Configuration](/vault/configuration/) - tune chunking, scoring, decay, and contradiction detection
-- [Daemon](/vault/daemon/) - the background process that serves all your vaults
-- [Memory Palace](/vault/memory-palace/) - the visual control panel
-
-</TabItem>
-<TabItem label="Server (Remote)">
-
-## 1. Install
-
-```bash
-curl -sSf https://hebbs.ai/install | sh
-export PATH="$HOME/.hebbs/bin:$PATH"
+hebbs login --endpoint http://your-server:8080 --api-key hb_live_sk_...
 ```
 
 Verify:
 
 ```bash
-hebbs-server --version
-hebbs-cli --version
+hebbs status
 ```
 
-## 2. Start the Server
+## 4. Upload Files
 
 ```bash
-hebbs-server
+hebbs push ./your-docs-folder
 ```
 
-In a new terminal, verify:
+HEBBS indexes all `.md`, `.txt`, and `.pdf` files. Each file is split into propositions, embedded, and stored with entity relationships. This takes 30-60 seconds per file.
+
+Use the `entities/` folder convention to auto-scope content:
+
+```
+your-docs/
+├── entities/
+│   ├── acme-corp/
+│   │   └── call-notes.md      → entity_id: "acme-corp"
+│   └── initech/
+│       └── discovery.md        → entity_id: "initech"
+└── products/
+    └── features.md             → shared knowledge
+```
+
+## 5. Recall
 
 ```bash
-curl http://localhost:6381/v1/health/ready
+hebbs recall "what happened with acme?"
 ```
 
-## 3. Set Your API Key
-
-On first start, HEBBS prints a bootstrap API key:
-
-```
-╔══════════════════════════════════════════════════════════════════╗
-║  BOOTSTRAP API KEY (save this -- it will not be shown again)    ║
-║                                                                  ║
-║  hb_TwHTOWQwvTNAUgREpj-6nKaOIzgKkgZW5nDcjAaNaRU              ║
-╚══════════════════════════════════════════════════════════════════╝
-```
-
-**Save this key.** Export it:
+Try different strategies:
 
 ```bash
-export HEBBS_API_KEY="hb_..."
+hebbs recall "budget discussion" --entity-id acme-corp        # scoped to entity
+hebbs recall "what happened in order" --strategy temporal      # chronological
+hebbs recall "what led to the budget cut" --strategy causal    # cause and effect
 ```
 
-:::tip
-For local development, disable auth with `HEBBS_AUTH_ENABLED=false hebbs-server`.
-:::
-
-## 4. Store a Memory
-
-```bash
-hebbs-cli remember "Met with the Acme Corp team about Q2 roadmap."
-```
-
-## 5. Recall It
-
-```bash
-hebbs-cli recall "Acme meeting"
-```
-
-### Understanding the Score
-
-The `Score` column is a **composite score**, not raw semantic similarity. HEBBS blends four signals:
-
-| Signal | Default Weight | What it captures |
-|--------|---------------|-----------------|
-| **Relevance** | 0.5 | Cosine similarity between query and memory embeddings |
-| **Recency** | 0.2 | How recently the memory was created |
-| **Importance** | 0.2 | The memory's importance value |
-| **Reinforcement** | 0.1 | How often the memory has been recalled before |
-
-See [Recall Strategies](/concepts/recall-strategies/) for details on composite scoring.
-
-## 6. Try the Python SDK
+## 6. Use the Python SDK
 
 ```bash
 pip install hebbs
 ```
 
 ```python
-import asyncio, os
-from hebbs import HebbsClient
+import asyncio
+from hebbs.rest_client import HebbsRestClient
 
 async def main():
-    async with HebbsClient("localhost:6380", api_key=os.environ["HEBBS_API_KEY"]) as client:
-        mem = await client.remember(content="My first memory from Python!", importance=0.8)
-        print(f"Stored: {mem.id}")
-        results = await client.recall("first memory", strategies=["similarity"])
-        for r in results.results:
-            print(f"  [{r.score:.2f}] {r.memory.content}")
+    async with HebbsRestClient("http://your-server:8080", api_key="hb_live_sk_...") as hb:
+        await hb.remember("Customer prefers email over phone", entity_id="acme-corp", importance=0.8)
+        results = await hb.recall("contact preference")
+        print(results.text)
 
 asyncio.run(main())
 ```
 
-## 7. Try the TypeScript SDK
+## 7. Use the TypeScript SDK
 
 ```bash
 npm install @hebbs/sdk
 ```
 
 ```typescript
-import { HebbsClient } from '@hebbs/sdk';
+import { HebbsRestClient } from '@hebbs/sdk';
 
-const client = new HebbsClient('localhost:6380', { apiKey: process.env.HEBBS_API_KEY });
-await client.connect();
-
-const mem = await client.remember({ content: 'My first memory from TypeScript!', importance: 0.8 });
-console.log(`Stored: ${mem.id.toString('hex')}`);
-
-const { results } = await client.recall({ cue: 'first memory', strategies: ['similarity'] });
-for (const r of results) console.log(`  [${r.score.toFixed(2)}] ${r.memory.content}`);
-
-await client.close();
+const hb = new HebbsRestClient("http://your-server:8080", { apiKey: "hb_live_sk_..." });
+await hb.remember("Customer prefers email over phone", { entityId: "acme-corp", importance: 0.8 });
+const results = await hb.recall("contact preference");
+console.log(results.text);
+await hb.close();
 ```
-
-### What's Next (Server)
-
-- [Server Configuration](/server/configuration/) -- customize ports, storage, embedding, reflection
-- [CLI Commands](/cli/commands/) -- all CLI operations
-- [Python SDK](/python/overview/) -- async Python client
-- [TypeScript SDK](/typescript/overview/) -- async Node.js client
-- [API Reference](/api/overview/) -- all 9 operations via gRPC and REST
-
-</TabItem>
-</Tabs>
 
 ## What's Next
 
-- [Key Concepts](/getting-started/key-concepts/) -- understand memories, importance, entities, and recall strategies
-- [Vault Overview](/vault/overview/) -- file-first local mode
-- [CLI Commands](/cli/commands/) -- explore all CLI operations
-- [API Reference](/api/overview/) -- all 9 operations via gRPC and REST
+- [Key Concepts](/getting-started/key-concepts/) - understand memories, entities, recall strategies, and decay
+- [Uploading Files](/files/uploading/) - file sync, entity folders, GitHub Actions auto-sync
+- [CLI Commands](/cli/commands/) - all CLI operations
+- [API Reference](/api/overview/) - all 9 operations via REST and gRPC
+- [Python SDK](/python/overview/) - async Python client
+- [TypeScript SDK](/typescript/overview/) - async Node.js client

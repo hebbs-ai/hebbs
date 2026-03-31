@@ -1,77 +1,58 @@
 ---
 title: Introduction
-description: "HEBBS is the cognitive memory engine for AI agents - four recall strategies, native consolidation, automatic decay, one binary."
+description: "HEBBS is the cognitive memory engine for AI agents. Four recall strategies, native consolidation, automatic decay. Deploy on your infrastructure."
 ---
 
-HEBBS is a cognitive memory engine for AI agents. It gives agents temporal reasoning, causal chains, analogical transfer, consolidation, and decay as a single primitive - capabilities that didn't exist in any single system before. It ships as one Rust binary with embedded storage, local ONNX embeddings, and sub-10ms p99 recall at millions of memories.
+HEBBS is a cognitive memory engine for AI agents. It gives agents temporal reasoning, causal chains, analogical transfer, consolidation, and decay as a single primitive. Deploy on your infrastructure, connect via CLI or SDK, and your agents get memory that understands context, catches contradictions, and learns patterns over time.
 
 ## The Real Problem
 
-Before HEBBS, "agent memory" meant similarity search. Every solution in the market shares the same architecture: embed a question, query a vector database, return the nearest chunks, hope the answer is in there. Some add LLM-based extraction, graph relationships, or temporal metadata on top - but the retrieval model is the same, and it has hard limits:
+Before HEBBS, "agent memory" meant similarity search. Every solution shares the same architecture: embed a question, query a vector database, return the nearest chunks, hope the answer is in there. This has hard limits:
 
-- **One retrieval mode.** Ask "what happened with Acme?" and similarity search returns chunks that mention Acme. It doesn't walk a timeline. It doesn't trace cause and effect. It doesn't transfer patterns from another domain. Similarity-only precision on temporal queries: 23%. On causal queries: 15%.
-- **No native cognition.** Decay, reinforcement, consolidation - the operations that make memory useful over time - don't exist in vector databases or memory wrappers. Old noise accumulates alongside new signal forever. Agents don't learn from their memories; they retrieve from them.
-- **Stitched together.** A production memory stack typically means a vector database, a key-value store, a graph database, an LLM API for extraction, and 2,000 lines of glue code. Each is a failure mode. Each adds latency. And you still only get similarity search.
-
-These aren't feature gaps you can patch. They're architectural constraints. You can't add temporal recall to a vector database. You can't add causal reasoning to a key-value store. You can't add native decay to an LLM wrapper. You need a different primitive.
+- **One retrieval mode.** Ask "what happened with Acme?" and similarity search returns chunks that mention Acme. It doesn't walk a timeline. It doesn't trace cause and effect. It doesn't transfer patterns from another domain.
+- **No native cognition.** Decay, reinforcement, consolidation don't exist in vector databases. Old noise accumulates alongside new signal forever. Agents don't learn from their memories; they retrieve from them.
+- **Stitched together.** A production memory stack typically means a vector database, a key-value store, a graph database, an LLM API for extraction, and glue code. Each is a failure mode.
 
 ## How HEBBS Is Different
 
-HEBBS implements cognitive operations as **algorithms inside a single engine**, not as wrappers over distributed services:
+- **Four recall strategies**: similarity, temporal, causal, and analogical. Each backed by a purpose-built index. One call, all strategies available.
+- **Native consolidation**: the reflection pipeline clusters related memories, proposes insights via LLM, validates them, and stores consolidated knowledge with lineage back to sources.
+- **Automatic decay and reinforcement**: memories lose importance over time; frequently recalled memories get reinforced through Hebbian learning.
+- **Contradiction detection**: when new memories conflict with existing ones, HEBBS flags them automatically.
+- **Configurable scoring weights**: every recall blends relevance, recency, importance, and reinforcement. One parameter change shifts behavior.
+- **Drop-in agent skill**: install the HEBBS skill for Claude Code or OpenClaw. No SDK integration or glue code required.
 
-- **Four recall strategies** - similarity, temporal, causal, and analogical - each backed by a purpose-built index. Temporal recall uses a B-tree range scan (91% precision). Causal recall uses bounded graph traversal (78% precision). Analogical recall uses structural pattern matching (74% precision). All from one binary, one process, one call.
-- **Native consolidation** - the reflection pipeline clusters related memories, proposes insights via LLM, validates them, and stores consolidated knowledge with lineage back to source episodes. LLM calls happen only here - in the background, never on the hot path.
-- **Automatic decay and reinforcement** - temporal decay is an exponential function, not a summarization prompt. Memories lose importance over time; frequently recalled memories get reinforced through Hebbian learning. Signal-to-noise improves naturally.
-- **Configurable scoring weights** - every recall blends four signals: relevance, recency, importance, and reinforcement. One parameter change shifts behavior from "give me everything relevant" to "what's most recent" to "what's most important." The agent tunes its own memory.
-- **Crash safety** - RocksDB's write-ahead log and atomic WriteBatch operations. Kill the process between any two instructions and the engine recovers to a consistent state.
-- **Drop-in agent skill** - install the SKILL.md file and any compatible agent gets cognitive memory. The agent decides when to remember, what strategy to recall with, and when to consolidate. No SDK integration or glue code required.
+## How It Works
 
-## Two Deployment Modes
+1. **Deploy the server** on your infrastructure (Docker, one line)
+2. **Create workspaces** for your teams or use cases
+3. **Upload files** via CLI, SDK, or GitHub Actions auto-sync
+4. **Your agents recall** using the right strategy for each question
 
-HEBBS runs in two modes depending on your needs:
-
-### Vault Mode (Local)
-
-For personal use, coding agents, and local knowledge management. A single `hebbs` binary indexes your markdown files, watches for changes, and gives you the full recall engine locally. No server, no API key, no network calls.
-
-```bash
-hebbs init && hebbs index && hebbs recall "your query"
-```
-
-A background **daemon** shares the embedding model across all your vaults. The **Memory Palace** panel (`hebbs panel`) provides a web UI for visualizing the memory graph. **Contradiction detection** automatically surfaces conflicting beliefs.
-
-### Server Mode (Remote)
-
-For multi-tenant production deployments. `hebbs-server` exposes gRPC and REST APIs. Clients connect via `hebbs-cli`, the Python SDK, or the TypeScript SDK.
+Files are automatically split into propositions, embedded, and indexed with entity relationships. The `entities/` folder convention auto-scopes content to the right entity. Unchanged files are skipped on re-upload.
 
 ## Architecture at a Glance
 
-| Layer | What it does | Why it matters |
-|-------|-------------|----------------|
-| **Vault / gRPC + HTTP API** | Local file sync or 9 remote operations | File-first or API-first, same engine |
-| **ONNX Embeddings** | Local BGE-small-en-v1.5 (swappable) | No network hop for embeddings, air-gap capable |
-| **HNSW Index** | Per-tenant similarity search | Sub-10ms recall at millions of memories |
-| **B-tree Index** | Temporal range scans by entity + timestamp | Sub-2ms temporal recall |
-| **Graph Index** | Causal edge traversal with bounded depth | Cause-and-effect reasoning across memory chains |
-| **RocksDB Storage** | Crash-safe persistence with WAL | Atomic multi-index updates, no data loss |
-| **Contradiction Detection** | Embedding-space conflict surfacing | Automatic belief consistency checking |
-| **Decay Sweep** | Background importance decay | Automatic pruning, bounded memory growth |
-| **Reflection Pipeline** | Async LLM-powered insight consolidation | Background learning without hot-path latency |
-| **Daemon** | Shared process for all vaults | Single model load, multi-vault serving |
-| **Memory Palace** | Built-in web UI for graph visualization | Explore, search, and manage memories visually |
-
-Everything runs in a single process. No sidecars. No external dependencies at runtime.
+| Layer | What it does |
+|-------|-------------|
+| **REST + gRPC API** | 9 operations: remember, recall, revise, forget, prime, subscribe, reflect, insights, reflect_policy |
+| **Embedding** | OpenAI, Anthropic, or local ONNX models |
+| **HNSW Index** | Sub-10ms similarity search at millions of memories |
+| **B-tree Index** | Temporal range scans by entity + timestamp |
+| **Graph Index** | Causal edge traversal with bounded depth |
+| **Contradiction Detection** | Automatic conflict surfacing between memories |
+| **Reflection Pipeline** | Background LLM-powered insight consolidation |
+| **Decay Sweep** | Automatic pruning, bounded memory growth |
 
 ## Who Is HEBBS For
 
-- **AI agent builders** who need memory beyond similarity search - temporal reasoning, causal chains, analogical transfer, and consolidation that works out of the box.
-- **Developers and knowledge workers** who want their markdown files to become a searchable, intelligent knowledge base with `hebbs init`.
-- **Production teams** shipping agents that manage real workflows, where crash safety, multi-tenant isolation, and operational simplicity are non-negotiable.
-- **Teams that want zero-config memory** - install the agent skill and the agent gets cognitive memory without writing infrastructure code.
-- **Air-gapped and on-prem deployments** where data cannot leave the network. HEBBS with local ONNX embeddings and Ollama for reflection runs fully offline.
+- **Enterprise teams** building AI agents for CRM, support, legal, finance, or any domain where agents need to remember context across interactions.
+- **AI agent builders** who need memory beyond similarity search: temporal reasoning, causal chains, analogical transfer, and consolidation.
+- **Teams that want zero-config memory**: install the agent skill and the agent gets cognitive memory without writing infrastructure code.
+- **On-prem deployments** where data cannot leave the network.
 
 ## What's Next
 
-Ready to get started? Head to the [Quickstart](/getting-started/quickstart/) to install HEBBS and store your first memory in under 5 minutes.
+Head to the [Quickstart](/getting-started/quickstart/) to deploy the server and store your first memory in under 5 minutes.
 
 Or read [Key Concepts](/getting-started/key-concepts/) to understand the memory model, recall strategies, and reflection pipeline before diving in.
