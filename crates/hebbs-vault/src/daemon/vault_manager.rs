@@ -337,7 +337,26 @@ impl VaultManager {
         let stale_keys: Vec<PathBuf> = self
             .open_vaults
             .iter()
-            .filter(|(_, v)| now.duration_since(v.last_accessed) > timeout)
+            .filter(|(path, v)| {
+                if now.duration_since(v.last_accessed) <= timeout {
+                    return false;
+                }
+                // Don't evict vaults with stale sections (interrupted indexing).
+                // The watcher needs to stay alive to retry on the next cycle.
+                let hebbs_dir = path.join(".hebbs");
+                if let Ok(manifest) = crate::manifest::Manifest::load(&hebbs_dir) {
+                    let (_, stale, _) = manifest.section_counts();
+                    if stale > 0 {
+                        info!(
+                            "skipping eviction for {} ({} stale sections pending)",
+                            path.display(),
+                            stale
+                        );
+                        return false;
+                    }
+                }
+                true
+            })
             .map(|(k, _)| k.clone())
             .collect();
 
