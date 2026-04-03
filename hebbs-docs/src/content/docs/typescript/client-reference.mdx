@@ -394,3 +394,35 @@ Check server health and readiness. This endpoint does not require authentication
 Return the total number of memories stored (via the health endpoint).
 
 **Returns:** `number`
+
+---
+
+### File Upload (REST Client)
+
+The `HebbsRestClient` provides file upload for enterprise server deployments. It connects over HTTP/REST instead of gRPC.
+
+```typescript
+import { HebbsRestClient } from '@hebbs/sdk';
+
+const hb = new HebbsRestClient("https://your-server:8080", { apiKey: "hb_live_sk_..." });
+
+const result = await hb.index([
+  { name: "call-notes.md", content: new Uint8Array(await fs.readFile("./docs/call-notes.md")) },
+  { name: "proposal.md", content: new Uint8Array(await fs.readFile("./docs/proposal.md")) },
+]);
+console.log(`Uploaded ${result.uploaded} files`);
+
+await hb.close();
+```
+
+#### `index(files: FileInput[]): Promise<RestUploadResult>`
+
+Upload files for server-side indexing. Files are uploaded via multipart POST to `/v1/upload`. Unchanged files are skipped on the server via checksum comparison.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `files` | `{ name: string; content: Uint8Array }[]` | Array of files with name and binary content |
+
+**Returns:** `RestUploadResult` with `uploaded` (count) and `files` (list of filenames)
+
+The `HebbsRestClient` also supports `remember()`, `recall()`, `prime()`, `forget()`, and `insights()` over REST, with the same signatures as the gRPC `HebbsClient`.
