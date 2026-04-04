@@ -14,29 +14,71 @@ use crate::config::{CliConfig, OutputFormat};
 use crate::error::CliError;
 
 /// REST client wrapping reqwest.
+///
+/// When `workspace` is set, data-plane requests are routed to
+/// `/v1/workspaces/<slug>/...` instead of `/v1/...`.
 #[cfg(feature = "rest")]
 pub struct RestClient {
     client: reqwest::Client,
     endpoint: String,
     api_key: Option<String>,
     timeout_ms: u64,
+    workspace: Option<String>,
 }
 
 #[cfg(feature = "rest")]
 impl RestClient {
-    pub fn new(endpoint: &str, api_key: Option<String>, timeout_ms: u64) -> Self {
+    pub fn new(
+        endpoint: &str,
+        api_key: Option<String>,
+        timeout_ms: u64,
+        workspace: Option<String>,
+    ) -> Self {
         Self {
             client: reqwest::Client::new(),
             endpoint: endpoint.trim_end_matches('/').to_string(),
             api_key,
             timeout_ms,
+            workspace,
         }
     }
 
+    /// Resolve the full URL for a request path.
+    ///
+    /// Data-plane paths (starting with `/v1/`) are rewritten to
+    /// `/v1/workspaces/<slug>/...` when a workspace is active.
+    /// Control-plane paths (`/v1/workspaces`, `/v1/keys`, `/v1/auth/...`,
+    /// `/v1/system/...`) are never rewritten.
+    fn resolve_path(&self, path: &str) -> String {
+        if let Some(ref slug) = self.workspace {
+            // Only rewrite data-plane paths
+            let data_plane_prefixes = [
+                "/v1/memories",
+                "/v1/recall",
+                "/v1/prime",
+                "/v1/forget",
+                "/v1/upload",
+                "/v1/entities",
+                "/v1/insights",
+                "/v1/status",
+                "/v1/files",
+                "/v1/push",
+            ];
+            for prefix in &data_plane_prefixes {
+                if path.starts_with(prefix) {
+                    let suffix = &path[3..]; // strip "/v1" prefix
+                    return format!("{}/v1/workspaces/{}{}", self.endpoint, slug, suffix);
+                }
+            }
+        }
+        format!("{}{}", self.endpoint, path)
+    }
+
     async fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let url = self.resolve_path(path);
         let mut req = self
             .client
-            .request(method, format!("{}{}", self.endpoint, path))
+            .request(method, url)
             .timeout(std::time::Duration::from_millis(self.timeout_ms));
 
         if let Some(ref key) = self.api_key {
@@ -149,10 +191,18 @@ pub async fn execute_rest(
     cmd: Commands,
     config: &CliConfig,
     api_key: Option<String>,
+    workspace: Option<String>,
     output_format: OutputFormat,
 ) -> i32 {
     let mut w = std::io::stdout();
-    let client = RestClient::new(&config.endpoint, api_key, config.timeout_ms);
+    // Workspace precedence: CLI flag > config file (env var already merged into config)
+    let active_workspace = workspace.or_else(|| config.workspace.clone());
+    let client = RestClient::new(
+        &config.endpoint,
+        api_key,
+        config.timeout_ms,
+        active_workspace,
+    );
 
     let result = match cmd {
         Commands::Login { endpoint, api_key } => {
@@ -278,8 +328,58 @@ async fn exec_login(
         message: format!("Failed to save config: {}", e),
     })?;
 
-    if api_key.is_some() {
-        writeln!(w, "API key saved. Ready.").ok();
+    if let Some(key) = api_key {
+        writeln!(w, "API key saved.").ok();
+
+        // Call whoami to display workspace context
+        let whoami_url = format!("{}/v1/auth/whoami", endpoint);
+        let whoami_resp = reqwest::Client::new()
+            .get(&whoami_url)
+            .header("Authorization", format!("Bearer {}", key))
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await;
+
+        match whoami_resp {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<Value>().await {
+                    let role = body
+                        .get("role")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    match role {
+                        "admin" => {
+                            writeln!(w).ok();
+                            writeln!(w, "  Role:       admin").ok();
+                            writeln!(w, "  Access:     all workspaces").ok();
+                            writeln!(w, "  Tip:        use --workspace <slug> to target a specific workspace").ok();
+                        }
+                        "workspace" => {
+                            let slug = body
+                                .get("workspace_slug")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            let name = body
+                                .get("workspace_name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or(slug);
+                            writeln!(w).ok();
+                            writeln!(w, "  Role:       workspace").ok();
+                            writeln!(w, "  Workspace:  {} ({})", name, slug).ok();
+                        }
+                        _ => {
+                            writeln!(w, "  Role: {}", role).ok();
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Server may not support whoami yet; that's fine
+            }
+        }
+
+        writeln!(w).ok();
+        writeln!(w, "Ready.").ok();
     } else {
         writeln!(
             w,
@@ -621,13 +721,24 @@ async fn exec_workspaces(
             writeln!(w, "API key: {}", key).ok();
         }
         WorkspaceCommands::Switch { slug } => {
-            // Save to config
+            // Save workspace to CLI config file
             let config_dir = dirs::config_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("hebbs");
             std::fs::create_dir_all(&config_dir).ok();
-            let ws_path = config_dir.join("workspace");
-            std::fs::write(&ws_path, &slug).ok();
+            let config_path = config_dir.join("cli.toml");
+
+            // Read existing config, update workspace field
+            let mut config_data: HashMap<String, String> =
+                if let Ok(content) = std::fs::read_to_string(&config_path) {
+                    serde_json::from_str(&content).unwrap_or_default()
+                } else {
+                    HashMap::new()
+                };
+            config_data.insert("workspace".to_string(), slug.clone());
+            let config_str = serde_json::to_string_pretty(&config_data).unwrap_or_default();
+            std::fs::write(&config_path, config_str).ok();
+
             writeln!(w, "Switched to workspace: {}", slug).ok();
         }
     }

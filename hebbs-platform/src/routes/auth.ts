@@ -117,6 +117,41 @@ export function authRoutes() {
     return c.json({ account, workspaces: workspaceIds });
   });
 
+  // Whoami: returns identity and workspace context of the authenticated key
+  app.get("/v1/auth/whoami", async (c) => {
+    const auth = c.get("auth" as never) as import("../lib/auth.js").AuthInfo | undefined;
+    if (!auth) {
+      return c.json({ error: "Not authenticated" }, 401);
+    }
+
+    const result: Record<string, unknown> = {
+      key_id: auth.keyId,
+      role: auth.role,
+      workspace_id: auth.workspaceId,
+      workspace_slug: null as string | null,
+      workspace_name: null as string | null,
+    };
+
+    if (auth.workspaceId) {
+      const [ws] = db
+        .select({
+          slug: schema.workspaces.slug,
+          name: schema.workspaces.name,
+        })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, auth.workspaceId))
+        .limit(1)
+        .all();
+
+      if (ws) {
+        result.workspace_slug = ws.slug;
+        result.workspace_name = ws.name;
+      }
+    }
+
+    return c.json(result);
+  });
+
   return app;
 }
 

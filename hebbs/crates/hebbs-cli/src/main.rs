@@ -55,6 +55,8 @@ fn main() {
     rt.block_on(async {
         // Resolve API key: CLI flag > env var > config file
         let api_key = cli.api_key.clone().or(config.api_key.clone());
+        // Resolve workspace: CLI flag > env var > config file
+        let workspace = cli.workspace.clone().or(config.workspace.clone());
 
         let cmd = match cli.command {
             Some(cmd) => cmd,
@@ -95,9 +97,14 @@ fn main() {
         // Login is always handled by REST (it's a remote-only command)
         #[cfg(feature = "rest")]
         if matches!(cmd, Commands::Login { .. }) {
-            let exit_code =
-                hebbs_cli::rest::execute_rest(cmd, &config, api_key.clone(), config.output_format)
-                    .await;
+            let exit_code = hebbs_cli::rest::execute_rest(
+                cmd,
+                &config,
+                api_key.clone(),
+                workspace.clone(),
+                config.output_format,
+            )
+            .await;
             std::process::exit(exit_code);
         }
 
@@ -125,6 +132,7 @@ fn main() {
                     cmd,
                     &config,
                     api_key.clone(),
+                    workspace.clone(),
                     config.output_format,
                 )
                 .await;
