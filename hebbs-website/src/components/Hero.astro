@@ -2,34 +2,30 @@
 ---
 
 <section id="hero" class="relative overflow-hidden" style="background: #050510; min-height: 100vh;">
-  <!-- Canvas: the living memory field -->
-  <canvas id="hero-membrane" class="absolute inset-0 w-full h-full"></canvas>
+  <!-- WebGL Canvas -->
+  <canvas id="hero-gl" class="absolute inset-0 w-full h-full" style="cursor: crosshair;"></canvas>
 
-  <!-- Gradient overlays for depth -->
-  <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 80% 60% at 30% 50%, rgba(5,5,16,0) 0%, rgba(5,5,16,0.7) 100%);"></div>
-  <div class="absolute bottom-0 left-0 right-0 h-40 pointer-events-none" style="background: linear-gradient(to top, #050510, transparent);"></div>
+  <!-- Gradient overlays for text readability -->
+  <div class="absolute inset-0 pointer-events-none" style="background: linear-gradient(135deg, rgba(5,5,16,0.85) 0%, rgba(5,5,16,0.4) 40%, rgba(5,5,16,0.1) 100%);"></div>
+  <div class="absolute bottom-0 left-0 right-0 h-48 pointer-events-none" style="background: linear-gradient(to top, #050510, transparent);"></div>
 
   <!-- Content -->
   <div class="relative z-10 mx-auto max-w-5xl px-6 pt-44 pb-32 md:pt-56 md:pb-40">
     <div class="max-w-3xl">
-      <!-- Eyebrow -->
       <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F59E0B; opacity: 0.7;">
         The memory engine for AI agents
       </p>
 
-      <!-- Headline -->
       <h1 class="font-logo text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] mb-8" style="color: #F8FAFC;">
         Make memory<br/>
         <span style="background: linear-gradient(135deg, #F59E0B 0%, #F97316 40%, #FB923C 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">your edge.</span>
       </h1>
 
-      <!-- Subhead -->
       <p class="text-lg md:text-xl leading-relaxed mb-12 max-w-xl" style="color: #94A3B8;">
         LLMs are converging. Every team gets the same models. The agent that remembers better, retrieves smarter, and improves over time wins.<br class="hidden md:block"/>
         <span style="color: #CBD5E1; font-weight: 500;">That's not RAG. That's HEBBS.</span>
       </p>
 
-      <!-- CTAs -->
       <div class="flex flex-wrap items-center gap-4 mb-16">
         <a
           href="https://docs.hebbs.ai/guide/"
@@ -54,7 +50,6 @@
         </a>
       </div>
 
-      <!-- Stats strip -->
       <div class="flex flex-wrap items-center gap-8 font-mono text-xs" style="color: #475569;">
         <div>
           <span style="color: #F59E0B; font-size: 20px; font-weight: 700;">4</span>
@@ -95,280 +90,314 @@
 
 <script is:inline>
 (function() {
-  var canvas = document.getElementById('hero-membrane');
+  // ═══════════════════════════════════════════════════════════════
+  // WebGL2 Fluid Membrane — tiles + liquid flow + neuron glow
+  // Pure WebGL2, zero dependencies
+  // ═══════════════════════════════════════════════════════════════
+
+  var canvas = document.getElementById('hero-gl');
   if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var dpr = window.devicePixelRatio || 1;
-  var W, H, nodes = [], edges = [], mouse = { x: -9999, y: -9999 };
-  var raf, time = 0;
 
-  // ── Color system ──
-  var PALETTE = {
-    amber:   [245, 158, 11],
-    cyan:    [103, 232, 249],
-    green:   [52, 211, 153],
-    purple:  [167, 139, 250],
-    red:     [248, 113, 113],
-    white:   [226, 232, 240],
-  };
-  var NODE_COLORS = ['amber', 'cyan', 'green', 'amber', 'cyan', 'amber', 'purple'];
+  var gl = canvas.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: false });
+  if (!gl) {
+    // Fallback: simple gradient for old browsers
+    canvas.style.background = 'linear-gradient(135deg, #050510, #0a1628)';
+    return;
+  }
 
-  // ── Node types ──
-  // Left side: "stock" nodes (dim, uniform, grid-like)
-  // Right side: "hebbs" nodes (alive, clustered, connected)
+  // ── Shader sources ──
+
+  var VS = `#version 300 es
+    in vec2 a_pos;
+    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+  `;
+
+  var FS = `#version 300 es
+    precision highp float;
+    out vec4 fragColor;
+
+    uniform vec2 u_res;
+    uniform float u_time;
+    uniform vec2 u_mouse;       // normalized mouse pos (0-1)
+    uniform float u_mouseSpeed; // mouse velocity magnitude
+    uniform vec2 u_mouseDir;    // mouse velocity direction
+
+    // ── Simplex-ish noise ──
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec2 mod289(vec2 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+    float snoise(vec2 v) {
+      const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                         -0.577350269189626, 0.024390243902439);
+      vec2 i = floor(v + dot(v, C.yy));
+      vec2 x0 = v - i + dot(i, C.xx);
+      vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+      vec4 x12 = x0.xyxy + C.xxzz;
+      x12.xy -= i1;
+      i = mod289(i);
+      vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+      vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+      m = m*m; m = m*m;
+      vec3 x = 2.0 * fract(p * C.www) - 1.0;
+      vec3 h = abs(x) - 0.5;
+      vec3 ox = floor(x + 0.5);
+      vec3 a0 = x - ox;
+      m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+      vec3 g;
+      g.x = a0.x * x0.x + h.x * x0.y;
+      g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+      return 130.0 * dot(m, g);
+    }
+
+    // ── Fluid trail: mouse leaves a fading wake ──
+    // We simulate this with distance-based falloff + directional stretch
+    float fluidField(vec2 uv, vec2 mpos, vec2 mdir, float speed) {
+      vec2 d = uv - mpos;
+      // Stretch along mouse direction (anisotropic)
+      float along = dot(d, mdir);
+      float perp = length(d - along * mdir);
+      // Wake extends behind the mouse
+      float wake = smoothstep(0.0, -0.3, along) * exp(-perp * perp * 60.0);
+      // Radial proximity
+      float prox = exp(-dot(d,d) * 15.0);
+      return (prox + wake * speed * 2.0);
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / u_res;
+      float aspect = u_res.x / u_res.y;
+      vec2 uvA = vec2(uv.x * aspect, uv.y); // aspect-corrected
+
+      float t = u_time;
+
+      // ══════════════════════════════════════════════
+      // 1. TILE GRID
+      // ══════════════════════════════════════════════
+      float tileSize = 0.035;
+      float gap = 0.003;
+      vec2 tileUV = uvA / tileSize;
+      vec2 tileID = floor(tileUV);
+      vec2 tileLocal = fract(tileUV);
+
+      // Gap: create borders between tiles
+      float border = step(gap / tileSize, tileLocal.x) *
+                     step(gap / tileSize, tileLocal.y) *
+                     (1.0 - step(1.0 - gap / tileSize, tileLocal.x)) *
+                     (1.0 - step(1.0 - gap / tileSize, tileLocal.y));
+      // Rounded corners
+      vec2 fromCenter = abs(tileLocal - 0.5) * 2.0;
+      float cornerDist = length(max(fromCenter - 0.7, 0.0));
+      float rounded = 1.0 - smoothstep(0.2, 0.3, cornerDist);
+
+      float tileMask = border * rounded;
+
+      // ══════════════════════════════════════════════
+      // 2. SIDE SPLIT: stock (left) vs HEBBS (right)
+      // ══════════════════════════════════════════════
+      float midX = 0.45; // shifted left so hero text stays readable
+      float hebbsMix = smoothstep(midX - 0.05, midX + 0.05, uv.x);
+
+      // ══════════════════════════════════════════════
+      // 3. MOUSE FLUID INTERACTION
+      // ══════════════════════════════════════════════
+      vec2 mouseA = vec2(u_mouse.x * aspect, u_mouse.y);
+      float fluid = fluidField(uvA, mouseA, u_mouseDir, u_mouseSpeed);
+
+      // Noise-based organic flow
+      float flow1 = snoise(uvA * 3.0 + t * 0.15) * 0.5 + 0.5;
+      float flow2 = snoise(uvA * 5.0 - t * 0.1 + 100.0) * 0.5 + 0.5;
+      float flow3 = snoise(uvA * 8.0 + t * 0.08 + 200.0) * 0.5 + 0.5;
+
+      // ══════════════════════════════════════════════
+      // 4. TILE COLOR
+      // ══════════════════════════════════════════════
+
+      // Per-tile noise (varies by tile position)
+      float tileNoise = snoise(tileID * 0.3 + t * 0.05);
+      float tileRand = fract(sin(dot(tileID, vec2(12.9898, 78.233))) * 43758.5453);
+
+      // Distance from mouse to tile center
+      vec2 tileCenterA = (tileID + 0.5) * tileSize;
+      float mouseDist = length(tileCenterA - mouseA);
+      float mouseInfluence = exp(-mouseDist * mouseDist * 8.0) * (0.5 + u_mouseSpeed * 2.0);
+
+      // ── Stock side: dim monochrome ──
+      vec3 stockColor = vec3(0.08, 0.08, 0.12);
+      float stockBright = 0.03 + tileRand * 0.02 + tileNoise * 0.01;
+      stockColor += stockBright;
+
+      // ── HEBBS side: alive, colorful, reactive ──
+      // Base: dark with subtle color variation
+      vec3 hebbsBase = vec3(0.04, 0.05, 0.08);
+
+      // Flowing color channels
+      float r = flow1 * 0.6 + flow2 * 0.3;
+      float g = flow2 * 0.4 + flow3 * 0.5;
+      float b = flow3 * 0.5 + flow1 * 0.2;
+
+      // Color palette: amber, cyan, green based on tile position
+      vec3 amber = vec3(0.96, 0.62, 0.04);   // #F59E0B
+      vec3 cyan  = vec3(0.40, 0.91, 0.98);   // #67E8F9
+      vec3 green = vec3(0.20, 0.83, 0.60);   // #34D399
+      vec3 purple = vec3(0.65, 0.55, 0.98);  // #A78BFA
+
+      // Assign color per tile based on noise
+      vec3 tileColor;
+      float colorPick = fract(tileRand * 7.0 + tileNoise * 0.5);
+      if (colorPick < 0.35) tileColor = amber;
+      else if (colorPick < 0.55) tileColor = cyan;
+      else if (colorPick < 0.75) tileColor = green;
+      else tileColor = purple;
+
+      // Organic brightness pulse per tile
+      float pulse = sin(t * (0.8 + tileRand * 1.5) + tileRand * 6.28) * 0.5 + 0.5;
+      float brightness = 0.04 + pulse * 0.08 * (0.5 + tileNoise * 0.5);
+
+      // Mouse proximity boost: tiles near cursor glow strongly
+      brightness += mouseInfluence * 0.5;
+
+      // Occasional bright "activation" tiles
+      float activation = step(0.92, sin(t * 0.3 + tileRand * 50.0) * 0.5 + 0.5 + mouseInfluence * 0.3);
+      brightness += activation * 0.3;
+
+      vec3 hebbsColor = hebbsBase + tileColor * brightness;
+
+      // ── Fluid color bleed: mouse leaves colored trail ──
+      vec3 fluidColor = mix(amber, cyan, flow1) * fluid * 0.4 * hebbsMix;
+      hebbsColor += fluidColor;
+
+      // ══════════════════════════════════════════════
+      // 5. COMPOSE
+      // ══════════════════════════════════════════════
+      vec3 color = mix(stockColor, hebbsColor, hebbsMix);
+
+      // Apply tile mask (gaps between tiles are dark)
+      color *= tileMask;
+
+      // Add very subtle glow to gaps on HEBBS side (energy between tiles)
+      float gapGlow = (1.0 - tileMask) * hebbsMix * 0.015 * (1.0 + fluid * 3.0);
+      vec3 gapColor = mix(amber, cyan, flow2) * gapGlow;
+      color += gapColor;
+
+      // ── Edge vignette ──
+      float vignette = 1.0 - dot(uv - 0.5, uv - 0.5) * 1.2;
+      color *= vignette;
+
+      // ── Subtle scan lines for futuristic feel ──
+      float scanline = 0.97 + 0.03 * sin(gl_FragCoord.y * 1.5);
+      color *= scanline;
+
+      fragColor = vec4(color, 1.0);
+    }
+  `;
+
+  // ── Compile shaders ──
+  function createShader(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error('Shader error:', gl.getShaderInfoLog(s));
+      gl.deleteShader(s);
+      return null;
+    }
+    return s;
+  }
+
+  var vs = createShader(gl.VERTEX_SHADER, VS);
+  var fs = createShader(gl.FRAGMENT_SHADER, FS);
+  if (!vs || !fs) return;
+
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.error('Link error:', gl.getProgramInfoLog(prog));
+    return;
+  }
+  gl.useProgram(prog);
+
+  // ── Full-screen quad ──
+  var quad = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+  var aPos = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // ── Uniforms ──
+  var uRes = gl.getUniformLocation(prog, 'u_res');
+  var uTime = gl.getUniformLocation(prog, 'u_time');
+  var uMouse = gl.getUniformLocation(prog, 'u_mouse');
+  var uMouseSpeed = gl.getUniformLocation(prog, 'u_mouseSpeed');
+  var uMouseDir = gl.getUniformLocation(prog, 'u_mouseDir');
+
+  // ── State ──
+  var mouseX = 0.7, mouseY = 0.5;
+  var prevMouseX = 0.7, prevMouseY = 0.5;
+  var mouseSpeed = 0, mouseDirX = 0, mouseDirY = 0;
+  var startTime = performance.now();
 
   function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2x for perf
     var r = canvas.getBoundingClientRect();
-    W = r.width; H = r.height;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    createField();
+    canvas.width = r.width * dpr;
+    canvas.height = r.height * dpr;
+    gl.viewport(0, 0, canvas.width, canvas.height);
   }
 
-  function createField() {
-    nodes = [];
-    edges = [];
+  function render() {
+    var now = (performance.now() - startTime) * 0.001;
 
-    var count = Math.min(90, Math.floor(W * H / 8000));
-    var midX = W * 0.5;
-
-    for (var i = 0; i < count; i++) {
-      var side = Math.random();
-      var x, y, kind, col, baseSize, drift;
-
-      if (side < 0.35) {
-        // Left: stock memory — dim, grid-aligned, uniform
-        x = Math.random() * midX * 0.8 + W * 0.05;
-        y = Math.random() * H;
-        kind = 'stock';
-        col = 'white';
-        baseSize = 1.5 + Math.random() * 1.5;
-        drift = 0.05 + Math.random() * 0.1;
-      } else {
-        // Right: HEBBS memory — alive, clustered, varied
-        // Create cluster centers
-        var clusterX = midX + Math.random() * (W * 0.5 - 40);
-        var clusterY = H * 0.15 + Math.random() * H * 0.7;
-        x = clusterX + (Math.random() - 0.5) * 120;
-        y = clusterY + (Math.random() - 0.5) * 100;
-        kind = 'hebbs';
-        col = NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)];
-        baseSize = 2 + Math.random() * 4;
-        drift = 0.15 + Math.random() * 0.35;
-      }
-
-      nodes.push({
-        x: x, y: y,
-        ox: x, oy: y,
-        vx: (Math.random() - 0.5) * drift,
-        vy: (Math.random() - 0.5) * drift,
-        r: baseSize,
-        col: col,
-        kind: kind,
-        phase: Math.random() * Math.PI * 2,
-        freq: 0.5 + Math.random() * 1.5,
-        importance: kind === 'hebbs' ? 0.4 + Math.random() * 0.6 : 0.15 + Math.random() * 0.15,
-        alive: kind === 'hebbs' ? 1 : 0,
-        targetAlive: kind === 'hebbs' ? 1 : 0,
-      });
+    // Smooth mouse velocity
+    var dx = mouseX - prevMouseX;
+    var dy = mouseY - prevMouseY;
+    var speed = Math.sqrt(dx * dx + dy * dy);
+    mouseSpeed = mouseSpeed * 0.85 + speed * 0.15 * 60; // smooth + scale
+    if (speed > 0.0001) {
+      mouseDirX = mouseDirX * 0.8 + (dx / speed) * 0.2;
+      mouseDirY = mouseDirY * 0.8 + (dy / speed) * 0.2;
     }
+    prevMouseX = mouseX;
+    prevMouseY = mouseY;
 
-    // Build edges for HEBBS side only
-    for (var i = 0; i < nodes.length; i++) {
-      if (nodes[i].kind !== 'hebbs') continue;
-      for (var j = i + 1; j < nodes.length; j++) {
-        if (nodes[j].kind !== 'hebbs') continue;
-        var dx = nodes[j].x - nodes[i].x;
-        var dy = nodes[j].y - nodes[i].y;
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 160 && Math.random() < 0.4) {
-          var type = Math.random() < 0.7 ? 'causal' : (Math.random() < 0.5 ? 'similarity' : 'contradicts');
-          edges.push({
-            a: i, b: j,
-            type: type,
-            strength: 0.3 + Math.random() * 0.7,
-            pulse: Math.random() * Math.PI * 2,
-          });
-        }
-      }
-    }
-  }
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    gl.uniform1f(uTime, now);
+    gl.uniform2f(uMouse, mouseX, mouseY);
+    gl.uniform1f(uMouseSpeed, Math.min(mouseSpeed, 3.0));
+    gl.uniform2f(uMouseDir, mouseDirX, mouseDirY);
 
-  function draw() {
-    time += 0.016;
-    ctx.clearRect(0, 0, W, H);
-
-    // ── Background: subtle gradient ──
-    var bgGrad = ctx.createLinearGradient(0, 0, W, H);
-    bgGrad.addColorStop(0, '#050510');
-    bgGrad.addColorStop(0.5, '#080818');
-    bgGrad.addColorStop(1, '#0a0a1a');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // ── Dividing line: subtle vertical gradient ──
-    var midX = W * 0.5;
-    var lineGrad = ctx.createLinearGradient(midX, 0, midX, H);
-    lineGrad.addColorStop(0, 'rgba(255,255,255,0)');
-    lineGrad.addColorStop(0.3, 'rgba(255,255,255,0.03)');
-    lineGrad.addColorStop(0.7, 'rgba(255,255,255,0.03)');
-    lineGrad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = lineGrad;
-    ctx.fillRect(midX - 0.5, 0, 1, H);
-
-    // ── Labels ──
-    ctx.save();
-    ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.letterSpacing = '3px';
-    ctx.fillText('STOCK MEMORY', W * 0.25, H - 30);
-    ctx.fillStyle = 'rgba(245,158,11,0.12)';
-    ctx.fillText('HEBBS', W * 0.75, H - 30);
-    ctx.restore();
-
-    // ── Draw edges ──
-    for (var e = 0; e < edges.length; e++) {
-      var edge = edges[e];
-      var a = nodes[edge.a], b = nodes[edge.b];
-      var pulse = 0.4 + 0.6 * Math.sin(time * 2 + edge.pulse);
-      var alpha = edge.strength * pulse * 0.25;
-
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-
-      if (edge.type === 'causal') {
-        ctx.strokeStyle = 'rgba(245,158,11,' + alpha + ')';
-        ctx.lineWidth = 1.2;
-      } else if (edge.type === 'contradicts') {
-        ctx.strokeStyle = 'rgba(248,113,113,' + (alpha * 1.5) + ')';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-      } else {
-        ctx.strokeStyle = 'rgba(103,232,249,' + (alpha * 0.6) + ')';
-        ctx.lineWidth = 0.8;
-        ctx.setLineDash([2, 3]);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // ── Occasional pulse wave on HEBBS side ──
-    var wavePeriod = 8;
-    var waveT = (time % wavePeriod) / wavePeriod;
-    if (waveT < 0.3) {
-      var waveRadius = waveT / 0.3 * W * 0.4;
-      var waveAlpha = (1 - waveT / 0.3) * 0.06;
-      ctx.beginPath();
-      ctx.arc(W * 0.7, H * 0.5, waveRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(245,158,11,' + waveAlpha + ')';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    // ── Draw nodes ──
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-
-      // Drift
-      n.x += n.vx;
-      n.y += n.vy;
-
-      // Gentle pull back to origin
-      n.vx += (n.ox - n.x) * 0.001;
-      n.vy += (n.oy - n.y) * 0.001;
-
-      // Mouse repulsion (subtle)
-      var mdx = n.x - mouse.x, mdy = n.y - mouse.y;
-      var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-      if (mdist < 150 && mdist > 0) {
-        var force = (150 - mdist) / 150 * 0.5;
-        n.vx += (mdx / mdist) * force;
-        n.vy += (mdy / mdist) * force;
-      }
-
-      // Damping
-      n.vx *= 0.98;
-      n.vy *= 0.98;
-
-      // Bounds
-      if (n.x < 0) n.vx += 0.2;
-      if (n.x > W) n.vx -= 0.2;
-      if (n.y < 0) n.vy += 0.2;
-      if (n.y > H) n.vy -= 0.2;
-
-      var c = PALETTE[n.col];
-      var breathe = Math.sin(time * n.freq + n.phase);
-
-      if (n.kind === 'stock') {
-        // Stock: dim, barely visible, no glow
-        var sa = 0.08 + 0.04 * breathe;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + sa + ')';
-        ctx.fill();
-      } else {
-        // HEBBS: glowing, alive, importance-scaled
-        var ha = (0.4 + 0.3 * breathe) * n.importance;
-        var glowR = n.r * (3 + 2 * n.importance);
-
-        // Outer glow
-        var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
-        grad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (ha * 0.3) + ')');
-        grad.addColorStop(0.5, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (ha * 0.08) + ')');
-        grad.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // Core
-        var coreR = n.r * (0.8 + 0.3 * breathe);
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, coreR, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.5 + 0.4 * ha) + ')';
-        ctx.fill();
-
-        // Bright center
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, coreR * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.8 + 0.2 * breathe) + ')';
-        ctx.fill();
-      }
-    }
-
-    // ── Sporadic "insight birth" particles on HEBBS side ──
-    var insightT = time % 12;
-    if (insightT > 5 && insightT < 6.5) {
-      var it = (insightT - 5) / 1.5;
-      var ix = W * 0.68, iy = H * 0.4;
-      var ir = it * 40;
-      var ia = (1 - it) * 0.3;
-      ctx.beginPath();
-      ctx.arc(ix, iy, ir, 0, Math.PI * 2);
-      var ig = ctx.createRadialGradient(ix, iy, 0, ix, iy, ir);
-      ig.addColorStop(0, 'rgba(52,211,153,' + ia + ')');
-      ig.addColorStop(1, 'rgba(52,211,153,0)');
-      ctx.fillStyle = ig;
-      ctx.fill();
-    }
-
-    raf = requestAnimationFrame(draw);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
   }
 
   // ── Mouse tracking ──
   canvas.addEventListener('mousemove', function(e) {
     var r = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - r.left;
-    mouse.y = e.clientY - r.top;
-  });
-  canvas.addEventListener('mouseleave', function() {
-    mouse.x = -9999; mouse.y = -9999;
+    mouseX = (e.clientX - r.left) / r.width;
+    mouseY = 1.0 - (e.clientY - r.top) / r.height; // flip Y for GL
   });
 
+  canvas.addEventListener('mouseleave', function() {
+    // Drift back to center-right
+    mouseX = 0.7; mouseY = 0.5;
+  });
+
+  // Touch support
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    var touch = e.touches[0];
+    var r = canvas.getBoundingClientRect();
+    mouseX = (touch.clientX - r.left) / r.width;
+    mouseY = 1.0 - (touch.clientY - r.top) / r.height;
+  }, { passive: false });
+
   resize();
-  draw();
+  render();
   window.addEventListener('resize', resize);
 })();
 </script>
