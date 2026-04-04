@@ -341,6 +341,20 @@ impl VaultManager {
                 if now.duration_since(v.last_accessed) <= timeout {
                     return false;
                 }
+                // Don't evict if another task holds a strong reference to the engine.
+                // The watch loop and command handlers borrow Arc<Engine> for the
+                // duration of their operations. Evicting while they hold a reference
+                // would leave the RocksDB lock file held after we remove from the map,
+                // causing "lock held by current process" errors on reopen.
+                let refcount = Arc::strong_count(&v.engine);
+                if refcount > 1 {
+                    info!(
+                        "skipping eviction for {} (engine refcount {}, in use)",
+                        path.display(),
+                        refcount
+                    );
+                    return false;
+                }
                 // Don't evict vaults with stale sections (interrupted indexing).
                 // The watcher needs to stay alive to retry on the next cycle.
                 let hebbs_dir = path.join(".hebbs");
@@ -368,16 +382,28 @@ impl VaultManager {
                     key.display()
                 );
                 Self::shutdown_vault(&vault);
+                // Verify the engine Arc will drop (refcount should be 1 = this local variable).
+                // If not, another reference leaked. Log a warning so we can diagnose.
+                let refcount = Arc::strong_count(&vault.engine);
+                if refcount > 1 {
+                    warn!(
+                        "engine refcount {} after shutdown for {}, RocksDB lock may not release immediately",
+                        refcount,
+                        key.display()
+                    );
+                }
             }
         }
         count
     }
 
     /// Evict the least recently used vault to make room.
+    /// Skips vaults with active references (refcount > 1) to avoid RocksDB lock leaks.
     fn evict_lru(&mut self) {
         if let Some(oldest_key) = self
             .open_vaults
             .iter()
+            .filter(|(_, v)| Arc::strong_count(&v.engine) <= 1)
             .min_by_key(|(_, v)| v.last_accessed)
             .map(|(k, _)| k.clone())
         {
