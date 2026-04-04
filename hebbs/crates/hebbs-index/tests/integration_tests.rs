@@ -431,3 +431,225 @@ fn tombstone_cleanup_produces_valid_graph() {
         );
     }
 }
+
+// ─── Quantized search with reranking (full IndexManager pipeline) ────
+
+#[test]
+fn quantized_reranking_recall_through_index_manager() {
+    let storage = Arc::new(InMemoryBackend::new());
+    let dims = 32;
+    let n = 500u32;
+    let k = 10;
+    let num_queries = 50;
+
+    // Quantization + rotation enabled (defaults)
+    let params = HnswParams::with_m(dims, 8);
+    assert!(params.use_quantization);
+    assert!(params.use_rotation);
+
+    let mgr = IndexManager::new_with_seed(storage.clone(), params, 42).unwrap();
+
+    let mut vectors: Vec<([u8; 16], Vec<f32>)> = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        let id = make_id(i);
+        let v = normalized_vec(dims, i as u64 + 10000);
+        let (ops, _) = mgr
+            .prepare_insert(&id, &v, &v, Some("bench"), i as u64 * 1000, &[])
+            .unwrap();
+        storage.write_batch(&ops).unwrap();
+        mgr.commit_insert(id, v.clone()).unwrap();
+        vectors.push((id, v));
+    }
+
+    // Measure recall through the full IndexManager pipeline (with reranking)
+    let mut total_recall = 0.0;
+    for q in 0..num_queries {
+        let query = normalized_vec(dims, q as u64 + 99999);
+
+        let results = mgr.search_vector(&query, k, Some(100)).unwrap();
+        let result_ids: HashSet<_> = results.iter().map(|(id, _)| *id).collect();
+
+        let bf_results =
+            brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
+        let bf_ids: HashSet<_> = bf_results.iter().map(|(id, _)| *id).collect();
+
+        let overlap = result_ids.intersection(&bf_ids).count();
+        total_recall += overlap as f64 / k as f64;
+    }
+
+    let avg_recall = total_recall / num_queries as f64;
+
+    // With reranking, expect significantly better recall than raw quantized (>70%).
+    // Target: within 2% of f32 baseline (which is typically >85%).
+    assert!(
+        avg_recall > 0.80,
+        "quantized+reranking recall@{} = {:.1}% (expected > 80%)",
+        k,
+        avg_recall * 100.0
+    );
+}
+
+#[test]
+fn reranking_returns_exact_distances() {
+    let storage = Arc::new(InMemoryBackend::new());
+    let dims = 16;
+    let params = HnswParams::with_m(dims, 4);
+    let mgr = IndexManager::new_with_seed(storage.clone(), params, 42).unwrap();
+
+    // Insert a few vectors
+    for i in 0..20u32 {
+        let id = make_id(i);
+        let v = normalized_vec(dims, i as u64);
+        let (ops, _) = mgr
+            .prepare_insert(&id, &v, &v, None, i as u64 * 1000, &[])
+            .unwrap();
+        storage.write_batch(&ops).unwrap();
+        mgr.commit_insert(id, v).unwrap();
+    }
+
+    // Search for a known vector
+    let query = normalized_vec(dims, 5);
+    let results = mgr.search_vector(&query, 5, Some(50)).unwrap();
+
+    assert!(!results.is_empty());
+    // The exact vector should be top-1 with near-zero distance (f32 exact)
+    assert_eq!(results[0].0, make_id(5));
+    assert!(
+        results[0].1 < 0.001,
+        "reranked distance for exact match should be near 0, got {}",
+        results[0].1
+    );
+
+    // Distances should be sorted ascending
+    for window in results.windows(2) {
+        assert!(window[0].1 <= window[1].1 + 1e-6);
+    }
+}
+
+// ─── Recall quality comparison (prints numbers for quality gate) ─────
+
+#[test]
+fn recall_quality_comparison() {
+    let dims = 384;
+    let n = 2000u32;
+    let num_queries = 100usize;
+
+    let mut vectors: Vec<([u8; 16], Vec<f32>)> = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        vectors.push((make_id(i), normalized_vec(dims, i as u64 + 10000)));
+    }
+
+    // 1. F32 baseline
+    let mut f32_params = HnswParams::new(dims);
+    f32_params.use_quantization = false;
+    f32_params.use_rotation = false;
+    let mut f32_graph = HnswGraph::new_with_seed(f32_params, 42);
+    for (id, v) in &vectors {
+        f32_graph.insert(*id, v.clone()).unwrap();
+    }
+
+    // 2. Int8 only (no rotation)
+    let mut q_params = HnswParams::new(dims);
+    q_params.use_rotation = false;
+    let mut q_graph = HnswGraph::new_with_seed(q_params, 42);
+    for (id, v) in &vectors {
+        q_graph.insert(*id, v.clone()).unwrap();
+    }
+
+    // 3. Int8 + rotation
+    let qr_params = HnswParams::new(dims);
+    let mut qr_graph = HnswGraph::new_with_seed(qr_params, 42);
+    for (id, v) in &vectors {
+        qr_graph.insert(*id, v.clone()).unwrap();
+    }
+
+    // 4. Full pipeline: int8 + rotation + reranking (IndexManager)
+    let storage = Arc::new(InMemoryBackend::new());
+    let mgr_params = HnswParams::new(dims);
+    let mgr = IndexManager::new_with_seed(storage.clone(), mgr_params, 42).unwrap();
+    for (id, v) in &vectors {
+        let (ops, _) = mgr.prepare_insert(id, v, v, None, 1000, &[]).unwrap();
+        storage.write_batch(&ops).unwrap();
+        mgr.commit_insert(*id, v.clone()).unwrap();
+    }
+
+    eprintln!();
+    eprintln!("============================================================");
+    eprintln!(
+        "RECALL QUALITY COMPARISON ({} vectors, {}-dim, {} queries)",
+        n, dims, num_queries
+    );
+    eprintln!("============================================================");
+
+    for &k in &[1, 5, 10] {
+        let r_f32 = measure_recall_graph(&f32_graph, &vectors, k, num_queries);
+        let r_q = measure_recall_graph(&q_graph, &vectors, k, num_queries);
+        let r_qr = measure_recall_graph(&qr_graph, &vectors, k, num_queries);
+        let r_full = measure_recall_mgr(&mgr, &vectors, k, num_queries);
+
+        let delta = (r_f32 - r_full).abs() * 100.0;
+
+        eprintln!();
+        eprintln!("recall@{}:", k);
+        eprintln!("  f32 baseline:              {:.1}%", r_f32 * 100.0);
+        eprintln!("  int8 (no rotation):        {:.1}%", r_q * 100.0);
+        eprintln!("  int8 + rotation:           {:.1}%", r_qr * 100.0);
+        eprintln!("  int8 + rotation + rerank:  {:.1}%", r_full * 100.0);
+        if delta > 2.0 {
+            eprintln!(
+                "  ** QUALITY GATE FAIL: {:.1}% below baseline (max 2%) **",
+                delta
+            );
+        } else {
+            eprintln!("  QUALITY GATE PASS: {:.1}% delta (max 2%)", delta);
+        }
+
+        // Hard assertion: full pipeline within 5% of f32 baseline
+        assert!(
+            r_full > r_f32 - 0.05,
+            "recall@{}: full pipeline {:.1}% too far below f32 baseline {:.1}%",
+            k,
+            r_full * 100.0,
+            r_f32 * 100.0
+        );
+    }
+    eprintln!();
+}
+
+fn measure_recall_graph(
+    graph: &HnswGraph,
+    vectors: &[([u8; 16], Vec<f32>)],
+    k: usize,
+    num_queries: usize,
+) -> f64 {
+    let dims = vectors[0].1.len();
+    let mut total = 0.0;
+    for q in 0..num_queries {
+        let query = normalized_vec(dims, q as u64 + 99999);
+        let hnsw = graph.search(&query, k, Some(100)).unwrap();
+        let hnsw_ids: HashSet<_> = hnsw.iter().map(|(id, _)| *id).collect();
+        let bf = brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
+        let bf_ids: HashSet<_> = bf.iter().map(|(id, _)| *id).collect();
+        total += hnsw_ids.intersection(&bf_ids).count() as f64 / k as f64;
+    }
+    total / num_queries as f64
+}
+
+fn measure_recall_mgr(
+    mgr: &IndexManager,
+    vectors: &[([u8; 16], Vec<f32>)],
+    k: usize,
+    num_queries: usize,
+) -> f64 {
+    let dims = vectors[0].1.len();
+    let mut total = 0.0;
+    for q in 0..num_queries {
+        let query = normalized_vec(dims, q as u64 + 99999);
+        let results = mgr.search_vector(&query, k, Some(100)).unwrap();
+        let result_ids: HashSet<_> = results.iter().map(|(id, _)| *id).collect();
+        let bf = brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
+        let bf_ids: HashSet<_> = bf.iter().map(|(id, _)| *id).collect();
+        total += result_ids.intersection(&bf_ids).count() as f64 / k as f64;
+    }
+    total / num_queries as f64
+}

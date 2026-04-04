@@ -116,7 +116,8 @@ impl AssociativeIndex {
     ) -> BatchOperation {
         let temp_node = HnswNode {
             memory_id: *memory_id,
-            vector: assoc_embedding.to_vec(),
+            quantized: None,
+            vector: Some(assoc_embedding.to_vec()),
             layer: 0,
             neighbors: vec![vec![]],
             deleted: false,
@@ -124,7 +125,7 @@ impl AssociativeIndex {
         BatchOperation::Put {
             cf: ColumnFamilyName::VectorsAssociative,
             key: memory_id.to_vec(),
-            value: temp_node.serialize(),
+            value: temp_node.serialize_v0(),
         }
     }
 
@@ -423,7 +424,13 @@ impl AssociativeIndex {
 
             match HnswNode::deserialize(memory_id, value, params.dimensions) {
                 Ok(node) => {
-                    if let Err(e) = hnsw.insert(memory_id, node.vector) {
+                    let vector = node.vector.unwrap_or_else(|| {
+                        node.quantized
+                            .as_ref()
+                            .map(crate::hnsw::quantize::dequantize)
+                            .unwrap_or_default()
+                    });
+                    if let Err(e) = hnsw.insert(memory_id, vector) {
                         eprintln!(
                             "Assoc HNSW rebuild: failed to insert node {}: {}",
                             hex_id(&memory_id),

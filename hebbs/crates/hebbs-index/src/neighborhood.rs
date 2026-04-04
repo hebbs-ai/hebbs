@@ -120,7 +120,11 @@ pub fn extract_snapshot(graph: &HnswGraph, k: usize) -> NeighborhoodSnapshot {
         let idx = ids.len();
         id_to_index.insert(**mem_id, idx);
         ids.push(**mem_id);
-        vectors_flat.extend_from_slice(&node.vector);
+        if let Some(ref v) = node.vector {
+            vectors_flat.extend_from_slice(v);
+        } else if let Some(ref q) = node.quantized {
+            vectors_flat.extend_from_slice(&crate::hnsw::quantize::dequantize(q));
+        }
     }
 
     let n = ids.len();

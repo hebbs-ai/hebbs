@@ -1,7 +1,8 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use hebbs_index::hnsw::distance::inner_product_distance;
+use hebbs_index::hnsw::distance::{brute_force_search, inner_product_distance};
 use hebbs_index::hnsw::{HnswGraph, HnswParams};
 use hebbs_index::{IndexManager, TemporalIndex, TemporalOrder};
 use hebbs_storage::InMemoryBackend;
@@ -142,6 +143,55 @@ fn bench_hnsw_rebuild(c: &mut Criterion) {
 
 use hebbs_storage::StorageBackend;
 
+/// Recall@k quality benchmark: measures what fraction of true top-k neighbors
+/// the HNSW index returns, compared to brute-force exact search.
+///
+/// This is the quality baseline for quantization work. Any change to the
+/// distance computation or vector storage must keep recall@10 within 2%
+/// of the f32 baseline measured here.
+fn bench_hnsw_recall_quality(c: &mut Criterion) {
+    let dims = 384;
+    let n = 5000u32;
+    let num_queries = 200u64;
+    let params = HnswParams::new(dims);
+    let mut graph = HnswGraph::new_with_seed(params, 42);
+
+    let mut vectors: Vec<([u8; 16], Vec<f32>)> = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        let v = normalized_vec(dims, i as u64 + 10000);
+        graph.insert(make_id(i), v.clone()).unwrap();
+        vectors.push((make_id(i), v));
+    }
+
+    let mut group = c.benchmark_group("hnsw_recall");
+    group.sample_size(10);
+
+    for &k in &[1, 5, 10] {
+        group.bench_with_input(BenchmarkId::new("recall_at", k), &k, |b, &k| {
+            b.iter(|| {
+                let mut total_recall = 0.0f64;
+                for q in 0..num_queries {
+                    let query = normalized_vec(dims, q + 999999);
+                    let hnsw_results = graph.search(&query, k, Some(100)).unwrap();
+                    let hnsw_ids: HashSet<_> = hnsw_results.iter().map(|(id, _)| *id).collect();
+
+                    let bf_results = brute_force_search(
+                        &query,
+                        vectors.iter().map(|(id, v)| (id, v.as_slice())),
+                        k,
+                    );
+                    let bf_ids: HashSet<_> = bf_results.iter().map(|(id, _)| *id).collect();
+
+                    let overlap = hnsw_ids.intersection(&bf_ids).count();
+                    total_recall += overlap as f64 / k as f64;
+                }
+                total_recall / num_queries as f64
+            });
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_distance_384,
@@ -149,5 +199,6 @@ criterion_group!(
     bench_hnsw_search,
     bench_temporal_query,
     bench_hnsw_rebuild,
+    bench_hnsw_recall_quality,
 );
 criterion_main!(benches);
