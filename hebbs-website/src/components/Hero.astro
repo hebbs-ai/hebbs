@@ -91,8 +91,9 @@
 <script is:inline>
 (function() {
   // ═══════════════════════════════════════════════════════════════
-  // WebGL2 Fluid Membrane — tiles + liquid flow + neuron glow
+  // WebGL2 Fluid Membrane — tiles + liquid flow + persistent trail
   // Pure WebGL2, zero dependencies
+  // Trail buffer: 64 recent mouse positions for continuous flow
   // ═══════════════════════════════════════════════════════════════
 
   var canvas = document.getElementById('hero-gl');
@@ -100,12 +101,11 @@
 
   var gl = canvas.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: false });
   if (!gl) {
-    // Fallback: simple gradient for old browsers
     canvas.style.background = 'linear-gradient(135deg, #050510, #0a1628)';
     return;
   }
 
-  // ── Shader sources ──
+  var TRAIL_LEN = 64; // mouse positions to keep
 
   var VS = `#version 300 es
     in vec2 a_pos;
@@ -118,11 +118,11 @@
 
     uniform vec2 u_res;
     uniform float u_time;
-    uniform vec2 u_mouse;       // normalized mouse pos (0-1)
-    uniform float u_mouseSpeed; // mouse velocity magnitude
-    uniform vec2 u_mouseDir;    // mouse velocity direction
+    uniform vec2 u_trail[${TRAIL_LEN}];  // mouse trail positions (normalized 0-1)
+    uniform float u_trailAge[${TRAIL_LEN}]; // age of each point (0=current, 1=oldest)
+    uniform int u_trailCount;            // how many trail points are active
 
-    // ── Simplex-ish noise ──
+    // ── Simplex noise ──
     vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
     vec2 mod289(vec2 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
     vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -150,24 +150,46 @@
       return 130.0 * dot(m, g);
     }
 
-    // ── Fluid trail: mouse leaves a fading wake ──
-    // We simulate this with distance-based falloff + directional stretch
-    float fluidField(vec2 uv, vec2 mpos, vec2 mdir, float speed) {
-      vec2 d = uv - mpos;
-      // Stretch along mouse direction (anisotropic)
-      float along = dot(d, mdir);
-      float perp = length(d - along * mdir);
-      // Wake extends behind the mouse
-      float wake = smoothstep(0.0, -0.3, along) * exp(-perp * perp * 60.0);
-      // Radial proximity
-      float prox = exp(-dot(d,d) * 15.0);
-      return (prox + wake * speed * 2.0);
+    // ── Compute fluid field from entire trail ──
+    // Returns (intensity, colorMix) — intensity is how much fluid is here,
+    // colorMix shifts along the trail for color variation
+    vec2 trailField(vec2 uvA, float aspect) {
+      float intensity = 0.0;
+      float colorMix = 0.0;
+      float totalWeight = 0.0;
+
+      for (int i = 0; i < ${TRAIL_LEN}; i++) {
+        if (i >= u_trailCount) break;
+
+        vec2 tp = vec2(u_trail[i].x * aspect, u_trail[i].y);
+        float age = u_trailAge[i]; // 0=newest, 1=oldest
+
+        // Fade: newer points are stronger
+        float fade = pow(1.0 - age, 1.5);
+        if (fade < 0.01) continue;
+
+        vec2 d = uvA - tp;
+        float dist2 = dot(d, d);
+
+        // Wide gaussian blob per trail point — radius grows slightly with age
+        float radius = 12.0 - age * 4.0; // tighter when new, wider as it ages
+        float blob = exp(-dist2 * radius) * fade;
+
+        intensity += blob;
+        colorMix += blob * age; // older parts shift color
+        totalWeight += blob;
+      }
+
+      // Normalize color mix
+      if (totalWeight > 0.001) colorMix /= totalWeight;
+
+      return vec2(intensity, colorMix);
     }
 
     void main() {
       vec2 uv = gl_FragCoord.xy / u_res;
       float aspect = u_res.x / u_res.y;
-      vec2 uvA = vec2(uv.x * aspect, uv.y); // aspect-corrected
+      vec2 uvA = vec2(uv.x * aspect, uv.y);
 
       float t = u_time;
 
@@ -180,31 +202,29 @@
       vec2 tileID = floor(tileUV);
       vec2 tileLocal = fract(tileUV);
 
-      // Gap: create borders between tiles
       float border = step(gap / tileSize, tileLocal.x) *
                      step(gap / tileSize, tileLocal.y) *
                      (1.0 - step(1.0 - gap / tileSize, tileLocal.x)) *
                      (1.0 - step(1.0 - gap / tileSize, tileLocal.y));
-      // Rounded corners
       vec2 fromCenter = abs(tileLocal - 0.5) * 2.0;
       float cornerDist = length(max(fromCenter - 0.7, 0.0));
       float rounded = 1.0 - smoothstep(0.2, 0.3, cornerDist);
-
       float tileMask = border * rounded;
 
       // ══════════════════════════════════════════════
-      // 2. SIDE SPLIT: stock (left) vs HEBBS (right)
+      // 2. SIDE SPLIT
       // ══════════════════════════════════════════════
-      float midX = 0.45; // shifted left so hero text stays readable
+      float midX = 0.45;
       float hebbsMix = smoothstep(midX - 0.05, midX + 0.05, uv.x);
 
       // ══════════════════════════════════════════════
-      // 3. MOUSE FLUID INTERACTION
+      // 3. FLUID TRAIL (persistent, liquid-like)
       // ══════════════════════════════════════════════
-      vec2 mouseA = vec2(u_mouse.x * aspect, u_mouse.y);
-      float fluid = fluidField(uvA, mouseA, u_mouseDir, u_mouseSpeed);
+      vec2 fluidInfo = trailField(uvA, aspect);
+      float fluid = clamp(fluidInfo.x, 0.0, 1.0);
+      float fluidColorAge = fluidInfo.y;
 
-      // Noise-based organic flow
+      // Organic noise flow
       float flow1 = snoise(uvA * 3.0 + t * 0.15) * 0.5 + 0.5;
       float flow2 = snoise(uvA * 5.0 - t * 0.1 + 100.0) * 0.5 + 0.5;
       float flow3 = snoise(uvA * 8.0 + t * 0.08 + 200.0) * 0.5 + 0.5;
@@ -212,37 +232,30 @@
       // ══════════════════════════════════════════════
       // 4. TILE COLOR
       // ══════════════════════════════════════════════
-
-      // Per-tile noise (varies by tile position)
       float tileNoise = snoise(tileID * 0.3 + t * 0.05);
       float tileRand = fract(sin(dot(tileID, vec2(12.9898, 78.233))) * 43758.5453);
 
-      // Distance from mouse to tile center
+      // Tile center fluid influence
       vec2 tileCenterA = (tileID + 0.5) * tileSize;
-      float mouseDist = length(tileCenterA - mouseA);
-      float mouseInfluence = exp(-mouseDist * mouseDist * 8.0) * (0.5 + u_mouseSpeed * 2.0);
+      vec2 tcFluid = trailField(tileCenterA, aspect);
+      float tileFluid = clamp(tcFluid.x, 0.0, 1.0);
 
-      // ── Stock side: dim monochrome ──
-      vec3 stockColor = vec3(0.08, 0.08, 0.12);
-      float stockBright = 0.03 + tileRand * 0.02 + tileNoise * 0.01;
-      stockColor += stockBright;
+      // Colors
+      vec3 amber  = vec3(0.96, 0.62, 0.04);
+      vec3 cyan   = vec3(0.40, 0.91, 0.98);
+      vec3 green  = vec3(0.20, 0.83, 0.60);
+      vec3 purple = vec3(0.65, 0.55, 0.98);
 
-      // ── HEBBS side: alive, colorful, reactive ──
-      // Base: dark with subtle color variation
-      vec3 hebbsBase = vec3(0.04, 0.05, 0.08);
+      // ── Stock side ──
+      vec3 stockColor = vec3(0.06, 0.06, 0.10);
+      stockColor += 0.02 + tileRand * 0.015;
+      // Even stock side reacts slightly to mouse (subtle ripple)
+      stockColor += vec3(0.03, 0.04, 0.06) * tileFluid * 0.3;
 
-      // Flowing color channels
-      float r = flow1 * 0.6 + flow2 * 0.3;
-      float g = flow2 * 0.4 + flow3 * 0.5;
-      float b = flow3 * 0.5 + flow1 * 0.2;
+      // ── HEBBS side ──
+      vec3 hebbsBase = vec3(0.03, 0.04, 0.07);
 
-      // Color palette: amber, cyan, green based on tile position
-      vec3 amber = vec3(0.96, 0.62, 0.04);   // #F59E0B
-      vec3 cyan  = vec3(0.40, 0.91, 0.98);   // #67E8F9
-      vec3 green = vec3(0.20, 0.83, 0.60);   // #34D399
-      vec3 purple = vec3(0.65, 0.55, 0.98);  // #A78BFA
-
-      // Assign color per tile based on noise
+      // Per-tile color assignment
       vec3 tileColor;
       float colorPick = fract(tileRand * 7.0 + tileNoise * 0.5);
       if (colorPick < 0.35) tileColor = amber;
@@ -250,41 +263,41 @@
       else if (colorPick < 0.75) tileColor = green;
       else tileColor = purple;
 
-      // Organic brightness pulse per tile
+      // Base pulse
       float pulse = sin(t * (0.8 + tileRand * 1.5) + tileRand * 6.28) * 0.5 + 0.5;
-      float brightness = 0.04 + pulse * 0.08 * (0.5 + tileNoise * 0.5);
+      float brightness = 0.03 + pulse * 0.06 * (0.5 + tileNoise * 0.5);
 
-      // Mouse proximity boost: tiles near cursor glow strongly
-      brightness += mouseInfluence * 0.5;
+      // Fluid-activated brightness: tiles the mouse has touched stay lit
+      brightness += tileFluid * 0.6;
 
-      // Occasional bright "activation" tiles
-      float activation = step(0.92, sin(t * 0.3 + tileRand * 50.0) * 0.5 + 0.5 + mouseInfluence * 0.3);
-      brightness += activation * 0.3;
+      // Occasional activations
+      float activation = step(0.93, sin(t * 0.3 + tileRand * 50.0) * 0.5 + 0.5 + tileFluid * 0.2);
+      brightness += activation * 0.25;
 
       vec3 hebbsColor = hebbsBase + tileColor * brightness;
 
-      // ── Fluid color bleed: mouse leaves colored trail ──
-      vec3 fluidColor = mix(amber, cyan, flow1) * fluid * 0.4 * hebbsMix;
-      hebbsColor += fluidColor;
+      // ── Fluid color overlay: continuous liquid ribbon ──
+      // Color shifts along the trail (newer=amber, older=cyan→green)
+      vec3 fluidCol = mix(amber, cyan, fluidColorAge);
+      fluidCol = mix(fluidCol, green, flow2 * 0.3);
+      hebbsColor += fluidCol * fluid * 0.5 * hebbsMix;
 
       // ══════════════════════════════════════════════
       // 5. COMPOSE
       // ══════════════════════════════════════════════
       vec3 color = mix(stockColor, hebbsColor, hebbsMix);
-
-      // Apply tile mask (gaps between tiles are dark)
       color *= tileMask;
 
-      // Add very subtle glow to gaps on HEBBS side (energy between tiles)
-      float gapGlow = (1.0 - tileMask) * hebbsMix * 0.015 * (1.0 + fluid * 3.0);
-      vec3 gapColor = mix(amber, cyan, flow2) * gapGlow;
+      // Gap energy: fluid bleeds through tile gaps
+      float gapGlow = (1.0 - tileMask) * hebbsMix * (0.01 + fluid * 0.06);
+      vec3 gapColor = fluidCol * gapGlow;
       color += gapColor;
 
-      // ── Edge vignette ──
+      // Vignette
       float vignette = 1.0 - dot(uv - 0.5, uv - 0.5) * 1.2;
       color *= vignette;
 
-      // ── Subtle scan lines for futuristic feel ──
+      // Scanlines
       float scanline = 0.97 + 0.03 * sin(gl_FragCoord.y * 1.5);
       color *= scanline;
 
@@ -332,18 +345,39 @@
   // ── Uniforms ──
   var uRes = gl.getUniformLocation(prog, 'u_res');
   var uTime = gl.getUniformLocation(prog, 'u_time');
-  var uMouse = gl.getUniformLocation(prog, 'u_mouse');
-  var uMouseSpeed = gl.getUniformLocation(prog, 'u_mouseSpeed');
-  var uMouseDir = gl.getUniformLocation(prog, 'u_mouseDir');
+  var uTrailCount = gl.getUniformLocation(prog, 'u_trailCount');
 
-  // ── State ──
-  var mouseX = 0.7, mouseY = 0.5;
-  var prevMouseX = 0.7, prevMouseY = 0.5;
-  var mouseSpeed = 0, mouseDirX = 0, mouseDirY = 0;
+  // Get uniform locations for trail arrays
+  var uTrail = [];
+  var uTrailAge = [];
+  for (var i = 0; i < TRAIL_LEN; i++) {
+    uTrail.push(gl.getUniformLocation(prog, 'u_trail[' + i + ']'));
+    uTrailAge.push(gl.getUniformLocation(prog, 'u_trailAge[' + i + ']'));
+  }
+
+  // ── Trail state ──
+  // Each entry: { x, y, time } — mouse position when recorded
+  var trail = [];
+  var TRAIL_LIFETIME = 4.0; // seconds before a trail point fully fades
+  var TRAIL_SAMPLE_DIST = 0.008; // min distance between trail samples
+  var mouseX = -1, mouseY = -1;
+  var mouseActive = false;
   var startTime = performance.now();
 
+  function addTrailPoint(x, y, now) {
+    // Only add if moved enough distance from last point
+    if (trail.length > 0) {
+      var last = trail[trail.length - 1];
+      var dx = x - last.x, dy = y - last.y;
+      if (dx * dx + dy * dy < TRAIL_SAMPLE_DIST * TRAIL_SAMPLE_DIST) return;
+    }
+    trail.push({ x: x, y: y, time: now });
+    // Cap length
+    if (trail.length > TRAIL_LEN) trail.shift();
+  }
+
   function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2x for perf
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
     var r = canvas.getBoundingClientRect();
     canvas.width = r.width * dpr;
     canvas.height = r.height * dpr;
@@ -353,23 +387,32 @@
   function render() {
     var now = (performance.now() - startTime) * 0.001;
 
-    // Smooth mouse velocity
-    var dx = mouseX - prevMouseX;
-    var dy = mouseY - prevMouseY;
-    var speed = Math.sqrt(dx * dx + dy * dy);
-    mouseSpeed = mouseSpeed * 0.85 + speed * 0.15 * 60; // smooth + scale
-    if (speed > 0.0001) {
-      mouseDirX = mouseDirX * 0.8 + (dx / speed) * 0.2;
-      mouseDirY = mouseDirY * 0.8 + (dy / speed) * 0.2;
+    // Add current mouse to trail if active
+    if (mouseActive && mouseX >= 0) {
+      addTrailPoint(mouseX, mouseY, now);
     }
-    prevMouseX = mouseX;
-    prevMouseY = mouseY;
 
+    // Prune old trail points
+    while (trail.length > 0 && (now - trail[0].time) > TRAIL_LIFETIME) {
+      trail.shift();
+    }
+
+    // Upload uniforms
     gl.uniform2f(uRes, canvas.width, canvas.height);
     gl.uniform1f(uTime, now);
-    gl.uniform2f(uMouse, mouseX, mouseY);
-    gl.uniform1f(uMouseSpeed, Math.min(mouseSpeed, 3.0));
-    gl.uniform2f(uMouseDir, mouseDirX, mouseDirY);
+    gl.uniform1i(uTrailCount, trail.length);
+
+    // Upload trail positions and ages
+    for (var i = 0; i < TRAIL_LEN; i++) {
+      if (i < trail.length) {
+        var age = (now - trail[i].time) / TRAIL_LIFETIME; // 0=new, 1=expired
+        gl.uniform2f(uTrail[i], trail[i].x, trail[i].y);
+        gl.uniform1f(uTrailAge[i], age);
+      } else {
+        gl.uniform2f(uTrail[i], -10.0, -10.0); // offscreen
+        gl.uniform1f(uTrailAge[i], 1.0);
+      }
+    }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     requestAnimationFrame(render);
@@ -379,22 +422,41 @@
   canvas.addEventListener('mousemove', function(e) {
     var r = canvas.getBoundingClientRect();
     mouseX = (e.clientX - r.left) / r.width;
-    mouseY = 1.0 - (e.clientY - r.top) / r.height; // flip Y for GL
+    mouseY = 1.0 - (e.clientY - r.top) / r.height;
+    mouseActive = true;
   });
 
   canvas.addEventListener('mouseleave', function() {
-    // Drift back to center-right
-    mouseX = 0.7; mouseY = 0.5;
+    mouseActive = false;
+    // Trail persists and fades naturally
+  });
+
+  canvas.addEventListener('mouseenter', function() {
+    mouseActive = true;
   });
 
   // Touch support
+  canvas.addEventListener('touchstart', function() { mouseActive = true; }, { passive: true });
+  canvas.addEventListener('touchend', function() { mouseActive = false; }, { passive: true });
   canvas.addEventListener('touchmove', function(e) {
     e.preventDefault();
     var touch = e.touches[0];
     var r = canvas.getBoundingClientRect();
     mouseX = (touch.clientX - r.left) / r.width;
     mouseY = 1.0 - (touch.clientY - r.top) / r.height;
+    mouseActive = true;
   }, { passive: false });
+
+  // Seed with a default idle animation trail (gentle arc)
+  var seedNow = 0;
+  for (var i = 0; i < 20; i++) {
+    var angle = i * 0.15;
+    trail.push({
+      x: 0.6 + Math.cos(angle) * 0.12,
+      y: 0.5 + Math.sin(angle) * 0.08,
+      time: seedNow - TRAIL_LIFETIME * (1 - i / 20) // staggered ages
+    });
+  }
 
   resize();
   render();
