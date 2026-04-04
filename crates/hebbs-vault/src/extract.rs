@@ -676,13 +676,19 @@ mod tests {
     #[test]
     fn test_frontmatter_entity_id() {
         let content = "---\ntitle: Test\nentity_id: acme-corp\n---\n# Hello";
-        assert_eq!(parse_entity_from_frontmatter(content), Some("acme-corp".to_string()));
+        assert_eq!(
+            parse_entity_from_frontmatter(content),
+            Some("acme-corp".to_string())
+        );
     }
 
     #[test]
     fn test_frontmatter_entity_id_lowercased() {
         let content = "---\nentity_id: ACME-Corp\n---\n# Hello";
-        assert_eq!(parse_entity_from_frontmatter(content), Some("acme-corp".to_string()));
+        assert_eq!(
+            parse_entity_from_frontmatter(content),
+            Some("acme-corp".to_string())
+        );
     }
 
     #[test]
@@ -705,17 +711,26 @@ mod tests {
 
     #[test]
     fn test_path_entities_folder() {
-        assert_eq!(parse_entity_from_path("entities/acme-corp/call.md"), Some("acme-corp".to_string()));
+        assert_eq!(
+            parse_entity_from_path("entities/acme-corp/call.md"),
+            Some("acme-corp".to_string())
+        );
     }
 
     #[test]
     fn test_path_entities_nested() {
-        assert_eq!(parse_entity_from_path("entities/acme-corp/deep/nested/file.md"), Some("acme-corp".to_string()));
+        assert_eq!(
+            parse_entity_from_path("entities/acme-corp/deep/nested/file.md"),
+            Some("acme-corp".to_string())
+        );
     }
 
     #[test]
     fn test_path_entities_case_normalized() {
-        assert_eq!(parse_entity_from_path("entities/GLOBEX-Corp/notes.md"), Some("globex-corp".to_string()));
+        assert_eq!(
+            parse_entity_from_path("entities/GLOBEX-Corp/notes.md"),
+            Some("globex-corp".to_string())
+        );
     }
 
     #[test]
@@ -725,7 +740,10 @@ mod tests {
 
     #[test]
     fn test_path_entities_not_at_root() {
-        assert_eq!(parse_entity_from_path("docs/entities/acme-corp/notes.md"), None);
+        assert_eq!(
+            parse_entity_from_path("docs/entities/acme-corp/notes.md"),
+            None
+        );
     }
 
     #[test]
@@ -751,7 +769,12 @@ mod tests {
     fn test_resolve_folder_wins_over_llm() {
         let content = "# No frontmatter";
         assert_eq!(
-            resolve_entity_id(content, "entities/folder-entity/file.md", &[], Some("some content")),
+            resolve_entity_id(
+                content,
+                "entities/folder-entity/file.md",
+                &[],
+                Some("some content")
+            ),
             Some("folder-entity".to_string()),
         );
     }
