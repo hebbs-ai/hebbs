@@ -194,16 +194,19 @@ impl IndexManager {
         // On restart rebuild, the HNSW algorithm re-inserts nodes.
         let temp_node = HnswNode {
             memory_id: *memory_id,
-            vector: embedding.to_vec(),
+            quantized: None,
+            vector: Some(embedding.to_vec()),
             layer: 0,                // placeholder, updated in commit_insert
             neighbors: vec![vec![]], // placeholder
             deleted: false,
         };
 
+        // Always serialize as v0 for the temp node (before commit_insert
+        // re-serializes with correct neighbors and quantized data)
         ops.push(BatchOperation::Put {
             cf: ColumnFamilyName::Vectors,
             key: memory_id.to_vec(),
-            value: temp_node.serialize(),
+            value: temp_node.serialize_v0(),
         });
 
         // 3. VectorsAssociative CF entry
@@ -267,10 +270,15 @@ impl IndexManager {
                 .entry(tenant_id.to_string())
                 .or_insert_with(|| (HnswGraph::new(self.hnsw_params.clone()), Instant::now()));
             *last_access = Instant::now();
-            graph.insert(memory_id, embedding)?
+            graph.insert(memory_id, embedding.clone())?
         };
 
-        let serialized = node.serialize();
+        // Persist with v1 format (f32 + quantized) when quantization is enabled
+        let serialized = if node.quantized.is_some() {
+            node.serialize_v1(&embedding)
+        } else {
+            node.serialize()
+        };
         self.storage
             .put(ColumnFamilyName::Vectors, &memory_id, &serialized)?;
 
@@ -451,7 +459,8 @@ impl IndexManager {
         // New vectors CF entry (placeholder, updated after HNSW commit)
         let temp_node = HnswNode {
             memory_id: *memory_id,
-            vector: new_embedding.to_vec(),
+            quantized: None,
+            vector: Some(new_embedding.to_vec()),
             layer: 0,
             neighbors: vec![vec![]],
             deleted: false,
@@ -460,7 +469,7 @@ impl IndexManager {
         ops.push(BatchOperation::Put {
             cf: ColumnFamilyName::Vectors,
             key: memory_id.to_vec(),
-            value: temp_node.serialize(),
+            value: temp_node.serialize_v0(),
         });
 
         // --- Graph edges ---
@@ -503,11 +512,16 @@ impl IndexManager {
 
     /// HNSW top-K nearest neighbor search for a specific tenant.
     ///
+    /// When quantization is enabled, uses two-tier search:
+    /// 1. HNSW traversal with int8 distances (oversample 2x candidates)
+    /// 2. Load f32 vectors from RocksDB for top candidates
+    /// 3. Recompute exact distances and re-sort
+    ///
     /// Returns `(memory_id, distance)` pairs sorted by distance ascending.
     /// Tombstoned nodes are excluded. Lazily creates the tenant's graph if
     /// it doesn't exist yet.
     ///
-    /// Complexity: O(log n * ef_search).
+    /// Complexity: O(log n * ef_search) + O(2k) RocksDB reads for reranking.
     pub fn search_vector_for_tenant(
         &self,
         tenant_id: &str,
@@ -515,25 +529,83 @@ impl IndexManager {
         k: usize,
         ef_search: Option<usize>,
     ) -> Result<Vec<([u8; 16], f32)>> {
-        {
+        let use_reranking = self.hnsw_params.use_quantization;
+
+        // When reranking, fetch 2x candidates so reranking can recover
+        // any neighbors that int8 approximation misordered.
+        let fetch_k = if use_reranking { k * 2 } else { k };
+
+        let candidates = {
             let graphs = self.hnsw_graphs.read();
             if let Some((graph, _)) = graphs.get(tenant_id) {
-                let result = graph.search(query, k, ef_search);
+                let result = graph.search(query, fetch_k, ef_search);
                 drop(graphs);
-                // Update last-access time outside the read lock
                 let mut graphs_w = self.hnsw_graphs.write();
                 if let Some((_, last_access)) = graphs_w.get_mut(tenant_id) {
                     *last_access = Instant::now();
                 }
-                return result;
+                result?
+            } else {
+                drop(graphs);
+                let mut graphs = self.hnsw_graphs.write();
+                let (graph, _) = graphs
+                    .entry(tenant_id.to_string())
+                    .or_insert_with(|| (HnswGraph::new(self.hnsw_params.clone()), Instant::now()));
+                graph.search(query, fetch_k, ef_search)?
+            }
+        };
+
+        if !use_reranking || candidates.is_empty() {
+            let mut results = candidates;
+            results.truncate(k);
+            return Ok(results);
+        }
+
+        self.rerank_with_exact_distances(query, candidates, k)
+    }
+
+    /// Rerank HNSW candidates using exact f32 distances from RocksDB.
+    ///
+    /// Loads the original f32 vector for each candidate from the Vectors CF,
+    /// recomputes the exact inner product distance, sorts by exact distance,
+    /// and returns the top-k results.
+    ///
+    /// Complexity: O(candidates) RocksDB point lookups + O(candidates * d) distance.
+    fn rerank_with_exact_distances(
+        &self,
+        query: &[f32],
+        candidates: Vec<([u8; 16], f32)>,
+        k: usize,
+    ) -> Result<Vec<([u8; 16], f32)>> {
+        use super::hnsw::distance::inner_product_distance;
+
+        let dimensions = self.hnsw_params.dimensions;
+        let mut reranked: Vec<([u8; 16], f32)> = Vec::with_capacity(candidates.len());
+
+        for (id, approx_dist) in &candidates {
+            match self.storage.get(ColumnFamilyName::Vectors, id) {
+                Ok(Some(data)) => {
+                    match HnswNode::deserialize_f32_only(&data, dimensions) {
+                        Ok(f32_vec) => {
+                            let exact_dist = inner_product_distance(query, &f32_vec);
+                            reranked.push((*id, exact_dist));
+                        }
+                        Err(_) => {
+                            // Fall back to approximate distance if f32 extraction fails
+                            reranked.push((*id, *approx_dist));
+                        }
+                    }
+                }
+                _ => {
+                    // Node not in storage (shouldn't happen), keep approximate
+                    reranked.push((*id, *approx_dist));
+                }
             }
         }
-        // Tenant not found — create an empty graph
-        let mut graphs = self.hnsw_graphs.write();
-        let (graph, _) = graphs
-            .entry(tenant_id.to_string())
-            .or_insert_with(|| (HnswGraph::new(self.hnsw_params.clone()), Instant::now()));
-        graph.search(query, k, ef_search)
+
+        reranked.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        reranked.truncate(k);
+        Ok(reranked)
     }
 
     /// Temporal range query.
@@ -748,7 +820,13 @@ impl IndexManager {
             match HnswNode::deserialize(memory_id, value, dimensions) {
                 Ok(node) => {
                     // Re-insert with the HNSW algorithm for correct neighbor computation
-                    if let Err(e) = hnsw.insert(memory_id, node.vector) {
+                    let vector = node.vector.unwrap_or_else(|| {
+                        node.quantized
+                            .as_ref()
+                            .map(crate::hnsw::quantize::dequantize)
+                            .unwrap_or_default()
+                    });
+                    if let Err(e) = hnsw.insert(memory_id, vector) {
                         eprintln!(
                             "HNSW rebuild: failed to insert node {}: {}",
                             hex_id(&memory_id),

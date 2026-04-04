@@ -6,6 +6,8 @@ use rand::Rng;
 use super::distance::inner_product_distance;
 use super::node::HnswNode;
 use super::params::HnswParams;
+use super::quantize::{quantize, quantized_inner_product_distance, QuantizedVector};
+use super::rotation::HadamardRotation;
 use crate::error::{IndexError, Result};
 
 /// Ordered entry for priority queues.
@@ -64,12 +66,20 @@ pub struct HnswGraph {
     params: HnswParams,
     tombstone_count: usize,
     rng: rand::rngs::StdRng,
+    /// Walsh-Hadamard rotation for quantization quality (Phase B).
+    /// Present when params.use_quantization && params.use_rotation.
+    rotation: Option<HadamardRotation>,
 }
 
 impl HnswGraph {
     /// Create a new empty HNSW graph.
     pub fn new(params: HnswParams) -> Self {
         use rand::SeedableRng;
+        let rotation = if params.use_quantization && params.use_rotation {
+            Some(HadamardRotation::new(params.dimensions, 0))
+        } else {
+            None
+        };
         Self {
             nodes: HashMap::new(),
             entry_point: None,
@@ -77,12 +87,21 @@ impl HnswGraph {
             params,
             tombstone_count: 0,
             rng: rand::rngs::StdRng::from_entropy(),
+            rotation,
         }
     }
 
     /// Create with a fixed seed for deterministic testing.
     pub fn new_with_seed(params: HnswParams, seed: u64) -> Self {
         use rand::SeedableRng;
+        let rotation = if params.use_quantization && params.use_rotation {
+            Some(HadamardRotation::new(
+                params.dimensions,
+                seed.wrapping_add(1),
+            ))
+        } else {
+            None
+        };
         Self {
             nodes: HashMap::new(),
             entry_point: None,
@@ -90,11 +109,35 @@ impl HnswGraph {
             params,
             tombstone_count: 0,
             rng: rand::rngs::StdRng::seed_from_u64(seed),
+            rotation,
+        }
+    }
+
+    /// Create with a specific rotation seed (for rebuilds from persisted seed).
+    pub fn new_with_seeds(params: HnswParams, rng_seed: u64, rotation_seed: u64) -> Self {
+        use rand::SeedableRng;
+        let rotation = if params.use_quantization && params.use_rotation {
+            Some(HadamardRotation::new(params.dimensions, rotation_seed))
+        } else {
+            None
+        };
+        Self {
+            nodes: HashMap::new(),
+            entry_point: None,
+            max_layer: 0,
+            params,
+            tombstone_count: 0,
+            rng: rand::rngs::StdRng::seed_from_u64(rng_seed),
+            rotation,
         }
     }
 
     pub fn params(&self) -> &HnswParams {
         &self.params
+    }
+
+    pub fn rotation(&self) -> Option<&HadamardRotation> {
+        self.rotation.as_ref()
     }
 
     pub fn len(&self) -> usize {
@@ -111,6 +154,42 @@ impl HnswGraph {
 
     pub fn tombstone_count(&self) -> usize {
         self.tombstone_count
+    }
+
+    /// Prepare a vector for HNSW storage: rotate (if enabled) then quantize.
+    /// Returns the quantized vector suitable for distance comparison.
+    fn prepare_vector(&self, vector: &[f32]) -> QuantizedVector {
+        if let Some(ref rotation) = self.rotation {
+            let rotated = rotation.rotate(vector);
+            quantize(&rotated)
+        } else {
+            quantize(vector)
+        }
+    }
+
+    /// Compute distance between a query (already prepared) and a stored node.
+    #[inline]
+    fn node_distance(&self, query: &QuantizedVector, node: &HnswNode) -> f32 {
+        if let Some(ref q) = node.quantized {
+            quantized_inner_product_distance(query, q)
+        } else if let Some(ref v) = node.vector {
+            // Fallback for unquantized nodes (should not happen in normal operation)
+            let q = self.prepare_vector(v);
+            quantized_inner_product_distance(query, &q)
+        } else {
+            f32::MAX
+        }
+    }
+
+    /// Compute distance between a query and a node using f32 vectors directly.
+    /// Used when quantization is disabled.
+    #[inline]
+    fn node_distance_f32(&self, query: &[f32], node: &HnswNode) -> f32 {
+        if let Some(ref v) = node.vector {
+            inner_product_distance(query, v)
+        } else {
+            f32::MAX
+        }
     }
 
     /// Assign a random layer for a new node using the HNSW geometric distribution.
@@ -136,11 +215,119 @@ impl HnswGraph {
 
         let node_layer = self.random_layer();
 
+        if self.params.use_quantization {
+            self.insert_quantized(memory_id, vector, node_layer)
+        } else {
+            self.insert_f32(memory_id, vector, node_layer)
+        }
+    }
+
+    /// Insert with int8 quantized traversal.
+    fn insert_quantized(
+        &mut self,
+        memory_id: [u8; 16],
+        vector: Vec<f32>,
+        node_layer: usize,
+    ) -> Result<HnswNode> {
+        let quantized = self.prepare_vector(&vector);
+
         if self.entry_point.is_none() {
             let neighbors = (0..=node_layer).map(|_| Vec::new()).collect();
             let node = HnswNode {
                 memory_id,
-                vector,
+                quantized: Some(quantized),
+                vector: None, // f32 not kept in memory
+                layer: node_layer as u8,
+                neighbors,
+                deleted: false,
+            };
+            self.entry_point = Some(memory_id);
+            self.max_layer = node_layer;
+            self.nodes.insert(memory_id, node.clone());
+            return Ok(node);
+        }
+
+        let query_quantized = self.prepare_vector(&vector);
+        let mut ep_id = self.entry_point.unwrap();
+
+        // Phase 1: Greedily descend from top layer to node_layer + 1
+        for layer in (node_layer + 1..=self.max_layer).rev() {
+            ep_id = self.greedy_closest_quantized(&query_quantized, ep_id, layer);
+        }
+
+        // Phase 2: Search and connect at each layer
+        let search_top = node_layer.min(self.max_layer);
+        let mut ep_ids = vec![ep_id];
+        let mut all_layer_neighbors: Vec<Vec<[u8; 16]>> = Vec::with_capacity(search_top + 1);
+
+        for layer in (0..=search_top).rev() {
+            let candidates = self.search_layer_quantized(
+                &query_quantized,
+                &ep_ids,
+                self.params.ef_construction,
+                layer,
+            );
+
+            let max_conn = self.params.max_neighbors(layer);
+            let selected = self.select_neighbors_heuristic_quantized(&candidates, max_conn);
+
+            all_layer_neighbors.push(selected.clone());
+            ep_ids = candidates.iter().map(|e| e.id).collect();
+        }
+
+        all_layer_neighbors.reverse();
+
+        while all_layer_neighbors.len() <= node_layer {
+            all_layer_neighbors.push(Vec::new());
+        }
+
+        let node = HnswNode {
+            memory_id,
+            quantized: Some(quantized),
+            vector: None,
+            layer: node_layer as u8,
+            neighbors: all_layer_neighbors.clone(),
+            deleted: false,
+        };
+
+        self.nodes.insert(memory_id, node.clone());
+
+        for (layer, selected) in all_layer_neighbors.iter().enumerate() {
+            for &neighbor_id in selected {
+                if let Some(neighbor_node) = self.nodes.get_mut(&neighbor_id) {
+                    if layer < neighbor_node.neighbors.len() {
+                        neighbor_node.neighbors[layer].push(memory_id);
+
+                        let max_conn = self.params.max_neighbors(layer);
+                        if neighbor_node.neighbors[layer].len() > max_conn {
+                            self.prune_neighbors_for_quantized(neighbor_id, layer, max_conn);
+                        }
+                    }
+                }
+            }
+        }
+
+        if node_layer > self.max_layer {
+            self.entry_point = Some(memory_id);
+            self.max_layer = node_layer;
+        }
+
+        Ok(node)
+    }
+
+    /// Insert with f32 vectors (quantization disabled).
+    fn insert_f32(
+        &mut self,
+        memory_id: [u8; 16],
+        vector: Vec<f32>,
+        node_layer: usize,
+    ) -> Result<HnswNode> {
+        if self.entry_point.is_none() {
+            let neighbors = (0..=node_layer).map(|_| Vec::new()).collect();
+            let node = HnswNode {
+                memory_id,
+                quantized: None,
+                vector: Some(vector),
                 layer: node_layer as u8,
                 neighbors,
                 deleted: false,
@@ -153,40 +340,36 @@ impl HnswGraph {
 
         let mut ep_id = self.entry_point.unwrap();
 
-        // Phase 1: Greedily descend from top layer to node_layer + 1
         for layer in (node_layer + 1..=self.max_layer).rev() {
-            ep_id = self.greedy_closest(&vector, ep_id, layer);
+            ep_id = self.greedy_closest_f32(&vector, ep_id, layer);
         }
 
-        // Phase 2: Search and connect at each layer from min(node_layer, max_layer) down to 0
         let search_top = node_layer.min(self.max_layer);
         let mut ep_ids = vec![ep_id];
         let mut all_layer_neighbors: Vec<Vec<[u8; 16]>> = Vec::with_capacity(search_top + 1);
 
         for layer in (0..=search_top).rev() {
             let candidates =
-                self.search_layer(&vector, &ep_ids, self.params.ef_construction, layer);
+                self.search_layer_f32(&vector, &ep_ids, self.params.ef_construction, layer);
 
             let max_conn = self.params.max_neighbors(layer);
-            let selected = self.select_neighbors_heuristic(&vector, &candidates, max_conn, layer);
+            let selected =
+                self.select_neighbors_heuristic_f32(&vector, &candidates, max_conn, layer);
 
             all_layer_neighbors.push(selected.clone());
-
-            // Next layer's entry points are this layer's candidates
             ep_ids = candidates.iter().map(|e| e.id).collect();
         }
 
-        // Reverse since we built from top to bottom
         all_layer_neighbors.reverse();
 
-        // Pad with empty layers if node_layer > max_layer
         while all_layer_neighbors.len() <= node_layer {
             all_layer_neighbors.push(Vec::new());
         }
 
         let node = HnswNode {
             memory_id,
-            vector,
+            quantized: None,
+            vector: Some(vector),
             layer: node_layer as u8,
             neighbors: all_layer_neighbors.clone(),
             deleted: false,
@@ -194,24 +377,21 @@ impl HnswGraph {
 
         self.nodes.insert(memory_id, node.clone());
 
-        // Add bidirectional connections: for each selected neighbor, add this node to their list
         for (layer, selected) in all_layer_neighbors.iter().enumerate() {
             for &neighbor_id in selected {
                 if let Some(neighbor_node) = self.nodes.get_mut(&neighbor_id) {
                     if layer < neighbor_node.neighbors.len() {
                         neighbor_node.neighbors[layer].push(memory_id);
 
-                        // Prune if exceeds max connections
                         let max_conn = self.params.max_neighbors(layer);
                         if neighbor_node.neighbors[layer].len() > max_conn {
-                            self.prune_neighbors_for(neighbor_id, layer, max_conn);
+                            self.prune_neighbors_for_f32(neighbor_id, layer, max_conn);
                         }
                     }
                 }
             }
         }
 
-        // Update entry point if this node's layer is higher
         if node_layer > self.max_layer {
             self.entry_point = Some(memory_id);
             self.max_layer = node_layer;
@@ -220,7 +400,7 @@ impl HnswGraph {
         Ok(node)
     }
 
-    /// Insert a node during rebuild — restores stored neighbor lists directly
+    /// Insert a node during rebuild -- restores stored neighbor lists directly
     /// without running the HNSW insert algorithm.
     ///
     /// Complexity: O(1) per node.
@@ -239,6 +419,7 @@ impl HnswGraph {
     ///
     /// Returns (memory_id, distance) pairs sorted by distance ascending.
     /// Tombstoned nodes are excluded from results.
+    /// When quantization is enabled, distances are approximate (from int8).
     ///
     /// Complexity: O(log n * ef_search).
     pub fn search(
@@ -259,17 +440,43 @@ impl HnswGraph {
         }
 
         let ef = ef_search.unwrap_or(self.params.ef_search).max(k);
+
+        if self.params.use_quantization {
+            self.search_quantized(query, k, ef)
+        } else {
+            self.search_f32(query, k, ef)
+        }
+    }
+
+    fn search_quantized(&self, query: &[f32], k: usize, ef: usize) -> Result<Vec<([u8; 16], f32)>> {
+        let query_quantized = self.prepare_vector(query);
         let mut ep_id = self.entry_point.unwrap();
 
-        // Phase 1: Greedily descend from top layer to layer 1
         for layer in (1..=self.max_layer).rev() {
-            ep_id = self.greedy_closest(query, ep_id, layer);
+            ep_id = self.greedy_closest_quantized(&query_quantized, ep_id, layer);
         }
 
-        // Phase 2: Search layer 0 with ef candidates
-        let candidates = self.search_layer(query, &[ep_id], ef, 0);
+        let candidates = self.search_layer_quantized(&query_quantized, &[ep_id], ef, 0);
 
-        // Filter out tombstoned nodes and take top-k
+        let mut results: Vec<([u8; 16], f32)> = candidates
+            .into_iter()
+            .filter(|e| self.nodes.get(&e.id).is_some_and(|n| !n.deleted))
+            .map(|e| (e.id, e.distance))
+            .collect();
+
+        results.truncate(k);
+        Ok(results)
+    }
+
+    fn search_f32(&self, query: &[f32], k: usize, ef: usize) -> Result<Vec<([u8; 16], f32)>> {
+        let mut ep_id = self.entry_point.unwrap();
+
+        for layer in (1..=self.max_layer).rev() {
+            ep_id = self.greedy_closest_f32(query, ep_id, layer);
+        }
+
+        let candidates = self.search_layer_f32(query, &[ep_id], ef, 0);
+
         let mut results: Vec<([u8; 16], f32)> = candidates
             .into_iter()
             .filter(|e| self.nodes.get(&e.id).is_some_and(|n| !n.deleted))
@@ -290,7 +497,6 @@ impl HnswGraph {
                 node.deleted = true;
                 self.tombstone_count += 1;
 
-                // If the entry point was deleted, try to find a new one
                 if self.entry_point == Some(*memory_id) {
                     self.find_new_entry_point();
                 }
@@ -326,12 +532,10 @@ impl HnswGraph {
             return 0;
         }
 
-        // Remove deleted nodes
         for id in &deleted_ids {
             self.nodes.remove(id);
         }
 
-        // Clean up neighbor references across all remaining nodes
         for node in self.nodes.values_mut() {
             for layer_neighbors in &mut node.neighbors {
                 layer_neighbors.retain(|n| !deleted_ids.contains(n));
@@ -341,7 +545,6 @@ impl HnswGraph {
         let removed = deleted_ids.len();
         self.tombstone_count = self.tombstone_count.saturating_sub(removed);
 
-        // Entry point may need updating
         if let Some(ep) = self.entry_point {
             if deleted_ids.contains(&ep) {
                 self.find_new_entry_point();
@@ -351,28 +554,22 @@ impl HnswGraph {
         removed
     }
 
-    /// Search within a single layer, returning ef nearest candidates.
-    ///
-    /// Implements the SEARCH-LAYER algorithm from Malkov & Yashunin (2018).
-    ///
-    /// Complexity: O(ef * average_degree) per layer.
-    fn search_layer(
+    // ─── Quantized traversal methods ─────────────────────────────────
+
+    fn search_layer_quantized(
         &self,
-        query: &[f32],
+        query: &QuantizedVector,
         entry_points: &[[u8; 16]],
         ef: usize,
         layer: usize,
     ) -> Vec<DistEntry> {
         let mut visited: HashSet<[u8; 16]> = HashSet::new();
-
-        // candidates: min-heap (closest first) — use Reverse wrapper
         let mut candidates: BinaryHeap<Reverse<DistEntry>> = BinaryHeap::new();
-        // results: max-heap (farthest first)
         let mut results: BinaryHeap<DistEntry> = BinaryHeap::new();
 
         for &ep_id in entry_points {
             if let Some(ep_node) = self.nodes.get(&ep_id) {
-                let dist = inner_product_distance(query, &ep_node.vector);
+                let dist = self.node_distance(query, ep_node);
                 let entry = DistEntry {
                     distance: dist,
                     id: ep_id,
@@ -405,7 +602,7 @@ impl HnswGraph {
                         None => continue,
                     };
 
-                    let dist = inner_product_distance(query, &neighbor.vector);
+                    let dist = self.node_distance(query, neighbor);
                     let farthest_dist = results.peek().map_or(f32::MAX, |e| e.distance);
 
                     if dist < farthest_dist || results.len() < ef {
@@ -424,21 +621,22 @@ impl HnswGraph {
             }
         }
 
-        // Extract results sorted by distance ascending
         let mut sorted: Vec<DistEntry> = results.into_vec();
         sorted.sort();
         sorted
     }
 
-    /// Greedily find the closest node to query starting from ep_id at the given layer.
-    ///
-    /// Complexity: O(average_degree * path_length).
-    fn greedy_closest(&self, query: &[f32], ep_id: [u8; 16], layer: usize) -> [u8; 16] {
+    fn greedy_closest_quantized(
+        &self,
+        query: &QuantizedVector,
+        ep_id: [u8; 16],
+        layer: usize,
+    ) -> [u8; 16] {
         let mut current_id = ep_id;
         let mut current_dist = self
             .nodes
             .get(&ep_id)
-            .map(|n| inner_product_distance(query, &n.vector))
+            .map(|n| self.node_distance(query, n))
             .unwrap_or(f32::MAX);
 
         loop {
@@ -448,7 +646,7 @@ impl HnswGraph {
                 if layer < node.neighbors.len() {
                     for &neighbor_id in &node.neighbors[layer] {
                         if let Some(neighbor) = self.nodes.get(&neighbor_id) {
-                            let dist = inner_product_distance(query, &neighbor.vector);
+                            let dist = self.node_distance(query, neighbor);
                             if dist < current_dist {
                                 current_dist = dist;
                                 current_id = neighbor_id;
@@ -467,14 +665,211 @@ impl HnswGraph {
         current_id
     }
 
-    /// Select neighbors using the heuristic from the HNSW paper.
-    ///
-    /// Prefers neighbors that are both close to the query and diverse
-    /// (not too close to each other). This produces better graph connectivity
-    /// than simple closest-M selection.
-    ///
-    /// Complexity: O(candidates * max_conn).
-    fn select_neighbors_heuristic(
+    fn select_neighbors_heuristic_quantized(
+        &self,
+        candidates: &[DistEntry],
+        max_conn: usize,
+    ) -> Vec<[u8; 16]> {
+        if candidates.len() <= max_conn {
+            return candidates.iter().map(|e| e.id).collect();
+        }
+
+        let mut selected: Vec<DistEntry> = Vec::with_capacity(max_conn);
+        let mut remaining: Vec<DistEntry> = candidates.to_vec();
+        remaining.sort();
+
+        for candidate in remaining {
+            if selected.len() >= max_conn {
+                break;
+            }
+
+            let dominated = selected.iter().any(|s| {
+                if let (Some(c_node), Some(s_node)) =
+                    (self.nodes.get(&candidate.id), self.nodes.get(&s.id))
+                {
+                    let dist_cs = if let (Some(ref cq), Some(ref sq)) =
+                        (&c_node.quantized, &s_node.quantized)
+                    {
+                        quantized_inner_product_distance(cq, sq)
+                    } else {
+                        f32::MAX
+                    };
+                    dist_cs < candidate.distance
+                } else {
+                    false
+                }
+            });
+
+            if !dominated || selected.len() < max_conn / 2 {
+                selected.push(candidate);
+            }
+        }
+
+        if selected.len() < max_conn {
+            let selected_ids: HashSet<[u8; 16]> = selected.iter().map(|e| e.id).collect();
+            let mut sorted_candidates: Vec<DistEntry> = candidates.to_vec();
+            sorted_candidates.sort();
+            for c in sorted_candidates {
+                if selected.len() >= max_conn {
+                    break;
+                }
+                if !selected_ids.contains(&c.id) {
+                    selected.push(c);
+                }
+            }
+        }
+
+        selected.iter().map(|e| e.id).collect()
+    }
+
+    fn prune_neighbors_for_quantized(&mut self, node_id: [u8; 16], layer: usize, max_conn: usize) {
+        let node_quantized = match self.nodes.get(&node_id) {
+            Some(n) => match &n.quantized {
+                Some(q) => q.clone(),
+                None => return,
+            },
+            None => return,
+        };
+
+        let neighbors = match self.nodes.get(&node_id) {
+            Some(n) if layer < n.neighbors.len() => n.neighbors[layer].clone(),
+            _ => return,
+        };
+
+        if neighbors.len() <= max_conn {
+            return;
+        }
+
+        let mut scored: Vec<([u8; 16], f32)> = neighbors
+            .iter()
+            .filter_map(|&nid| {
+                self.nodes.get(&nid).and_then(|n| {
+                    n.quantized
+                        .as_ref()
+                        .map(|q| (nid, quantized_inner_product_distance(&node_quantized, q)))
+                })
+            })
+            .collect();
+
+        scored.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.truncate(max_conn);
+
+        let pruned: Vec<[u8; 16]> = scored.into_iter().map(|(id, _)| id).collect();
+
+        if let Some(node) = self.nodes.get_mut(&node_id) {
+            if layer < node.neighbors.len() {
+                node.neighbors[layer] = pruned;
+            }
+        }
+    }
+
+    // ─── F32 traversal methods (quantization disabled) ───────────────
+
+    fn search_layer_f32(
+        &self,
+        query: &[f32],
+        entry_points: &[[u8; 16]],
+        ef: usize,
+        layer: usize,
+    ) -> Vec<DistEntry> {
+        let mut visited: HashSet<[u8; 16]> = HashSet::new();
+        let mut candidates: BinaryHeap<Reverse<DistEntry>> = BinaryHeap::new();
+        let mut results: BinaryHeap<DistEntry> = BinaryHeap::new();
+
+        for &ep_id in entry_points {
+            if let Some(ep_node) = self.nodes.get(&ep_id) {
+                let dist = self.node_distance_f32(query, ep_node);
+                let entry = DistEntry {
+                    distance: dist,
+                    id: ep_id,
+                };
+                visited.insert(ep_id);
+                candidates.push(Reverse(entry));
+                results.push(entry);
+            }
+        }
+
+        while let Some(Reverse(closest)) = candidates.pop() {
+            let farthest_dist = results.peek().map_or(f32::MAX, |e| e.distance);
+            if closest.distance > farthest_dist {
+                break;
+            }
+
+            let node = match self.nodes.get(&closest.id) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            if layer < node.neighbors.len() {
+                for &neighbor_id in &node.neighbors[layer] {
+                    if !visited.insert(neighbor_id) {
+                        continue;
+                    }
+
+                    let neighbor = match self.nodes.get(&neighbor_id) {
+                        Some(n) => n,
+                        None => continue,
+                    };
+
+                    let dist = self.node_distance_f32(query, neighbor);
+                    let farthest_dist = results.peek().map_or(f32::MAX, |e| e.distance);
+
+                    if dist < farthest_dist || results.len() < ef {
+                        let entry = DistEntry {
+                            distance: dist,
+                            id: neighbor_id,
+                        };
+                        candidates.push(Reverse(entry));
+                        results.push(entry);
+
+                        if results.len() > ef {
+                            results.pop();
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut sorted: Vec<DistEntry> = results.into_vec();
+        sorted.sort();
+        sorted
+    }
+
+    fn greedy_closest_f32(&self, query: &[f32], ep_id: [u8; 16], layer: usize) -> [u8; 16] {
+        let mut current_id = ep_id;
+        let mut current_dist = self
+            .nodes
+            .get(&ep_id)
+            .map(|n| self.node_distance_f32(query, n))
+            .unwrap_or(f32::MAX);
+
+        loop {
+            let mut improved = false;
+
+            if let Some(node) = self.nodes.get(&current_id) {
+                if layer < node.neighbors.len() {
+                    for &neighbor_id in &node.neighbors[layer] {
+                        if let Some(neighbor) = self.nodes.get(&neighbor_id) {
+                            let dist = self.node_distance_f32(query, neighbor);
+                            if dist < current_dist {
+                                current_dist = dist;
+                                current_id = neighbor_id;
+                                improved = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !improved {
+                break;
+            }
+        }
+
+        current_id
+    }
+
+    fn select_neighbors_heuristic_f32(
         &self,
         _query: &[f32],
         candidates: &[DistEntry],
@@ -494,14 +889,16 @@ impl HnswGraph {
                 break;
             }
 
-            // Check if this candidate is closer to query than to any already-selected neighbor.
-            // This heuristic promotes diversity in the neighbor set.
             let dominated = selected.iter().any(|s| {
                 if let (Some(c_node), Some(s_node)) =
                     (self.nodes.get(&candidate.id), self.nodes.get(&s.id))
                 {
-                    let dist_cs = inner_product_distance(&c_node.vector, &s_node.vector);
-                    dist_cs < candidate.distance
+                    if let (Some(ref cv), Some(ref sv)) = (&c_node.vector, &s_node.vector) {
+                        let dist_cs = inner_product_distance(cv, sv);
+                        dist_cs < candidate.distance
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -512,7 +909,6 @@ impl HnswGraph {
             }
         }
 
-        // Fill remaining slots with closest candidates
         if selected.len() < max_conn {
             let selected_ids: HashSet<[u8; 16]> = selected.iter().map(|e| e.id).collect();
             let mut sorted_candidates: Vec<DistEntry> = candidates.to_vec();
@@ -530,11 +926,12 @@ impl HnswGraph {
         selected.iter().map(|e| e.id).collect()
     }
 
-    /// Prune a node's neighbor list at a specific layer to max_conn neighbors.
-    /// Keeps the closest neighbors by distance to the node's own vector.
-    fn prune_neighbors_for(&mut self, node_id: [u8; 16], layer: usize, max_conn: usize) {
+    fn prune_neighbors_for_f32(&mut self, node_id: [u8; 16], layer: usize, max_conn: usize) {
         let node_vector = match self.nodes.get(&node_id) {
-            Some(n) => n.vector.clone(),
+            Some(n) => match &n.vector {
+                Some(v) => v.clone(),
+                None => return,
+            },
             None => return,
         };
 
@@ -547,13 +944,14 @@ impl HnswGraph {
             return;
         }
 
-        // Score each neighbor by distance to this node
         let mut scored: Vec<([u8; 16], f32)> = neighbors
             .iter()
             .filter_map(|&nid| {
-                self.nodes
-                    .get(&nid)
-                    .map(|n| (nid, inner_product_distance(&node_vector, &n.vector)))
+                self.nodes.get(&nid).and_then(|n| {
+                    n.vector
+                        .as_ref()
+                        .map(|v| (nid, inner_product_distance(&node_vector, v)))
+                })
             })
             .collect();
 
@@ -614,7 +1012,21 @@ mod tests {
     use super::*;
 
     fn make_params(dims: usize) -> HnswParams {
-        HnswParams::with_m(dims, 4)
+        let mut params = HnswParams::with_m(dims, 4);
+        params.use_quantization = false;
+        params.use_rotation = false;
+        params
+    }
+
+    fn make_params_quantized(dims: usize) -> HnswParams {
+        let mut params = HnswParams::with_m(dims, 4);
+        params.use_quantization = true;
+        params.use_rotation = false;
+        params
+    }
+
+    fn make_params_quantized_rotated(dims: usize) -> HnswParams {
+        HnswParams::with_m(dims, 4) // defaults: quantization=true, rotation=true
     }
 
     fn normalized_vector(dims: usize, seed: u64) -> Vec<f32> {
@@ -651,7 +1063,23 @@ mod tests {
         let results = graph.search(&v, 1, None).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, make_id(1));
-        assert!(results[0].1 < 0.01); // near-zero distance to self
+        assert!(results[0].1 < 0.01);
+    }
+
+    #[test]
+    fn single_insert_and_search_quantized() {
+        let mut graph = HnswGraph::new_with_seed(make_params_quantized(4), 42);
+        let v = vec![1.0, 0.0, 0.0, 0.0];
+        graph.insert(make_id(1), v.clone()).unwrap();
+
+        let results = graph.search(&v, 1, None).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, make_id(1));
+        assert!(
+            results[0].1 < 0.1,
+            "quantized self-distance too high: {}",
+            results[0].1
+        );
     }
 
     #[test]
@@ -664,7 +1092,6 @@ mod tests {
             graph.insert(make_id(i), v).unwrap();
         }
 
-        // Query with the exact vector of node 42
         let query = normalized_vector(dims, 42);
         let results = graph.search(&query, 1, Some(50)).unwrap();
         assert!(!results.is_empty());
@@ -685,7 +1112,6 @@ mod tests {
         let results = graph.search(&query, 10, None).unwrap();
         assert_eq!(results.len(), 10);
 
-        // Verify sorted by distance ascending
         for window in results.windows(2) {
             assert!(window[0].1 <= window[1].1);
         }
@@ -701,10 +1127,8 @@ mod tests {
             graph.insert(make_id(i), v).unwrap();
         }
 
-        // Delete node 5
         assert!(graph.mark_deleted(&make_id(5)));
 
-        // Search should not return node 5
         let query = normalized_vector(dims, 5);
         let results = graph.search(&query, 20, Some(100)).unwrap();
         assert!(results.iter().all(|(id, _)| *id != make_id(5)));
@@ -713,11 +1137,10 @@ mod tests {
     #[test]
     fn dimension_mismatch_rejected() {
         let mut graph = HnswGraph::new(make_params(4));
-        let wrong_dims = vec![1.0, 0.0]; // 2 dims, expect 4
+        let wrong_dims = vec![1.0, 0.0];
         let result = graph.insert(make_id(1), wrong_dims);
         assert!(matches!(result, Err(IndexError::DimensionMismatch { .. })));
 
-        // Also for search
         graph.insert(make_id(1), vec![1.0, 0.0, 0.0, 0.0]).unwrap();
         let result = graph.search(&[1.0, 0.0], 1, None);
         assert!(matches!(result, Err(IndexError::DimensionMismatch { .. })));
@@ -740,7 +1163,6 @@ mod tests {
         graph.mark_deleted(&make_id(7));
         assert_eq!(graph.tombstone_count(), 2);
 
-        // Double-delete is a no-op
         assert!(!graph.mark_deleted(&make_id(3)));
         assert_eq!(graph.tombstone_count(), 2);
     }
@@ -781,9 +1203,9 @@ mod tests {
 
         assert!(!graph.needs_cleanup(0.1));
         graph.mark_deleted(&make_id(0));
-        assert!(!graph.needs_cleanup(0.1)); // 1/10 = 0.1, not > 0.1
+        assert!(!graph.needs_cleanup(0.1));
         graph.mark_deleted(&make_id(1));
-        assert!(graph.needs_cleanup(0.1)); // 2/10 = 0.2 > 0.1
+        assert!(graph.needs_cleanup(0.1));
     }
 
     #[test]
@@ -794,7 +1216,8 @@ mod tests {
         let neighbor_id = make_id(2);
         let node = HnswNode {
             memory_id: make_id(1),
-            vector: vec![1.0, 0.0, 0.0, 0.0],
+            quantized: None,
+            vector: Some(vec![1.0, 0.0, 0.0, 0.0]),
             layer: 0,
             neighbors: vec![vec![neighbor_id]],
             deleted: false,
@@ -815,6 +1238,60 @@ mod tests {
         let num_queries = 50;
 
         let params = HnswParams::with_m(dims, 8);
+        // Test with quantization disabled to verify f32 path still works
+        let mut f32_params = params.clone();
+        f32_params.use_quantization = false;
+        f32_params.use_rotation = false;
+        let mut graph = HnswGraph::new_with_seed(f32_params, 12345);
+
+        let mut vectors: HashMap<[u8; 16], Vec<f32>> = HashMap::new();
+        for i in 0..n {
+            let id = {
+                let mut arr = [0u8; 16];
+                arr[..2].copy_from_slice(&(i as u16).to_be_bytes());
+                arr
+            };
+            let v = normalized_vector(dims, i as u64 + 10000);
+            vectors.insert(id, v.clone());
+            graph.insert(id, v).unwrap();
+        }
+
+        let mut total_recall = 0.0;
+        for q in 0..num_queries {
+            let query = normalized_vector(dims, q as u64 + 99999);
+
+            let hnsw_results = graph.search(&query, k, Some(100)).unwrap();
+            let hnsw_ids: HashSet<[u8; 16]> = hnsw_results.iter().map(|(id, _)| *id).collect();
+
+            let bf_results =
+                brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
+            let bf_ids: HashSet<[u8; 16]> = bf_results.iter().map(|(id, _)| *id).collect();
+
+            let overlap = hnsw_ids.intersection(&bf_ids).count();
+            total_recall += overlap as f64 / k as f64;
+        }
+
+        let avg_recall = total_recall / num_queries as f64;
+        assert!(
+            avg_recall > 0.85,
+            "recall@{} = {:.2}% (expected > 85%)",
+            k,
+            avg_recall * 100.0
+        );
+    }
+
+    #[test]
+    fn quantized_recall_at_scale() {
+        use super::super::distance::brute_force_search;
+
+        let dims = 32;
+        let n = 1000;
+        let k = 10;
+        let num_queries = 50;
+
+        let mut params = HnswParams::with_m(dims, 8);
+        params.use_quantization = true;
+        params.use_rotation = false;
         let mut graph = HnswGraph::new_with_seed(params, 12345);
 
         let mut vectors: HashMap<[u8; 16], Vec<f32>> = HashMap::new();
@@ -833,11 +1310,9 @@ mod tests {
         for q in 0..num_queries {
             let query = normalized_vector(dims, q as u64 + 99999);
 
-            // HNSW results
             let hnsw_results = graph.search(&query, k, Some(100)).unwrap();
             let hnsw_ids: HashSet<[u8; 16]> = hnsw_results.iter().map(|(id, _)| *id).collect();
 
-            // Brute force reference
             let bf_results =
                 brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
             let bf_ids: HashSet<[u8; 16]> = bf_results.iter().map(|(id, _)| *id).collect();
@@ -848,8 +1323,56 @@ mod tests {
 
         let avg_recall = total_recall / num_queries as f64;
         assert!(
-            avg_recall > 0.85,
-            "recall@{} = {:.2}% (expected > 85%)",
+            avg_recall > 0.70,
+            "quantized recall@{} = {:.2}% (expected > 70%)",
+            k,
+            avg_recall * 100.0
+        );
+    }
+
+    #[test]
+    fn quantized_rotated_recall_at_scale() {
+        use super::super::distance::brute_force_search;
+
+        let dims = 32;
+        let n = 1000;
+        let k = 10;
+        let num_queries = 50;
+
+        let params = make_params_quantized_rotated(dims);
+        let mut graph = HnswGraph::new_with_seed(params, 12345);
+
+        let mut vectors: HashMap<[u8; 16], Vec<f32>> = HashMap::new();
+        for i in 0..n {
+            let id = {
+                let mut arr = [0u8; 16];
+                arr[..2].copy_from_slice(&(i as u16).to_be_bytes());
+                arr
+            };
+            let v = normalized_vector(dims, i as u64 + 10000);
+            vectors.insert(id, v.clone());
+            graph.insert(id, v).unwrap();
+        }
+
+        let mut total_recall = 0.0;
+        for q in 0..num_queries {
+            let query = normalized_vector(dims, q as u64 + 99999);
+
+            let hnsw_results = graph.search(&query, k, Some(100)).unwrap();
+            let hnsw_ids: HashSet<[u8; 16]> = hnsw_results.iter().map(|(id, _)| *id).collect();
+
+            let bf_results =
+                brute_force_search(&query, vectors.iter().map(|(id, v)| (id, v.as_slice())), k);
+            let bf_ids: HashSet<[u8; 16]> = bf_results.iter().map(|(id, _)| *id).collect();
+
+            let overlap = hnsw_ids.intersection(&bf_ids).count();
+            total_recall += overlap as f64 / k as f64;
+        }
+
+        let avg_recall = total_recall / num_queries as f64;
+        assert!(
+            avg_recall > 0.70,
+            "quantized+rotated recall@{} = {:.2}% (expected > 70%)",
             k,
             avg_recall * 100.0
         );

@@ -27,6 +27,17 @@ pub struct HnswParams {
     /// Level multiplier: 1.0 / ln(M).
     /// Used for random layer assignment.
     pub ml: f64,
+
+    /// Enable int8 scalar quantization for HNSW traversal vectors.
+    /// Full-precision f32 vectors are kept on disk for reranking.
+    /// Default: true.
+    pub use_quantization: bool,
+
+    /// Enable Walsh-Hadamard random rotation before quantization.
+    /// Spreads energy across dimensions, reducing quantization error.
+    /// Only effective when use_quantization is true.
+    /// Default: true.
+    pub use_rotation: bool,
 }
 
 impl HnswParams {
@@ -46,6 +57,8 @@ impl HnswParams {
             ef_search: 100,
             dimensions,
             ml: 1.0 / (m as f64).ln(),
+            use_quantization: true,
+            use_rotation: true,
         }
     }
 
@@ -58,6 +71,8 @@ impl HnswParams {
             ef_search: 100,
             dimensions,
             ml: 1.0 / (m as f64).ln(),
+            use_quantization: true,
+            use_rotation: true,
         }
     }
 
