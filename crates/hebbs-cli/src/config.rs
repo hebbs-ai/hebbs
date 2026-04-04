@@ -12,6 +12,7 @@ pub struct CliConfig {
     pub max_history: usize,
     pub tenant: Option<String>,
     pub api_key: Option<String>,
+    pub workspace: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -43,6 +44,7 @@ impl Default for CliConfig {
             max_history: 1000,
             tenant: None,
             api_key: None,
+            workspace: None,
         }
     }
 }
@@ -79,6 +81,9 @@ impl CliConfig {
             if let Some(k) = file_cfg.api_key {
                 cfg.api_key = Some(k);
             }
+            if let Some(w) = file_cfg.workspace {
+                cfg.workspace = Some(w);
+            }
         }
 
         if let Ok(ep) = std::env::var("HEBBS_ENDPOINT") {
@@ -93,6 +98,9 @@ impl CliConfig {
             if let Ok(t) = tm.parse() {
                 cfg.timeout_ms = t;
             }
+        }
+        if let Ok(w) = std::env::var("HEBBS_WORKSPACE") {
+            cfg.workspace = Some(w);
         }
 
         cfg
@@ -124,6 +132,7 @@ struct FileConfig {
     max_history: Option<usize>,
     tenant: Option<String>,
     api_key: Option<String>,
+    workspace: Option<String>,
 }
 
 fn load_config_file() -> Option<FileConfig> {

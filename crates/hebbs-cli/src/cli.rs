@@ -35,6 +35,10 @@ pub struct Cli {
     #[arg(long, global = true, env = "HEBBS_TENANT")]
     pub tenant: Option<String>,
 
+    /// Workspace slug to route requests to (overrides saved default)
+    #[arg(long, global = true, env = "HEBBS_WORKSPACE")]
+    pub workspace: Option<String>,
+
     /// Verbose mode (-v for debug, -vv for trace)
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
