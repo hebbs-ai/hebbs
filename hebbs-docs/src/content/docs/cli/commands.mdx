@@ -9,9 +9,14 @@ description: "All HEBBS CLI commands with flags, defaults, and examples."
 |---|---|---|---|
 | `--endpoint` | `HEBBS_ENDPOINT` | (from login) | Server URL |
 | `--api-key` | `HEBBS_API_KEY` | (from login) | API key for authentication |
+| `--workspace` | `HEBBS_WORKSPACE` | (from config) | Workspace slug to route requests to |
 | `--format` | | `human` | Output format: `human`, `json`, `raw` |
 | `--color` | | `auto` | Color: `always`, `never`, `auto` |
 | `-v` / `-vv` | | off | Verbose / trace logging |
+
+When `--workspace` is set, data-plane requests (recall, remember, forget, push, etc.) route to `/v1/workspaces/<slug>/...` instead of `/v1/...`. This lets an admin key target any workspace without switching keys.
+
+Precedence: `--workspace` flag > `HEBBS_WORKSPACE` env var > saved default (from `workspaces switch`).
 
 ---
 
@@ -220,6 +225,15 @@ List, create, or switch workspaces.
 hebbs workspaces list
 hebbs workspaces create --name "sales-team"
 hebbs workspaces switch sales-team
+```
+
+`workspaces switch` saves the workspace slug to your CLI config (`~/.config/hebbs/cli.toml`). All subsequent commands will route to that workspace unless overridden with `--workspace`.
+
+Use `--workspace` on any command to target a specific workspace without switching:
+
+```bash
+hebbs recall "latest deals" --workspace sales-team
+hebbs push ./legal-docs --workspace enterprise-legal
 ```
 
 ### keys

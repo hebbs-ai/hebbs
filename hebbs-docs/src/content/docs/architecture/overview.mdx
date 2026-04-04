@@ -35,7 +35,7 @@ The HEBBS server is composed of six major subsystems:
 |---|---|
 | **gRPC Server** | Accepts client connections, deserializes requests, routes to the core engine. Built on `tonic`. |
 | **Core Engine** | Orchestrates operations across indexes and storage. Enforces entity isolation and operation semantics. |
-| **HNSW Index** | Approximate nearest neighbor search for similarity-based recall. `O(log n)` query complexity. |
+| **HNSW Index** | Approximate nearest neighbor search for similarity-based recall. `O(log n)` query complexity. Vectors are stored as int8 with Walsh-Hadamard rotation for ~3x memory reduction; full-precision f32 vectors are kept on disk for two-tier reranking. |
 | **Temporal B-tree** | Time-ordered index for temporal recall. `O(log n)` range queries. |
 | **Graph Adjacency** | Edge-based index for causal and relational recall. `O(k)` traversal with bounded depth. |
 | **Embedding Engine** | Converts text to 768-dimensional vectors using ONNX Runtime with EmbeddingGemma-300M. |
@@ -62,8 +62,9 @@ When a client calls `recall`:
 1. **Server** receives the gRPC request.
 2. **Core Engine** routes to the appropriate index based on the recall strategy.
 3. **Index query** — `similarity` queries HNSW, `temporal` queries the B-tree, `causal` traverses the graph, `analogical` combines HNSW with cross-entity graph traversal.
-4. **Storage** fetches full memory records for the top-k results.
-5. **Server** returns ranked results with relevance scores.
+4. **Reranking** — for similarity queries, HNSW returns 2x candidates using fast int8 distances, then loads f32 vectors from disk and recomputes exact distances for final ranking.
+5. **Storage** fetches full memory records for the top-k results.
+6. **Server** returns ranked results with relevance scores.
 
 Total latency budget: < 10ms p99 for similarity recall at 10M memories.
 
