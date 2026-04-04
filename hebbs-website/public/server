@@ -12,7 +12,7 @@
 
 set -eu
 
-VERSION="${HEBBS_VERSION:-0.4.0}"
+VERSION="${HEBBS_VERSION:-0.4.1}"
 PORT="${HEBBS_PORT:-8080}"
 DIR="${HEBBS_DIR:-./hebbs}"
 LLM_MODEL="${HEBBS_LLM_MODEL:-gpt-4o-mini}"
