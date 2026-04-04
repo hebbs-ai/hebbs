@@ -1,77 +1,76 @@
 ---
-const capabilities = [
-  "4 recall strategies (temporal, causal, analogical, similarity)",
-  "Importance-weighted storage",
-  "Automatic decay & reinforcement",
-  "Episode to insight consolidation",
-  "Causal edge tracking",
-  "Real-time memory subscriptions",
-];
 ---
 
 <section class="py-20 md:py-32 border-t border-border/50">
   <div class="mx-auto max-w-6xl px-6">
     <div class="text-center mb-16">
-      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-        One install. Your agent remembers.
+      <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4" style="color: #F8FAFC;">
+        Three ways in. One memory.
       </h2>
-      <p class="text-muted text-lg max-w-3xl mx-auto">
-        HEBBS ships as a drop-in agent skill. Install the skill, and your agent gets cognitive memory immediately. No SDK integration. No glue code. No configuration.
+      <p class="text-lg max-w-3xl mx-auto" style="color: #94A3B8;">
+        Drop files into a folder. Log from the CLI. Wire up the SDK. All three produce the same memories, queryable with the same strategies.
       </p>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-8 items-start">
-      <!-- Install -->
-      <div>
-        <div class="rounded-xl border border-accent/30 bg-accent/[0.04] overflow-hidden mb-6">
-          <div class="flex items-center gap-2 px-4 py-3 border-b border-accent/20">
-            <div class="w-3 h-3 rounded-full bg-red/40"></div>
-            <div class="w-3 h-3 rounded-full bg-accent/40"></div>
-            <div class="w-3 h-3 rounded-full bg-green/40"></div>
-            <span class="ml-2 text-xs text-muted font-mono">terminal</span>
-          </div>
-          <div class="p-6">
-            <pre class="font-mono text-sm"><code><span class="text-muted"># Install the server</span>
-<span class="text-accent">$</span> <span class="text-text">brew install hebbs-ai/tap/hebbs</span>
+    <div class="grid md:grid-cols-3 gap-6">
 
-<span class="text-muted"># Install the agent skill</span>
-<span class="text-accent">$</span> <span class="text-text">git clone https://github.com/hebbs-ai/hebbs-skill.git /tmp/hebbs-skill</span>
-<span class="text-accent">$</span> <span class="text-text">cp -r /tmp/hebbs-skill/hebbs ~/.your-agent/skills/hebbs</span>
-
-<span class="text-green">Done.</span> <span class="text-muted">Your agent now has cognitive memory.</span></code></pre>
-          </div>
+      <!-- Path 1: Files -->
+      <div class="rounded-2xl p-6 relative" style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.12);">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-5" style="background: rgba(245,158,11,0.1);">
+          <svg class="w-5 h-5" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
         </div>
-
-        <div class="rounded-xl border border-border bg-surface/40 p-5">
-          <p class="text-xs font-mono text-accent uppercase tracking-wider mb-3">How it works</p>
-          <p class="text-sm text-muted leading-relaxed mb-3">
-            Drop the <code class="text-cyan text-xs">SKILL.md</code> file from
-            <a href="https://github.com/hebbs-ai/hebbs-skill" target="_blank" rel="noopener" class="text-accent hover:underline">github.com/hebbs-ai/hebbs-skill</a>
-            into your agent's skill directory. Any agent that reads SKILL.md files will discover it automatically.
-          </p>
-          <p class="text-sm text-muted leading-relaxed">
-            The skill teaches the agent to use HEBBS natively - <span class="text-text">remember</span>, <span class="text-text">recall</span>, <span class="text-text">reflect</span>, <span class="text-text">forget</span>, <span class="text-text">prime</span> - as part of its reasoning loop.
-          </p>
+        <h3 class="text-base font-semibold mb-2" style="color: #F8FAFC;">Drop files</h3>
+        <p class="text-sm mb-5" style="color: #94A3B8;">
+          Save notes to <code class="font-mono text-xs" style="color: #F59E0B;">entities/acme-corp/</code> and run <code class="font-mono text-xs" style="color: #F59E0B;">hebbs index</code>. Entity auto-tagged from folder name.
+        </p>
+        <div class="rounded-lg p-3 font-mono text-xs" style="background: rgba(0,0,0,0.3);">
+          <span style="color: #F59E0B;">$</span> <span style="color: #CBD5E1;">vim entities/acme/call.md</span><br/>
+          <span style="color: #F59E0B;">$</span> <span style="color: #CBD5E1;">hebbs index</span><br/>
+          <span style="color: #34D399;">&#10003; entity: acme</span>
         </div>
       </div>
 
-      <!-- Capabilities -->
-      <div class="rounded-xl border border-border bg-surface/40 p-6 md:p-8">
-        <p class="text-xs font-mono text-accent uppercase tracking-wider mb-6">What your agent gets</p>
-        <div class="space-y-4">
-          {capabilities.map((cap) => (
-            <div class="flex items-start gap-3">
-              <span class="text-accent mt-0.5 shrink-0">&#10003;</span>
-              <p class="text-text text-sm">{cap}</p>
-            </div>
-          ))}
+      <!-- Path 2: CLI -->
+      <div class="rounded-2xl p-6 relative" style="background: rgba(103,232,249,0.03); border: 1px solid rgba(103,232,249,0.1);">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-5" style="background: rgba(103,232,249,0.1);">
+          <svg class="w-5 h-5" style="color: #67E8F9;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
         </div>
+        <h3 class="text-base font-semibold mb-2" style="color: #F8FAFC;">CLI</h3>
+        <p class="text-sm mb-5" style="color: #94A3B8;">
+          Log interactions on the fly. After a call, a Slack message, or a debugging session.
+        </p>
+        <div class="rounded-lg p-3 font-mono text-xs" style="background: rgba(0,0,0,0.3);">
+          <span style="color: #67E8F9;">$</span> <span style="color: #CBD5E1;">hebbs remember \</span><br/>
+          <span style="color: #CBD5E1;">&nbsp;&nbsp;"Budget approved" \</span><br/>
+          <span style="color: #CBD5E1;">&nbsp;&nbsp;--entity-id acme</span><br/>
+          <span style="color: #34D399;">&#10003; stored</span>
+        </div>
+      </div>
 
-        <div class="border-t border-border mt-6 pt-6">
-          <p class="text-xs text-muted leading-relaxed">
-            The agent decides when to remember, what strategy to recall with, and when to consolidate. No developer glue code required.
-          </p>
+      <!-- Path 3: SDK -->
+      <div class="rounded-2xl p-6 relative" style="background: rgba(52,211,153,0.03); border: 1px solid rgba(52,211,153,0.1);">
+        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-5" style="background: rgba(52,211,153,0.1);">
+          <svg class="w-5 h-5" style="color: #34D399;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
         </div>
+        <h3 class="text-base font-semibold mb-2" style="color: #F8FAFC;">SDK</h3>
+        <p class="text-sm mb-5" style="color: #94A3B8;">
+          Python, TypeScript, or Rust. Wire up webhooks from Gong, email, Slack &mdash; anything.
+        </p>
+        <div class="rounded-lg p-3 font-mono text-xs" style="background: rgba(0,0,0,0.3);">
+          <span style="color: #34D399;">await</span> <span style="color: #CBD5E1;">engine.remember(</span><br/>
+          <span style="color: #CBD5E1;">&nbsp;&nbsp;content=</span><span style="color: #FBBF24;">"..."</span><span style="color: #CBD5E1;">,</span><br/>
+          <span style="color: #CBD5E1;">&nbsp;&nbsp;entity_id=</span><span style="color: #FBBF24;">"acme"</span><span style="color: #CBD5E1;">)</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Then query -->
+    <div class="mt-10 text-center">
+      <div class="inline-flex items-center gap-3 rounded-full px-6 py-3" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+        <span class="font-mono text-xs" style="color: #94A3B8;">Then:</span>
+        <code class="font-mono text-xs" style="color: #F59E0B;">hebbs prime --entity-id acme</code>
+        <span class="font-mono text-xs" style="color: #94A3B8;">&rarr; everything, in context, &lt;5ms</span>
       </div>
     </div>
   </div>
