@@ -1,69 +1,374 @@
 ---
 ---
 
-<section class="relative pt-40 pb-24 md:pt-52 md:pb-32">
-  <div class="absolute inset-0 overflow-hidden pointer-events-none">
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-accent/[0.03] blur-[120px]"></div>
+<section id="hero" class="relative overflow-hidden" style="background: #050510; min-height: 100vh;">
+  <!-- Canvas: the living memory field -->
+  <canvas id="hero-membrane" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- Gradient overlays for depth -->
+  <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 80% 60% at 30% 50%, rgba(5,5,16,0) 0%, rgba(5,5,16,0.7) 100%);"></div>
+  <div class="absolute bottom-0 left-0 right-0 h-40 pointer-events-none" style="background: linear-gradient(to top, #050510, transparent);"></div>
+
+  <!-- Content -->
+  <div class="relative z-10 mx-auto max-w-5xl px-6 pt-44 pb-32 md:pt-56 md:pb-40">
+    <div class="max-w-3xl">
+      <!-- Eyebrow -->
+      <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F59E0B; opacity: 0.7;">
+        The memory engine for AI agents
+      </p>
+
+      <!-- Headline -->
+      <h1 class="font-logo text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] mb-8" style="color: #F8FAFC;">
+        Make memory<br/>
+        <span style="background: linear-gradient(135deg, #F59E0B 0%, #F97316 40%, #FB923C 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">your edge.</span>
+      </h1>
+
+      <!-- Subhead -->
+      <p class="text-lg md:text-xl leading-relaxed mb-12 max-w-xl" style="color: #94A3B8;">
+        LLMs are converging. Every team gets the same models. The agent that remembers better, retrieves smarter, and improves over time wins.<br class="hidden md:block"/>
+        <span style="color: #CBD5E1; font-weight: 500;">That's not RAG. That's HEBBS.</span>
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-wrap items-center gap-4 mb-16">
+        <a
+          href="https://docs.hebbs.ai/guide/"
+          target="_blank"
+          rel="noopener"
+          class="group rounded-xl px-8 py-4 text-sm font-semibold transition-all duration-300"
+          style="background: linear-gradient(135deg, #F59E0B, #D97706); color: #0a0a0b;"
+          onmouseover="this.style.boxShadow='0 0 30px rgba(245,158,11,0.4)'"
+          onmouseout="this.style.boxShadow='none'"
+        >
+          Get started
+          <svg class="inline-block ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </a>
+        <a
+          href="mailto:parag@hebbs.ai"
+          class="rounded-xl px-8 py-4 text-sm font-semibold transition-all duration-300"
+          style="border: 1px solid rgba(255,255,255,0.1); color: #94A3B8;"
+          onmouseover="this.style.borderColor='rgba(245,158,11,0.4)'; this.style.color='#F8FAFC'"
+          onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.color='#94A3B8'"
+        >
+          Book a demo
+        </a>
+      </div>
+
+      <!-- Stats strip -->
+      <div class="flex flex-wrap items-center gap-8 font-mono text-xs" style="color: #475569;">
+        <div>
+          <span style="color: #F59E0B; font-size: 20px; font-weight: 700;">4</span>
+          <span class="ml-1.5">recall strategies</span>
+        </div>
+        <div>
+          <span style="color: #67E8F9; font-size: 20px; font-weight: 700;">&lt;5ms</span>
+          <span class="ml-1.5">retrieval</span>
+        </div>
+        <div>
+          <span style="color: #34D399; font-size: 20px; font-weight: 700;">1</span>
+          <span class="ml-1.5">binary</span>
+        </div>
+        <div>
+          <span style="color: #F87171; font-size: 20px; font-weight: 700;">0</span>
+          <span class="ml-1.5">dependencies</span>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="relative mx-auto max-w-4xl px-6 text-center">
-    <img src="/logo-icon.svg" alt="HEBBS" class="mx-auto mb-8 w-16 h-16 rounded-2xl shadow-2xl shadow-accent/10" />
-    <h1 class="font-logo text-5xl md:text-7xl font-bold tracking-[0.06em] mb-6">
-      HEBBS
-    </h1>
-
-    <p class="text-xl md:text-2xl font-medium text-text/90 tracking-tight mb-4">
-      Memory that wires itself.
-    </p>
-
-    <p class="text-base md:text-lg text-muted max-w-2xl mx-auto mb-12">
-      Turn your markdowns and conversations into a memory that recalls, reasons, and catches contradictions.
-    </p>
-
-    <div class="inline-flex items-center rounded-xl border border-border bg-surface/60 pl-6 pr-2 py-3 mb-4 gap-3 group cursor-pointer" onclick="navigator.clipboard.writeText('curl -sSf https://hebbs.ai/install | sh')">
-      <code class="font-mono text-sm md:text-base text-muted">
-        <span class="text-accent">$</span> curl -sSf https://hebbs.ai/install | sh
-      </code>
-      <span class="rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted group-hover:text-text group-hover:border-muted transition-colors">
-        Copy
-      </span>
-    </div>
-
-    <p class="text-xs text-muted/60 mb-10">
-      or <code class="font-mono text-xs text-muted/80 cursor-pointer hover:text-muted transition-colors" onclick="navigator.clipboard.writeText('brew install hebbs-ai/tap/hebbs')">brew install hebbs-ai/tap/hebbs</code>
-    </p>
-
-    <div class="flex items-center justify-center gap-4 mb-14">
-      <a
-        href="https://docs.hebbs.ai/guide/"
-        target="_blank"
-        rel="noopener"
-        class="rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
-      >
-        Get started
-      </a>
-      <a
-        href="https://github.com/hebbs-ai/hebbs"
-        target="_blank"
-        rel="noopener"
-        class="rounded-lg border border-border px-6 py-3 text-sm font-medium text-muted hover:text-text hover:border-muted transition-colors"
-      >
-        GitHub
-      </a>
-    </div>
-
-    <div class="font-mono text-sm text-muted">
-      <span class="text-accent font-medium">4</span>
-      <span class="text-muted"> recall strategies</span>
-      <span class="text-muted mx-1.5">&middot;</span>
-      <span class="text-accent font-medium">Native</span>
-      <span class="text-muted"> consolidation</span>
-      <span class="text-muted mx-1.5">&middot;</span>
-      <span class="text-accent font-medium">Auto</span>
-      <span class="text-muted"> decay</span>
-      <span class="text-muted mx-1.5">&middot;</span>
-      <span class="text-accent font-medium">1</span>
-      <span class="text-muted"> binary</span>
+  <!-- Scroll indicator -->
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2" style="color: #334155;">
+    <span class="font-mono text-[10px] uppercase tracking-[3px]">scroll</span>
+    <div class="w-px h-8 relative overflow-hidden">
+      <div class="absolute inset-0" style="background: linear-gradient(to bottom, #F59E0B, transparent); animation: scroll-drop 2s ease-in-out infinite;"></div>
     </div>
   </div>
 </section>
+
+<style>
+  @keyframes scroll-drop {
+    0% { transform: translateY(-100%); opacity: 0; }
+    30% { opacity: 1; }
+    100% { transform: translateY(100%); opacity: 0; }
+  }
+</style>
+
+<script is:inline>
+(function() {
+  var canvas = document.getElementById('hero-membrane');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var W, H, nodes = [], edges = [], mouse = { x: -9999, y: -9999 };
+  var raf, time = 0;
+
+  // ── Color system ──
+  var PALETTE = {
+    amber:   [245, 158, 11],
+    cyan:    [103, 232, 249],
+    green:   [52, 211, 153],
+    purple:  [167, 139, 250],
+    red:     [248, 113, 113],
+    white:   [226, 232, 240],
+  };
+  var NODE_COLORS = ['amber', 'cyan', 'green', 'amber', 'cyan', 'amber', 'purple'];
+
+  // ── Node types ──
+  // Left side: "stock" nodes (dim, uniform, grid-like)
+  // Right side: "hebbs" nodes (alive, clustered, connected)
+
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    W = r.width; H = r.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    createField();
+  }
+
+  function createField() {
+    nodes = [];
+    edges = [];
+
+    var count = Math.min(90, Math.floor(W * H / 8000));
+    var midX = W * 0.5;
+
+    for (var i = 0; i < count; i++) {
+      var side = Math.random();
+      var x, y, kind, col, baseSize, drift;
+
+      if (side < 0.35) {
+        // Left: stock memory — dim, grid-aligned, uniform
+        x = Math.random() * midX * 0.8 + W * 0.05;
+        y = Math.random() * H;
+        kind = 'stock';
+        col = 'white';
+        baseSize = 1.5 + Math.random() * 1.5;
+        drift = 0.05 + Math.random() * 0.1;
+      } else {
+        // Right: HEBBS memory — alive, clustered, varied
+        // Create cluster centers
+        var clusterX = midX + Math.random() * (W * 0.5 - 40);
+        var clusterY = H * 0.15 + Math.random() * H * 0.7;
+        x = clusterX + (Math.random() - 0.5) * 120;
+        y = clusterY + (Math.random() - 0.5) * 100;
+        kind = 'hebbs';
+        col = NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)];
+        baseSize = 2 + Math.random() * 4;
+        drift = 0.15 + Math.random() * 0.35;
+      }
+
+      nodes.push({
+        x: x, y: y,
+        ox: x, oy: y,
+        vx: (Math.random() - 0.5) * drift,
+        vy: (Math.random() - 0.5) * drift,
+        r: baseSize,
+        col: col,
+        kind: kind,
+        phase: Math.random() * Math.PI * 2,
+        freq: 0.5 + Math.random() * 1.5,
+        importance: kind === 'hebbs' ? 0.4 + Math.random() * 0.6 : 0.15 + Math.random() * 0.15,
+        alive: kind === 'hebbs' ? 1 : 0,
+        targetAlive: kind === 'hebbs' ? 1 : 0,
+      });
+    }
+
+    // Build edges for HEBBS side only
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].kind !== 'hebbs') continue;
+      for (var j = i + 1; j < nodes.length; j++) {
+        if (nodes[j].kind !== 'hebbs') continue;
+        var dx = nodes[j].x - nodes[i].x;
+        var dy = nodes[j].y - nodes[i].y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 160 && Math.random() < 0.4) {
+          var type = Math.random() < 0.7 ? 'causal' : (Math.random() < 0.5 ? 'similarity' : 'contradicts');
+          edges.push({
+            a: i, b: j,
+            type: type,
+            strength: 0.3 + Math.random() * 0.7,
+            pulse: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+    }
+  }
+
+  function draw() {
+    time += 0.016;
+    ctx.clearRect(0, 0, W, H);
+
+    // ── Background: subtle gradient ──
+    var bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, '#050510');
+    bgGrad.addColorStop(0.5, '#080818');
+    bgGrad.addColorStop(1, '#0a0a1a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Dividing line: subtle vertical gradient ──
+    var midX = W * 0.5;
+    var lineGrad = ctx.createLinearGradient(midX, 0, midX, H);
+    lineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    lineGrad.addColorStop(0.3, 'rgba(255,255,255,0.03)');
+    lineGrad.addColorStop(0.7, 'rgba(255,255,255,0.03)');
+    lineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lineGrad;
+    ctx.fillRect(midX - 0.5, 0, 1, H);
+
+    // ── Labels ──
+    ctx.save();
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.letterSpacing = '3px';
+    ctx.fillText('STOCK MEMORY', W * 0.25, H - 30);
+    ctx.fillStyle = 'rgba(245,158,11,0.12)';
+    ctx.fillText('HEBBS', W * 0.75, H - 30);
+    ctx.restore();
+
+    // ── Draw edges ──
+    for (var e = 0; e < edges.length; e++) {
+      var edge = edges[e];
+      var a = nodes[edge.a], b = nodes[edge.b];
+      var pulse = 0.4 + 0.6 * Math.sin(time * 2 + edge.pulse);
+      var alpha = edge.strength * pulse * 0.25;
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+
+      if (edge.type === 'causal') {
+        ctx.strokeStyle = 'rgba(245,158,11,' + alpha + ')';
+        ctx.lineWidth = 1.2;
+      } else if (edge.type === 'contradicts') {
+        ctx.strokeStyle = 'rgba(248,113,113,' + (alpha * 1.5) + ')';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+      } else {
+        ctx.strokeStyle = 'rgba(103,232,249,' + (alpha * 0.6) + ')';
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([2, 3]);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ── Occasional pulse wave on HEBBS side ──
+    var wavePeriod = 8;
+    var waveT = (time % wavePeriod) / wavePeriod;
+    if (waveT < 0.3) {
+      var waveRadius = waveT / 0.3 * W * 0.4;
+      var waveAlpha = (1 - waveT / 0.3) * 0.06;
+      ctx.beginPath();
+      ctx.arc(W * 0.7, H * 0.5, waveRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(245,158,11,' + waveAlpha + ')';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // ── Draw nodes ──
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+
+      // Drift
+      n.x += n.vx;
+      n.y += n.vy;
+
+      // Gentle pull back to origin
+      n.vx += (n.ox - n.x) * 0.001;
+      n.vy += (n.oy - n.y) * 0.001;
+
+      // Mouse repulsion (subtle)
+      var mdx = n.x - mouse.x, mdy = n.y - mouse.y;
+      var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+      if (mdist < 150 && mdist > 0) {
+        var force = (150 - mdist) / 150 * 0.5;
+        n.vx += (mdx / mdist) * force;
+        n.vy += (mdy / mdist) * force;
+      }
+
+      // Damping
+      n.vx *= 0.98;
+      n.vy *= 0.98;
+
+      // Bounds
+      if (n.x < 0) n.vx += 0.2;
+      if (n.x > W) n.vx -= 0.2;
+      if (n.y < 0) n.vy += 0.2;
+      if (n.y > H) n.vy -= 0.2;
+
+      var c = PALETTE[n.col];
+      var breathe = Math.sin(time * n.freq + n.phase);
+
+      if (n.kind === 'stock') {
+        // Stock: dim, barely visible, no glow
+        var sa = 0.08 + 0.04 * breathe;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + sa + ')';
+        ctx.fill();
+      } else {
+        // HEBBS: glowing, alive, importance-scaled
+        var ha = (0.4 + 0.3 * breathe) * n.importance;
+        var glowR = n.r * (3 + 2 * n.importance);
+
+        // Outer glow
+        var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR);
+        grad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (ha * 0.3) + ')');
+        grad.addColorStop(0.5, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (ha * 0.08) + ')');
+        grad.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Core
+        var coreR = n.r * (0.8 + 0.3 * breathe);
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, coreR, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.5 + 0.4 * ha) + ')';
+        ctx.fill();
+
+        // Bright center
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, coreR * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.8 + 0.2 * breathe) + ')';
+        ctx.fill();
+      }
+    }
+
+    // ── Sporadic "insight birth" particles on HEBBS side ──
+    var insightT = time % 12;
+    if (insightT > 5 && insightT < 6.5) {
+      var it = (insightT - 5) / 1.5;
+      var ix = W * 0.68, iy = H * 0.4;
+      var ir = it * 40;
+      var ia = (1 - it) * 0.3;
+      ctx.beginPath();
+      ctx.arc(ix, iy, ir, 0, Math.PI * 2);
+      var ig = ctx.createRadialGradient(ix, iy, 0, ix, iy, ir);
+      ig.addColorStop(0, 'rgba(52,211,153,' + ia + ')');
+      ig.addColorStop(1, 'rgba(52,211,153,0)');
+      ctx.fillStyle = ig;
+      ctx.fill();
+    }
+
+    raf = requestAnimationFrame(draw);
+  }
+
+  // ── Mouse tracking ──
+  canvas.addEventListener('mousemove', function(e) {
+    var r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+  });
+  canvas.addEventListener('mouseleave', function() {
+    mouse.x = -9999; mouse.y = -9999;
+  });
+
+  resize();
+  draw();
+  window.addEventListener('resize', resize);
+})();
+</script>
