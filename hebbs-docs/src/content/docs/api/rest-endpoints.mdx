@@ -41,9 +41,22 @@ To disable auth for local development, start the server with `HEBBS_AUTH_ENABLED
 | GET | `/v1/entities` | List all entity IDs | — | `string[]` |
 | POST | `/v1/contradictions/prepare` | **Deprecated.** Get pending contradiction candidates | — | `PendingContradiction[]` |
 | POST | `/v1/contradictions/commit` | **Deprecated.** Commit agent-reviewed verdicts | `verdicts` | `ContradictionCommitResponse` |
+| GET | `/v1/auth/whoami` | Returns identity and workspace context of the authenticated key | — | `WhoamiResponse` |
 | GET | `/v1/health/live` | Liveness probe | — | `{"status": "alive"}` |
 | GET | `/v1/health/ready` | Readiness probe | — | `{"status": "ready"}` |
 | GET | `/v1/metrics` | Prometheus metrics | — | Text exposition format |
+
+## Workspace-Scoped Routing
+
+All data-plane endpoints (memories, recall, prime, forget, upload, entities, insights) can be scoped to a specific workspace by prefixing the path with `/v1/workspaces/<slug>/`:
+
+```
+POST /v1/workspaces/sales-team/recall    (instead of POST /v1/recall)
+POST /v1/workspaces/enterprise-legal/memories
+GET  /v1/workspaces/sales-team/entities
+```
+
+Admin keys can target any workspace. Workspace-scoped keys can only access their bound workspace. The CLI `--workspace` flag handles this automatically.
 
 ## Tenant Isolation
 

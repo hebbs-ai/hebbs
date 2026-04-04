@@ -40,6 +40,7 @@ hebbs status                                       # check server health
 |---|---|---|
 | `--endpoint URL` | `HEBBS_ENDPOINT` | Server URL |
 | `--api-key KEY` | `HEBBS_API_KEY` | API key for authentication |
+| `--workspace SLUG` | `HEBBS_WORKSPACE` | Route requests to a specific workspace |
 | `--format` | | Output format: `human`, `json`, `raw` |
 | `--color` | | Color: `always`, `never`, `auto` |
 | `-v` / `-vv` | | Verbose / trace logging |
@@ -48,7 +49,7 @@ hebbs status                                       # check server health
 
 - **All memory operations**: remember, recall, revise, forget, prime, reflect, insights
 - **File upload**: push files and directories for server-side indexing
-- **Workspace management**: list, create, switch workspaces
+- **Workspace routing**: target any workspace with `--workspace`, or save a default with `workspaces switch`
 - **API key management**: list, create, revoke keys
 - **Multiple output formats**: human-readable tables (default), JSON for scripting, raw for piping
 
