@@ -1,51 +1,76 @@
 ---
-// Three-part narrative: LLM War Over → Stock Memory Too Late → It Adapts → The Edge
+// Narrative arc: LLM War Over → Stock Memory Too Late → It Adapts → The Edge
+// Full dark theme to continue hero energy
 ---
+
+<!-- Wrapper: stays dark throughout -->
+<div style="background: linear-gradient(180deg, #050510 0%, #0a0f1a 30%, #0c1220 60%, #0a0f1a 100%); color: #E2E8F0;">
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- Section 1: The LLM War Is Over                                 -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-24 md:py-32 border-t border-border/50">
-  <div class="mx-auto max-w-4xl px-6">
-    <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">The shift</p>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-8 leading-tight">
-      The LLM war is over.<br/>
-      <span class="text-muted">Memory is what's left.</span>
-    </h2>
-    <div class="grid md:grid-cols-2 gap-12 items-start">
+<section class="py-28 md:py-36 relative overflow-hidden">
+  <!-- Ambient glow -->
+  <div class="absolute top-1/2 right-0 w-[500px] h-[500px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%); transform: translate(30%, -50%);"></div>
+
+  <div class="relative mx-auto max-w-5xl px-6">
+    <div class="grid md:grid-cols-2 gap-16 items-center">
       <div>
-        <p class="text-lg text-text/80 leading-relaxed mb-6">
+        <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F59E0B; opacity: 0.7;">The shift</p>
+        <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight" style="color: #F8FAFC;">
+          The LLM war is over.<br/>
+          <span style="color: #64748B;">Memory is what's left.</span>
+        </h2>
+        <p class="text-lg leading-relaxed mb-6" style="color: #94A3B8;">
           GPT-4o, Claude, Llama, Gemini &mdash; converging capability, converging price. Every team gets the same models. Switching costs are zero.
         </p>
-        <p class="text-lg text-text/80 leading-relaxed">
-          The differentiator isn't which model you pick. It's what your agent <strong class="text-text">remembers between conversations</strong>, how it retrieves under pressure, and whether it gets better every week.
+        <p class="text-lg leading-relaxed" style="color: #94A3B8;">
+          The differentiator isn't which model you pick. It's what your agent <strong style="color: #F8FAFC;">remembers between conversations</strong>.
         </p>
       </div>
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-6 font-mono text-sm">
-        <p class="text-muted mb-4 text-xs uppercase tracking-wider">What LLMs give you</p>
-        <div class="space-y-3">
-          <div class="flex items-center gap-3">
-            <span class="text-accent">&#10003;</span>
-            <span class="text-text/70">Reasoning</span>
-            <span class="ml-auto text-muted text-xs">commodity</span>
+
+      <!-- Visual: Commodity vs Edge -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
+            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-accent">&#10003;</span>
-            <span class="text-text/70">Generation</span>
-            <span class="ml-auto text-muted text-xs">commodity</span>
+          <div class="flex-1">
+            <span class="text-sm font-medium" style="color: #CBD5E1;">Reasoning</span>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-accent">&#10003;</span>
-            <span class="text-text/70">Tool calling</span>
-            <span class="ml-auto text-muted text-xs">commodity</span>
+          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
+            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
           </div>
-          <div class="border-t border-border/40 pt-3 mt-3">
-            <div class="flex items-center gap-3">
-              <span class="text-red">&#10007;</span>
-              <span class="text-text font-medium">Memory</span>
-              <span class="ml-auto text-accent text-xs font-semibold">your edge</span>
-            </div>
+          <div class="flex-1">
+            <span class="text-sm font-medium" style="color: #CBD5E1;">Generation</span>
           </div>
+          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
+            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm font-medium" style="color: #CBD5E1;">Tool calling</span>
+          </div>
+          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
+        </div>
+
+        <!-- The edge -->
+        <div class="flex items-center gap-4 rounded-xl p-4 relative" style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2);">
+          <div class="absolute inset-0 rounded-xl pointer-events-none" style="box-shadow: 0 0 40px rgba(245,158,11,0.08);"></div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(245,158,11,0.15);">
+            <svg class="w-5 h-5" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm font-semibold" style="color: #F8FAFC;">Memory</span>
+          </div>
+          <span class="font-mono text-xs px-2.5 py-1 rounded-full font-semibold" style="background: rgba(245,158,11,0.15); color: #F59E0B;">your edge</span>
         </div>
       </div>
     </div>
@@ -55,86 +80,86 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- Section 2: Stock Memory Is Already Too Late                    -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-24 md:py-32 border-t border-border/50">
-  <div class="mx-auto max-w-4xl px-6">
-    <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">The problem</p>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-8 leading-tight">
+<section class="py-28 md:py-36 relative overflow-hidden">
+  <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+
+  <div class="relative mx-auto max-w-5xl px-6">
+    <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F87171; opacity: 0.7;">The problem</p>
+    <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight" style="color: #F8FAFC;">
       Stock memory is already<br/>
-      <span class="text-red">too late.</span>
+      <span style="color: #F87171;">too late.</span>
     </h2>
-    <p class="text-lg text-text/80 leading-relaxed mb-10 max-w-2xl">
-      Every vector database gives you one strategy: similarity search. One knob: top-k. No evals, no domain profiling, no self-improvement. Your competitor is tuning retrieval with measured eval loops while you're doing vanilla cosine similarity. The gap is non-linear.
+    <p class="text-lg leading-relaxed mb-14 max-w-2xl" style="color: #94A3B8;">
+      Every vector database gives you one strategy: similarity search. One knob: top-k. No evals, no domain profiling, no self-improvement. The gap is non-linear.
     </p>
 
-    <!-- Comparison -->
+    <!-- Side-by-side comparison -->
     <div class="grid md:grid-cols-2 gap-6">
       <!-- Stock -->
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-6 relative overflow-hidden">
-        <div class="absolute top-0 right-0 px-3 py-1 rounded-bl-lg text-[10px] font-mono uppercase tracking-wider" style="background: rgba(185,28,28,0.08); color: #B91C1C;">generic</div>
-        <p class="font-mono text-sm text-muted mb-4">Standard RAG / Vector DB</p>
-        <ul class="space-y-2.5 text-sm text-text/70">
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>Similarity search only</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>No temporal reasoning</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>No causal chains</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>No domain tuning</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>No contradiction detection</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-muted mt-0.5">&#8226;</span>
-            <span>Retrieval quality: static, never improves</span>
-          </li>
-        </ul>
-        <div class="mt-6 pt-4 border-t border-border/40 font-mono text-xs text-muted">
-          Every query: <code class="text-text/60">SELECT * WHERE cosine &gt; 0.7 LIMIT k</code>
+      <div class="rounded-2xl p-8 relative" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);">
+        <div class="absolute top-4 right-4">
+          <span class="font-mono text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-full" style="background: rgba(248,113,113,0.1); color: #F87171;">generic</span>
+        </div>
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-6" style="background: rgba(100,116,139,0.1);">
+          <svg class="w-6 h-6" style="color: #475569;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <p class="font-mono text-sm mb-5" style="color: #64748B;">Standard RAG / Vector DB</p>
+        <div class="space-y-3.5">
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> Similarity search only
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> No temporal reasoning
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> No causal chains
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> No domain tuning
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> No contradiction detection
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #64748B;">
+            <span style="color: #334155;">&#10005;</span> Retrieval: static forever
+          </div>
+        </div>
+        <div class="mt-8 pt-5 font-mono text-xs" style="border-top: 1px solid rgba(255,255,255,0.04); color: #334155;">
+          cosine &gt; 0.7 LIMIT k &mdash; every query, forever
         </div>
       </div>
 
       <!-- HEBBS -->
-      <div class="rounded-xl border p-6 relative overflow-hidden" style="border-color: rgba(180,83,9,0.3); background: rgba(180,83,9,0.04);">
-        <div class="absolute top-0 right-0 px-3 py-1 rounded-bl-lg text-[10px] font-mono uppercase tracking-wider" style="background: rgba(245,158,11,0.1); color: #D97706;">tuned for you</div>
-        <p class="font-mono text-sm text-accent mb-4">HEBBS</p>
-        <ul class="space-y-2.5 text-sm text-text/90">
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>4 strategies: similarity + temporal + causal + analogical</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>"What happened in order?" &mdash; temporal recall</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>"What caused this?" &mdash; causal chain traversal</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>Domain-profiled, eval-tuned, self-improving</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>Contradictions surface automatically</span>
-          </li>
-          <li class="flex items-start gap-2.5">
-            <span class="text-accent mt-0.5">&#10003;</span>
-            <span>Retrieval quality: compounds every tune cycle</span>
-          </li>
-        </ul>
-        <div class="mt-6 pt-4 border-t font-mono text-xs" style="border-color: rgba(180,83,9,0.2); color: #92400E;">
-          Every query: strategy-selected, weight-tuned, domain-aware
+      <div class="rounded-2xl p-8 relative" style="background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.15); box-shadow: 0 0 60px rgba(245,158,11,0.05);">
+        <div class="absolute top-4 right-4">
+          <span class="font-mono text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-full" style="background: rgba(245,158,11,0.12); color: #F59E0B;">tuned for you</span>
+        </div>
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-6" style="background: rgba(245,158,11,0.1);">
+          <svg class="w-6 h-6" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <p class="font-mono text-sm mb-5" style="color: #F59E0B;">HEBBS</p>
+        <div class="space-y-3.5">
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #F59E0B;">&#10003;</span> 4 strategies: similarity + temporal + causal + analogical
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #67E8F9;">&#10003;</span> "What happened in order?" &mdash; temporal
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #34D399;">&#10003;</span> "What caused this?" &mdash; causal chains
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #A78BFA;">&#10003;</span> Domain-profiled, eval-tuned, self-improving
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #F87171;">&#10003;</span> Contradictions surface automatically
+          </div>
+          <div class="flex items-center gap-3 text-sm" style="color: #CBD5E1;">
+            <span style="color: #FBBF24;">&#10003;</span> Retrieval: compounds every tune cycle
+          </div>
+        </div>
+        <div class="mt-8 pt-5 font-mono text-xs" style="border-top: 1px solid rgba(245,158,11,0.1); color: #92400E;">
+          strategy-selected &middot; weight-tuned &middot; domain-aware
         </div>
       </div>
     </div>
@@ -144,98 +169,130 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- Section 3: It Adapts to You                                    -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-24 md:py-32 border-t border-border/50">
-  <div class="mx-auto max-w-4xl px-6">
-    <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">Self-tuning</p>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-8 leading-tight">
+<section class="py-28 md:py-36 relative overflow-hidden">
+  <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+  <!-- Ambient glow -->
+  <div class="absolute top-1/2 left-0 w-[400px] h-[400px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(103,232,249,0.05) 0%, transparent 70%); transform: translate(-30%, -50%);"></div>
+
+  <div class="relative mx-auto max-w-5xl px-6">
+    <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #67E8F9; opacity: 0.7;">Self-tuning</p>
+    <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight text-center" style="color: #F8FAFC;">
       It adapts to you.<br/>
-      <span class="text-muted">Not the other way around.</span>
+      <span style="color: #64748B;">Not the other way around.</span>
     </h2>
-    <p class="text-lg text-text/80 leading-relaxed mb-12 max-w-2xl">
-      HEBBS profiles your domain, generates evals from your data, measures baseline recall, diagnoses failures, tunes parameters, and compiles learned rules. Switch your LLM, change your agent &mdash; the memory adapts.
+    <p class="text-lg leading-relaxed mb-16 max-w-2xl text-center mx-auto" style="color: #94A3B8;">
+      HEBBS profiles your domain, generates evals, measures baseline, diagnoses failures, tunes parameters, and compiles learned rules. Switch your LLM &mdash; the memory adapts.
     </p>
 
-    <!-- Tuning loop visualization -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-5 text-center">
-        <div class="text-2xl mb-2" style="color: #F59E0B;">01</div>
-        <p class="font-mono text-xs text-muted uppercase tracking-wider mb-1">Profile</p>
-        <p class="text-sm text-text/70">Classify domain, map query patterns</p>
+    <!-- Tuning loop: connected pipeline -->
+    <div class="relative">
+      <!-- Connecting line -->
+      <div class="hidden md:block absolute top-[52px] left-[12.5%] right-[12.5%] h-px" style="background: linear-gradient(90deg, #F59E0B, #67E8F9, #34D399, #A78BFA);opacity:0.2;"></div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+        <div class="rounded-2xl p-6 text-center relative" style="background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.12);">
+          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 relative" style="background: rgba(245,158,11,0.1); box-shadow: 0 0 20px rgba(245,158,11,0.1);">
+            <span class="font-mono text-lg font-bold" style="color: #F59E0B;">01</span>
+          </div>
+          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #F59E0B;">Profile</p>
+          <p class="text-sm" style="color: #94A3B8;">Classify domain, map query patterns</p>
+        </div>
+
+        <div class="rounded-2xl p-6 text-center" style="background: rgba(103,232,249,0.03); border: 1px solid rgba(103,232,249,0.1);">
+          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(103,232,249,0.1); box-shadow: 0 0 20px rgba(103,232,249,0.08);">
+            <span class="font-mono text-lg font-bold" style="color: #67E8F9;">02</span>
+          </div>
+          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #67E8F9;">Evaluate</p>
+          <p class="text-sm" style="color: #94A3B8;">Domain evals, real keywords, strict match</p>
+        </div>
+
+        <div class="rounded-2xl p-6 text-center" style="background: rgba(52,211,153,0.03); border: 1px solid rgba(52,211,153,0.1);">
+          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(52,211,153,0.1); box-shadow: 0 0 20px rgba(52,211,153,0.08);">
+            <span class="font-mono text-lg font-bold" style="color: #34D399;">03</span>
+          </div>
+          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #34D399;">Tune</p>
+          <p class="text-sm" style="color: #94A3B8;">Fix k, strategy, weights, cue expansion</p>
+        </div>
+
+        <div class="rounded-2xl p-6 text-center" style="background: rgba(167,139,250,0.03); border: 1px solid rgba(167,139,250,0.1);">
+          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(167,139,250,0.1); box-shadow: 0 0 20px rgba(167,139,250,0.08);">
+            <span class="font-mono text-lg font-bold" style="color: #A78BFA;">04</span>
+          </div>
+          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #A78BFA;">Compile</p>
+          <p class="text-sm" style="color: #94A3B8;">Rules file loads before every conversation</p>
+        </div>
       </div>
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-5 text-center">
-        <div class="text-2xl mb-2" style="color: #67E8F9;">02</div>
-        <p class="font-mono text-xs text-muted uppercase tracking-wider mb-1">Evaluate</p>
-        <p class="text-sm text-text/70">Domain-specific evals, real keywords</p>
-      </div>
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-5 text-center">
-        <div class="text-2xl mb-2" style="color: #34D399;">03</div>
-        <p class="font-mono text-xs text-muted uppercase tracking-wider mb-1">Tune</p>
-        <p class="text-sm text-text/70">Fix k, strategy, weights, cue expansion</p>
-      </div>
-      <div class="rounded-xl border border-border/60 bg-surface/40 p-5 text-center">
-        <div class="text-2xl mb-2" style="color: #A78BFA;">04</div>
-        <p class="font-mono text-xs text-muted uppercase tracking-wider mb-1">Compile</p>
-        <p class="text-sm text-text/70">Rules file loads before every conversation</p>
+
+      <!-- Repeat indicator -->
+      <div class="flex justify-center mt-8">
+        <div class="flex items-center gap-3 rounded-full px-6 py-2.5" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+          <svg class="w-4 h-4" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span class="font-mono text-xs" style="color: #94A3B8;">Repeat when content changes, models change, or retrieval misses</span>
+        </div>
       </div>
     </div>
-
-    <!-- Connectors between steps -->
-    <div class="hidden md:flex justify-center items-center gap-2 mb-12 font-mono text-xs text-muted">
-      <span>Profile</span>
-      <span class="text-accent">&rarr;</span>
-      <span>Evaluate</span>
-      <span class="text-accent">&rarr;</span>
-      <span>Tune</span>
-      <span class="text-accent">&rarr;</span>
-      <span>Compile</span>
-      <span class="text-accent">&rarr;</span>
-      <span class="text-accent font-semibold">repeat when needed</span>
-    </div>
-
-    <p class="text-sm text-muted text-center">
-      First pass: biggest gains. Subsequent passes: refinement. The memory system learns how to be used.
-    </p>
   </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- Section 4: The Edge (75% → 94%)                                -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-24 md:py-32 border-t border-border/50">
-  <div class="mx-auto max-w-4xl px-6 text-center">
-    <p class="text-xs font-mono text-accent uppercase tracking-wider mb-4">The result</p>
-    <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-6">
+<section class="py-28 md:py-36 relative overflow-hidden">
+  <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+  <!-- Big ambient glow behind the numbers -->
+  <div class="absolute top-1/2 left-1/2 w-[700px] h-[700px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(52,211,153,0.06) 0%, rgba(245,158,11,0.03) 40%, transparent 70%); transform: translate(-50%, -50%);"></div>
+
+  <div class="relative mx-auto max-w-5xl px-6 text-center">
+    <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #34D399; opacity: 0.7;">The result</p>
+    <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-3" style="color: #F8FAFC;">
       Same model. Same data.
     </h2>
-    <p class="text-xl text-muted mb-16">Different memory engine.</p>
+    <p class="text-xl mb-20" style="color: #64748B;">Different memory engine.</p>
 
-    <!-- Before/After -->
-    <div class="flex items-center justify-center gap-6 md:gap-12 mb-12">
+    <!-- Dramatic before/after -->
+    <div class="flex items-center justify-center gap-8 md:gap-16 mb-16">
       <div class="text-center">
-        <div class="font-mono text-6xl md:text-8xl font-bold" style="color: rgba(185,28,28,0.7);">75%</div>
-        <p class="font-mono text-xs text-muted mt-2 uppercase tracking-wider">stock retrieval</p>
+        <div class="font-mono font-bold leading-none mb-3" style="font-size: clamp(64px, 12vw, 120px); color: rgba(248,113,113,0.6);" data-counter="75">75<span style="font-size: 0.5em;">%</span></div>
+        <p class="font-mono text-xs uppercase tracking-widest" style="color: #475569;">stock retrieval</p>
       </div>
-      <div class="flex flex-col items-center gap-1">
-        <svg class="w-8 h-8 md:w-12 md:h-12 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-        </svg>
-        <span class="font-mono text-[10px] text-accent uppercase tracking-wider">tuned</span>
+
+      <div class="flex flex-col items-center gap-2">
+        <div class="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">
+          <svg class="w-8 h-8 md:w-10 md:h-10" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+          </svg>
+        </div>
+        <span class="font-mono text-[10px] uppercase tracking-widest" style="color: #F59E0B;">tuned</span>
       </div>
+
       <div class="text-center">
-        <div class="font-mono text-6xl md:text-8xl font-bold" style="color: #34D399;">94%</div>
-        <p class="font-mono text-xs text-muted mt-2 uppercase tracking-wider">HEBBS retrieval</p>
+        <div class="font-mono font-bold leading-none mb-3" style="font-size: clamp(64px, 12vw, 120px); color: #34D399;" data-counter="94">94<span style="font-size: 0.5em;">%</span></div>
+        <p class="font-mono text-xs uppercase tracking-widest" style="color: #475569;">HEBBS retrieval</p>
       </div>
     </div>
 
-    <p class="text-muted max-w-lg mx-auto leading-relaxed mb-8">
-      Strict keyword recall. No fuzzy matching, no partial credit. The difference isn't the embedding model or the LLM. It's the memory engine. <span class="text-text font-medium">+19 percentage points is the edge.</span>
+    <!-- Context bar -->
+    <div class="inline-flex flex-wrap items-center justify-center gap-4 rounded-2xl px-8 py-5" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full" style="background: #F59E0B;"></div>
+        <span class="font-mono text-xs" style="color: #94A3B8;">GPT-4o + OpenAI embeddings</span>
+      </div>
+      <span style="color: #1E293B;">|</span>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full" style="background: #67E8F9;"></div>
+        <span class="font-mono text-xs" style="color: #94A3B8;">Strict keyword recall</span>
+      </div>
+      <span style="color: #1E293B;">|</span>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full" style="background: #34D399;"></div>
+        <span class="font-mono text-xs" style="color: #94A3B8;">Agent-tuned in 60 seconds</span>
+      </div>
+    </div>
+
+    <p class="mt-10 text-sm" style="color: #475569;">
+      +19 percentage points. Not by changing the LLM. By tuning how the agent retrieves.
     </p>
-
-    <div class="inline-flex items-center gap-3 rounded-xl border border-border/60 bg-surface/40 px-6 py-3 font-mono text-sm text-muted">
-      <span>Benchmark:</span>
-      <span class="text-text">GPT-4o + OpenAI embeddings (1536d)</span>
-      <span class="text-border">|</span>
-      <span>Agent-tuned in 60 seconds</span>
-    </div>
   </div>
 </section>
+
+</div>
