@@ -171,8 +171,8 @@
         vec2 d = uvA - tp;
         float dist2 = dot(d, d);
 
-        // Wide gaussian blob per trail point — radius grows slightly with age
-        float radius = 12.0 - age * 4.0; // tighter when new, wider as it ages
+        // Wide gaussian blob — much larger radius for liquid feel
+        float radius = 3.0 - age * 1.0; // wide blobs that spread as they age
         float blob = exp(-dist2 * radius) * fade;
 
         intensity += blob;
@@ -249,8 +249,8 @@
       // ── Stock side ──
       vec3 stockColor = vec3(0.06, 0.06, 0.10);
       stockColor += 0.02 + tileRand * 0.015;
-      // Even stock side reacts slightly to mouse (subtle ripple)
-      stockColor += vec3(0.03, 0.04, 0.06) * tileFluid * 0.3;
+      // Stock side fully reacts to mouse — fluid works everywhere
+      stockColor += vec3(0.06, 0.08, 0.14) * tileFluid * 0.8;
 
       // ── HEBBS side ──
       vec3 hebbsBase = vec3(0.03, 0.04, 0.07);
@@ -280,17 +280,21 @@
       // Color shifts along the trail (newer=amber, older=cyan→green)
       vec3 fluidCol = mix(amber, cyan, fluidColorAge);
       fluidCol = mix(fluidCol, green, flow2 * 0.3);
-      hebbsColor += fluidCol * fluid * 0.5 * hebbsMix;
+      hebbsColor += fluidCol * fluid * 0.6;
 
       // ══════════════════════════════════════════════
       // 5. COMPOSE
       // ══════════════════════════════════════════════
+      // Fluid overlay on stock side too (dimmer amber)
+      vec3 stockFluidCol = mix(amber * 0.5, cyan * 0.3, fluidColorAge);
+      stockColor += stockFluidCol * fluid * 0.4;
+
       vec3 color = mix(stockColor, hebbsColor, hebbsMix);
       color *= tileMask;
 
-      // Gap energy: fluid bleeds through tile gaps
-      float gapGlow = (1.0 - tileMask) * hebbsMix * (0.01 + fluid * 0.06);
-      vec3 gapColor = fluidCol * gapGlow;
+      // Gap energy: fluid bleeds through tile gaps everywhere
+      float gapGlow = (1.0 - tileMask) * (0.008 + fluid * 0.08);
+      vec3 gapColor = mix(stockFluidCol, fluidCol, hebbsMix) * gapGlow;
       color += gapColor;
 
       // Vignette
@@ -358,8 +362,8 @@
   // ── Trail state ──
   // Each entry: { x, y, time } — mouse position when recorded
   var trail = [];
-  var TRAIL_LIFETIME = 4.0; // seconds before a trail point fully fades
-  var TRAIL_SAMPLE_DIST = 0.008; // min distance between trail samples
+  var TRAIL_LIFETIME = 2.0; // seconds before a trail point fully fades
+  var TRAIL_SAMPLE_DIST = 0.004; // min distance between trail samples (denser = smoother)
   var mouseX = -1, mouseY = -1;
   var mouseActive = false;
   var startTime = performance.now();
