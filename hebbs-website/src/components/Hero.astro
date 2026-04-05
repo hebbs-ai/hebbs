@@ -164,15 +164,15 @@
         vec2 tp = vec2(u_trail[i].x * aspect, u_trail[i].y);
         float age = u_trailAge[i]; // 0=newest, 1=oldest
 
-        // Fade: newer points are stronger
-        float fade = pow(1.0 - age, 1.5);
+        // Steep fade — drops off fast for snappy feel
+        float fade = pow(1.0 - age, 3.0);
         if (fade < 0.01) continue;
 
         vec2 d = uvA - tp;
         float dist2 = dot(d, d);
 
-        // Wide gaussian blob — much larger radius for liquid feel
-        float radius = 3.0 - age * 1.0; // wide blobs that spread as they age
+        // Tighter blobs — fluid ribbon, not a flood
+        float radius = 18.0 + age * 8.0; // tight when new, slightly wider as fading
         float blob = exp(-dist2 * radius) * fade;
 
         intensity += blob;
@@ -362,7 +362,7 @@
   // ── Trail state ──
   // Each entry: { x, y, time } — mouse position when recorded
   var trail = [];
-  var TRAIL_LIFETIME = 2.0; // seconds before a trail point fully fades
+  var TRAIL_LIFETIME = 0.5; // seconds — fast fade for snappy fluid feel
   var TRAIL_SAMPLE_DIST = 0.004; // min distance between trail samples (denser = smoother)
   var mouseX = -1, mouseY = -1;
   var mouseActive = false;
@@ -451,16 +451,7 @@
     mouseActive = true;
   }, { passive: false });
 
-  // Seed with a default idle animation trail (gentle arc)
-  var seedNow = 0;
-  for (var i = 0; i < 20; i++) {
-    var angle = i * 0.15;
-    trail.push({
-      x: 0.6 + Math.cos(angle) * 0.12,
-      y: 0.5 + Math.sin(angle) * 0.08,
-      time: seedNow - TRAIL_LIFETIME * (1 - i / 20) // staggered ages
-    });
-  }
+  // No seed trail — starts clean, reacts only to mouse
 
   resize();
   render();
