@@ -1144,24 +1144,36 @@ async fn dispatch_command(
             let idx_snap = indexing_progress.lock().await.get(&vault_path).cloned();
             match crate::status(&vault_path) {
                 Ok(s) => {
-                    // Count actual memories: document + proposition memories from manifest
-                    let total_memories = {
-                        let hebbs_dir = vault_path.join(".hebbs");
-                        if let Ok(manifest) = crate::manifest::Manifest::load(&hebbs_dir) {
-                            manifest
-                                .files
-                                .values()
-                                .map(|f| {
-                                    let doc = if f.document_memory_id.is_some() {
-                                        1usize
-                                    } else {
-                                        0
-                                    };
-                                    doc + f.proposition_memory_ids.len()
-                                })
-                                .sum::<usize>()
-                        } else {
-                            s.synced
+                    // Count actual memories from engine (includes both file-indexed
+                    // and API-remembered memories). Falls back to manifest count
+                    // if the engine isn't open.
+                    let total_memories = match vault_manager
+                        .lock()
+                        .await
+                        .get_or_open(&vault_path)
+                    {
+                        Ok((engine, _, _)) => engine.count().unwrap_or(s.synced),
+                        Err(_) => {
+                            // Engine not available, fall back to manifest count
+                            let hebbs_dir = vault_path.join(".hebbs");
+                            if let Ok(manifest) =
+                                crate::manifest::Manifest::load(&hebbs_dir)
+                            {
+                                manifest
+                                    .files
+                                    .values()
+                                    .map(|f| {
+                                        let doc = if f.document_memory_id.is_some() {
+                                            1usize
+                                        } else {
+                                            0
+                                        };
+                                        doc + f.proposition_memory_ids.len()
+                                    })
+                                    .sum::<usize>()
+                            } else {
+                                s.synced
+                            }
                         }
                     };
                     let mut resp = serde_json::json!({
