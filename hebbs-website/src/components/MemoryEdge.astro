@@ -1,5 +1,5 @@
 ---
-// Narrative arc: Best Agents Build Memory → Stock Memory Too Late → It Adapts → The Edge
+// Narrative arc: Auto-tune → TurboQuant → Stock vs HEBBS → Tuning Loop → Proof
 // Full dark theme to continue hero energy
 ---
 
@@ -7,70 +7,77 @@
 <div style="color: #E2E8F0;">
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- Section 1: Best Agents Build Memory                             -->
+<!-- Section 1: Auto-tune (the dream — first scroll)                -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #050510 0%, #0a0e1c 100%);">
   <!-- Ambient glow -->
-  <div class="absolute top-1/2 right-0 w-[500px] h-[500px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%); transform: translate(30%, -50%);"></div>
+  <div class="absolute top-1/2 left-0 w-[500px] h-[500px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%); transform: translate(-30%, -50%);"></div>
 
   <div class="relative mx-auto max-w-5xl px-6">
     <div class="grid md:grid-cols-2 gap-16 items-center">
       <div>
-        <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F59E0B; opacity: 0.7;">The shift</p>
+        <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #F59E0B; opacity: 0.7;">Auto-tune</p>
         <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight" style="color: #F8FAFC;">
-          The best agents don't<br/>cram context.<br/>
-          <span style="color: #64748B;">They build memory.</span>
+          Win your evals.<br/>
+          <span style="color: #64748B;">Not generic benchmarks.</span>
         </h2>
         <p class="text-lg leading-relaxed mb-6" style="color: #94A3B8;">
-          Dumping files into a 128k window isn't memory. It's expensive, slow, and never improves.
+          HEBBS profiles your domain, generates evals from your actual data, and tunes retrieval until your agent wins. Every conversation sharpens the next.
         </p>
         <p class="text-lg leading-relaxed" style="color: #94A3B8;">
-          Real memory is selective. It surfaces what's relevant, discards what isn't, and <strong style="color: #F8FAFC;">sharpens with every conversation</strong>.
+          The best agents don't cram context. They reason over <strong style="color: #F8FAFC;">relevant memory that refines itself</strong>.
         </p>
       </div>
 
-      <!-- Visual: Commodity vs Edge -->
+      <!-- Visual: Auto-tune pipeline -->
       <div class="space-y-3">
-        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
-            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          </div>
-          <div class="flex-1">
-            <span class="text-sm font-medium" style="color: #CBD5E1;">Reasoning</span>
-          </div>
-          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
-        </div>
-
-        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
-            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          </div>
-          <div class="flex-1">
-            <span class="text-sm font-medium" style="color: #CBD5E1;">Generation</span>
-          </div>
-          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
-        </div>
-
-        <div class="flex items-center gap-4 rounded-xl p-4" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(100,116,139,0.15);">
-            <svg class="w-5 h-5" style="color: #64748B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>
-          </div>
-          <div class="flex-1">
-            <span class="text-sm font-medium" style="color: #CBD5E1;">Tool calling</span>
-          </div>
-          <span class="font-mono text-xs px-2.5 py-1 rounded-full" style="background: rgba(100,116,139,0.15); color: #64748B;">commodity</span>
-        </div>
-
-        <!-- The edge -->
         <div class="flex items-center gap-4 rounded-xl p-4 relative" style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2);">
-          <div class="absolute inset-0 rounded-xl pointer-events-none" style="box-shadow: 0 0 40px rgba(245,158,11,0.08);"></div>
+          <div class="absolute inset-0 rounded-xl pointer-events-none" style="box-shadow: 0 0 30px rgba(245,158,11,0.06);"></div>
           <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(245,158,11,0.15);">
-            <svg class="w-5 h-5" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span class="font-mono text-sm font-bold" style="color: #F59E0B;">01</span>
           </div>
           <div class="flex-1">
-            <span class="text-sm font-semibold" style="color: #F8FAFC;">Memory</span>
+            <span class="text-sm font-semibold" style="color: #F8FAFC;">Profile your domain</span>
+            <p class="text-xs mt-0.5" style="color: #64748B;">Classify data shape, map query patterns</p>
           </div>
-          <span class="font-mono text-xs px-2.5 py-1 rounded-full font-semibold" style="background: rgba(245,158,11,0.15); color: #F59E0B;">your edge</span>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-xl p-4 relative" style="background: rgba(103,232,249,0.04); border: 1px solid rgba(103,232,249,0.15);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(103,232,249,0.12);">
+            <span class="font-mono text-sm font-bold" style="color: #67E8F9;">02</span>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm font-semibold" style="color: #F8FAFC;">Generate evals from your data</span>
+            <p class="text-xs mt-0.5" style="color: #64748B;">Real keywords, real queries, strict match</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-xl p-4 relative" style="background: rgba(52,211,153,0.04); border: 1px solid rgba(52,211,153,0.15);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(52,211,153,0.12);">
+            <span class="font-mono text-sm font-bold" style="color: #34D399;">03</span>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm font-semibold" style="color: #F8FAFC;">Tune until you win</span>
+            <p class="text-xs mt-0.5" style="color: #64748B;">Strategy, weights, k, cue expansion</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-xl p-4 relative" style="background: rgba(167,139,250,0.04); border: 1px solid rgba(167,139,250,0.15);">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background: rgba(167,139,250,0.12);">
+            <span class="font-mono text-sm font-bold" style="color: #A78BFA;">04</span>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm font-semibold" style="color: #F8FAFC;">Compile and deploy</span>
+            <p class="text-xs mt-0.5" style="color: #64748B;">Learned rules load before every conversation</p>
+          </div>
+        </div>
+
+        <!-- Repeat indicator -->
+        <div class="flex justify-center pt-2">
+          <div class="flex items-center gap-2 rounded-full px-4 py-1.5" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+            <svg class="w-3.5 h-3.5" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span class="font-mono text-[10px]" style="color: #64748B;">Repeats on every content or model change</span>
+          </div>
         </div>
       </div>
     </div>
@@ -78,9 +85,89 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- Section 2: Stock Memory Is Already Too Late                    -->
+<!-- Section 2: TurboQuant (the how — second scroll)                -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #0a0e1c 0%, #10141f 50%, #0d1018 100%);">
+<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #0a0e1c 0%, #0d1018 100%);">
+  <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
+  <!-- Ambient glow -->
+  <div class="absolute top-1/2 right-0 w-[500px] h-[500px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(103,232,249,0.05) 0%, transparent 70%); transform: translate(30%, -50%);"></div>
+
+  <div class="relative mx-auto max-w-5xl px-6">
+    <div class="grid md:grid-cols-2 gap-16 items-center">
+      <!-- Visual: Compression -->
+      <div class="order-2 md:order-1">
+        <div class="rounded-2xl p-8 relative" style="background: rgba(103,232,249,0.03); border: 1px solid rgba(103,232,249,0.1);">
+          <!-- Before/after compression visual -->
+          <div class="space-y-6">
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-mono text-xs uppercase tracking-widest" style="color: #64748B;">Standard embeddings</span>
+                <span class="font-mono text-xs" style="color: #64748B;">1536 dim &middot; f32</span>
+              </div>
+              <div class="h-3 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.05);">
+                <div class="h-full rounded-full" style="width: 100%; background: rgba(248,113,113,0.4);"></div>
+              </div>
+              <p class="font-mono text-xs mt-2 text-right" style="color: #475569;">6 KB per memory</p>
+            </div>
+
+            <!-- Arrow -->
+            <div class="flex justify-center">
+              <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: rgba(103,232,249,0.08); border: 1px solid rgba(103,232,249,0.2);">
+                <svg class="w-5 h-5" style="color: #67E8F9;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <span class="font-mono text-xs uppercase tracking-widest" style="color: #67E8F9;">TurboQuant</span>
+                <span class="font-mono text-xs" style="color: #67E8F9;">binary quantized</span>
+              </div>
+              <div class="h-3 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.05);">
+                <div class="h-full rounded-full" style="width: 10%; background: linear-gradient(90deg, #67E8F9, #34D399);"></div>
+              </div>
+              <p class="font-mono text-xs mt-2 text-right" style="color: #67E8F9;">192 bytes per memory</p>
+            </div>
+          </div>
+
+          <!-- Stats row -->
+          <div class="grid grid-cols-3 gap-4 mt-8 pt-6" style="border-top: 1px solid rgba(103,232,249,0.1);">
+            <div class="text-center">
+              <div class="font-mono text-2xl font-bold" style="color: #67E8F9;">32x</div>
+              <p class="font-mono text-[10px] uppercase tracking-widest mt-1" style="color: #475569;">smaller</p>
+            </div>
+            <div class="text-center">
+              <div class="font-mono text-2xl font-bold" style="color: #34D399;">&lt;2%</div>
+              <p class="font-mono text-[10px] uppercase tracking-widest mt-1" style="color: #475569;">recall loss</p>
+            </div>
+            <div class="text-center">
+              <div class="font-mono text-2xl font-bold" style="color: #F59E0B;">10M+</div>
+              <p class="font-mono text-[10px] uppercase tracking-widest mt-1" style="color: #475569;">memories</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="order-1 md:order-2">
+        <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #67E8F9; opacity: 0.7;">TurboQuant</p>
+        <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight" style="color: #F8FAFC;">
+          Store more.<br/>
+          <span style="color: #64748B;">Pay less. Lose nothing.</span>
+        </h2>
+        <p class="text-lg leading-relaxed mb-6" style="color: #94A3B8;">
+          TurboQuant compresses embeddings to a fraction of their original size while preserving recall quality. Millions of memories fit where thousands used to.
+        </p>
+        <p class="text-lg leading-relaxed" style="color: #94A3B8;">
+          Less storage, less bandwidth, less cost. <strong style="color: #F8FAFC;">Same retrieval precision.</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Section 3: Stock Memory vs HEBBS                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #0d1018 0%, #10141f 50%, #0d1018 100%);">
   <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
 
   <div class="relative mx-auto max-w-5xl px-6">
@@ -167,77 +254,9 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- Section 3: It Adapts to You                                    -->
+<!-- Section 4: The Proof (75% to 94%)                              -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #0d1018 0%, #080c16 100%);">
-  <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
-  <!-- Ambient glow -->
-  <div class="absolute top-1/2 left-0 w-[400px] h-[400px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(103,232,249,0.05) 0%, transparent 70%); transform: translate(-30%, -50%);"></div>
-
-  <div class="relative mx-auto max-w-5xl px-6">
-    <p class="font-mono text-xs uppercase tracking-[4px] mb-6" style="color: #67E8F9; opacity: 0.7;">Self-tuning</p>
-    <h2 class="font-logo text-4xl md:text-5xl font-bold tracking-tight mb-8 leading-tight text-center" style="color: #F8FAFC;">
-      It adapts to you.<br/>
-      <span style="color: #64748B;">Not the other way around.</span>
-    </h2>
-    <p class="text-lg leading-relaxed mb-16 max-w-2xl text-center mx-auto" style="color: #94A3B8;">
-      HEBBS profiles your domain, generates evals, measures baseline, diagnoses failures, tunes parameters, and compiles learned rules. Switch your LLM &mdash; the memory adapts.
-    </p>
-
-    <!-- Tuning loop: connected pipeline -->
-    <div class="relative">
-      <!-- Connecting line -->
-      <div class="hidden md:block absolute top-[52px] left-[12.5%] right-[12.5%] h-px" style="background: linear-gradient(90deg, #F59E0B, #67E8F9, #34D399, #A78BFA);opacity:0.2;"></div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
-        <div class="rounded-2xl p-6 text-center relative" style="background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.12);">
-          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 relative" style="background: rgba(245,158,11,0.1); box-shadow: 0 0 20px rgba(245,158,11,0.1);">
-            <span class="font-mono text-lg font-bold" style="color: #F59E0B;">01</span>
-          </div>
-          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #F59E0B;">Profile</p>
-          <p class="text-sm" style="color: #94A3B8;">Classify domain, map query patterns</p>
-        </div>
-
-        <div class="rounded-2xl p-6 text-center" style="background: rgba(103,232,249,0.03); border: 1px solid rgba(103,232,249,0.1);">
-          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(103,232,249,0.1); box-shadow: 0 0 20px rgba(103,232,249,0.08);">
-            <span class="font-mono text-lg font-bold" style="color: #67E8F9;">02</span>
-          </div>
-          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #67E8F9;">Evaluate</p>
-          <p class="text-sm" style="color: #94A3B8;">Domain evals, real keywords, strict match</p>
-        </div>
-
-        <div class="rounded-2xl p-6 text-center" style="background: rgba(52,211,153,0.03); border: 1px solid rgba(52,211,153,0.1);">
-          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(52,211,153,0.1); box-shadow: 0 0 20px rgba(52,211,153,0.08);">
-            <span class="font-mono text-lg font-bold" style="color: #34D399;">03</span>
-          </div>
-          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #34D399;">Tune</p>
-          <p class="text-sm" style="color: #94A3B8;">Fix k, strategy, weights, cue expansion</p>
-        </div>
-
-        <div class="rounded-2xl p-6 text-center" style="background: rgba(167,139,250,0.03); border: 1px solid rgba(167,139,250,0.1);">
-          <div class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style="background: rgba(167,139,250,0.1); box-shadow: 0 0 20px rgba(167,139,250,0.08);">
-            <span class="font-mono text-lg font-bold" style="color: #A78BFA;">04</span>
-          </div>
-          <p class="font-mono text-xs uppercase tracking-widest mb-2" style="color: #A78BFA;">Compile</p>
-          <p class="text-sm" style="color: #94A3B8;">Rules file loads before every conversation</p>
-        </div>
-      </div>
-
-      <!-- Repeat indicator -->
-      <div class="flex justify-center mt-8">
-        <div class="flex items-center gap-3 rounded-full px-6 py-2.5" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-          <svg class="w-4 h-4" style="color: #F59E0B;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          <span class="font-mono text-xs" style="color: #94A3B8;">Repeat when content changes, models change, or retrieval misses</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- Section 4: The Edge (75% → 94%)                                -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #080c16 0%, #0c1424 50%, #0f172a 100%);">
+<section class="py-28 md:py-36 relative overflow-hidden" style="background: linear-gradient(180deg, #0d1018 0%, #0c1424 50%, #0f172a 100%);">
   <div class="absolute top-0 left-0 right-0 h-px" style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);"></div>
   <!-- Big ambient glow behind the numbers -->
   <div class="absolute top-1/2 left-1/2 w-[700px] h-[700px] rounded-full pointer-events-none" style="background: radial-gradient(circle, rgba(52,211,153,0.06) 0%, rgba(245,158,11,0.03) 40%, transparent 70%); transform: translate(-50%, -50%);"></div>
